@@ -105,6 +105,15 @@ responde pelo sigilo do documento.
 <span class="tarja" style="--cor-entidade: var(--color-entity-cpf)">123.456.789-09</span>
 ```
 
+### Seletor de política
+
+A escolha de como o dado é substituído ganha uma tela inteira em vez de um
+menu suspenso, porque a diferença entre as opções é a diferença entre um
+documento que pode circular e um que ainda permite reidentificar alguém. Cada
+opção mostra **o resultado concreto** (`[PESSOA_1]`, `J**** d* S****`,
+`*************`), não só o nome — ninguém deveria precisar processar um
+documento para descobrir o que escolheu.
+
 ### `.marcacao`
 
 Alternativa leve, para quando o objetivo é localizar sem esconder: fundo
@@ -139,3 +148,7 @@ O texto da interface é design, não decoração.
 - **Sem inglês solto.** "Baixar cópia", não "Download".
 - **Sem prometer o que não se cumpre.** Se a máscara é parcial, a interface não
   diz que o dado foi removido.
+- **Diga o que custa tempo, e por quê.** "Documentos digitalizados passam por
+  reconhecimento de texto antes da anonimização. Isso leva alguns segundos por
+  página, e roda inteiramente nesta máquina." Explica a espera e reafirma o
+  que importa, numa frase.

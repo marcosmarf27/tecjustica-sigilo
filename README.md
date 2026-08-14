@@ -74,8 +74,27 @@ grau de confiança**, e um clique leva até o trecho no texto.
 Achou um falso positivo? **"Não é PII"** grava a exceção e ela vale já no
 próximo processamento, sem reiniciar o app.
 
+### 📄 Lê PDF, Word e imagem digitalizada
+Arraste os autos como eles saem do PJe. Páginas digitalizadas passam por
+reconhecimento de texto **na sua máquina** — PDFium para o texto nativo e
+Tesseract para o resto, com os dados de idioma empacotados junto para não
+depender de internet nem na primeira execução.
+
+Formatos: `.pdf`, `.docx`, `.xlsx`, `.pptx`, imagens (`.png`, `.jpg`, `.tif`…),
+além de `.txt`, `.md` e `.rtf`.
+
+### 🎚️ Você escolhe como substituir
+Três políticas, com o resultado à vista na hora de escolher:
+
+| | Saída | Quando usar |
+|---|---|---|
+| **Marcador** | `[PESSOA_1]`, `[CPF_1]` | Nada do dado permanece. A numeração é estável, então dá para acompanhar quem é quem. |
+| **Máscara parcial** | `J**** d* S****` | Conferência visual rápida — ao custo de manter iniciais e dígitos. |
+| **Cobertura total** | `*************` | Esconde inclusive o formato. |
+
 ### 💻 Interface que respeita o fluxo do operador
-- **Arraste e solte** múltiplos arquivos (até 10) — `.txt`, `.md`, `.rtf`.
+- **Arraste e solte** múltiplos arquivos (até 10).
+- **Progresso real** e **cancelar** que interrompe o trabalho de verdade.
 - **Cancelar** a qualquer momento; um arquivo que falha não derruba o lote.
 - **Um botão de salvar** grava `nome_anonimizado.txt` ao lado do original,
   pedindo confirmação antes de substituir.
@@ -144,6 +163,8 @@ auditoria (ex: `CPF 123.***.***-09`, `nome J*** d* S****`) — configurável em
 ## Stack
 
 - **Desktop**: Electron 41 + React 19 + TypeScript + Tailwind 4.
+- **Leitura de documentos**: [liteparse](https://github.com/run-llama/liteparse)
+  (Apache 2.0) — PDFium + Tesseract, tudo local.
 - **Design system**: tokens em `src/styles/tokens.css`, documentados em
   [`docs/design-system.md`](docs/design-system.md). Fontes auto-hospedadas.
 - **Backend**: FastAPI + [Microsoft Presidio](https://microsoft.github.io/presidio/).
