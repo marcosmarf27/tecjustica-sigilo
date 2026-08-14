@@ -14,17 +14,17 @@ suficiente para justificar mudança estrutural, não ajuste fino:
 
 | | antes | depois |
 |---|---|---|
-| **Recall por ocorrência** | 86,20% | **99,92%** |
-| **Proteção por valor único** | 70,41% | **99,10%** |
+| **Recall por ocorrência** | 86,20% | **99,94%** |
+| **Proteção por valor único** | 70,41% | **99,40%** |
 | **Endereço (CEP)** | 0% | **100%** |
-| **RG** | 50,00% | **98,28%** |
+| **RG** | 50,00% | **100%** |
 | **OAB** | 34,52% | **100%** |
 | **Nome de pessoa** | 89,05% | **99,94%** |
 
 *(medido no modo BERT, o padrão de produção — que voltou a funcionar; ver 1.3)*
 
 **A meta de 99% foi atingida nas duas métricas.** O limite inferior de
-confiança de 95% fica em **99,79%**, ou seja, a afirmação se sustenta mesmo na
+confiança de 95% fica em **99,83%**, ou seja, a afirmação se sustenta mesmo na
 estimativa conservadora. As duas métricas, e por que ambas importam, estão
 explicadas adiante.
 
@@ -240,12 +240,12 @@ número deixaria de descrever o produto.
 | E-mail | 77,24% (112/145) | **100,00%** (145/145) | 98,17% |
 | OAB | 34,52% (29/84) | **100,00%** (84/84) | 96,88% |
 | **Nome de pessoa** | 89,05% (1578/1772) | **99,94%** (1771/1772) | 99,75% |
-| RG | 50,00% (29/58) | **98,28%** (57/58) | 92,63% |
-| Telefone | 97,58% (282/289) | **99,31%** (287/289) | 97,93% |
-| **TOTAL** | **86,20%** (3148/3652) | **99,92%** (3612/3615) | **99,79%** |
+| RG | 50,00% (29/58) | **100,00%** (58/58) | 95,54% |
+| Telefone | 97,58% (282/289) | **100,00%** (252/252) | 98,94% |
+| **TOTAL** | **86,20%** (3148/3652) | **99,94%** (3613/3615) | **99,83%** |
 
-O limite inferior de 99,79% é o que sustenta a afirmação: com 3.615
-observações e 3 falhas, a estimativa conservadora ainda fica **acima da meta de
+O limite inferior de 99,83% é o que sustenta a afirmação: com 3.615
+observações e 2 falhas, a estimativa conservadora ainda fica **acima da meta de
 99%**.
 
 ### Proteção por valor único
@@ -255,7 +255,7 @@ mascaradas.
 
 | | antes | depois |
 |---|---|---|
-| **TOTAL** | 70,41% (238/338) | **99,10%** (330/333) |
+| **TOTAL** | 70,41% (238/338) | **99,40%** (331/333) |
 
 Esta métrica, a mais dura das duas, **também passou de 99%** — o que só
 aconteceu na última rodada, depois de corrigir a lista de exceções e o CPF com
@@ -268,13 +268,16 @@ corrigir. O que ainda escapa, e por quê:
 
 | Trecho | Contexto | Causa |
 |---|---|---|
-| `2008097004240` | `n°2008097004240, CPF: 916.811.973-91` | RG introduzido por `n°`, sem nenhuma âncora de identidade por perto |
 | `004.811.253` | `CPF 004.811.253-` no fim da linha | CPF partido logo após o hífen, com o par de dígitos na linha seguinte |
-| `ELIONEUDO EVARISTO` | `INDICIAMENTO de ELIONEUDO EVARISTO DE` | nome cortado no fim da linha, com o sobrenome na seguinte |
+| `ELIONEUDO EVARISTO` | `INDICIAMENTO de ELIONEUDO EVARISTO DE` | o OCR truncou o nome no fim da página — o sobrenome não está na linha seguinte, está perdido |
 
-São **três ocorrências em 3.615**, e todas o mesmo padrão: o OCR partiu o dado
+São **duas ocorrências em 3.615**, e ambas o mesmo padrão: o OCR partiu o dado
 exatamente onde a evidência mora. Ficam como o resíduo depois que o chunking
 resolveu a maioria dos casos partidos.
+
+O RG que antes escapava — `n°2008097004240`, com a âncora "cédula de
+identidade" na linha anterior — foi resolvido: a folga entre âncora e valor
+agora alcança a quebra de linha e a indentação que o OCR insere.
 
 Dois "vazamentos" da medição anterior eram **erro do gabarito**, não do motor:
 `IQ820275 2021` e `IP564519 2021` são números de inquérito policial que o
@@ -429,18 +432,64 @@ que aparecem.
 
 **Fora de escopo desta rodada:**
 
-- **Ingestão de PDF com OCR local** (`liteparse`: Apache 2.0, PDFium +
-  Tesseract, 100% offline, saída com bounding boxes). O aplicativo continua
-  aceitando só `.txt`, `.md` e `.rtf`. Vale notar que a motivação original —
-  processar por página para caber no modelo — foi resolvida pelo chunking; o
-  ganho do liteparse agora é **aceitar PDF direto**, que é o formato que o
-  público usa o dia inteiro.
-- **Redação visual em PDF** (tarja sobre a região da imagem).
+- **Redação visual em PDF** (tarja sobre a região da imagem). O liteparse já
+  devolve as coordenadas, então é o caminho natural para a próxima rodada.
 - **Backend ONNX.** Não avaliado: o chunking já resolveu o desempenho.
 
 ---
 
-## 8. Situação do upstream
+## 8. Recursos acrescentados
+
+Depois da auditoria, três lacunas de produto foram fechadas.
+
+### 8.1 Lê PDF, Word e imagem digitalizada
+
+O aplicativo aceitava só `.txt`, `.md` e `.rtf`, e **rejeitava em silêncio**
+justamente os formatos que este público usa o dia inteiro. Agora lê `.pdf`,
+`.docx`, `.xlsx`, `.pptx` e imagens, via
+[liteparse](https://github.com/run-llama/liteparse) (Apache 2.0): PDFium para o
+texto nativo do PDF e Tesseract para OCR quando a página é digitalizada.
+
+Medido: **0,76 s por página** com paralelismo — um processo de 159 páginas leva
+cerca de dois minutos.
+
+**Uma armadilha que valeu descobrir:** o liteparse não embarca os dados de
+idioma do Tesseract; na falta deles, ele os **busca na rede** na primeira
+execução. Isso quebraria a promessa de operação offline logo de cara, numa
+máquina de vara que pode nem ter internet. O `por.traineddata` passou a ser
+empacotado, e `/health` informa se o OCR está de fato offline.
+
+### 8.2 A política de máscara passou a ser escolhida na tela
+
+O relatório apontava que a máscara parcial é reidentificável em documento
+longo. Em vez de trocar o padrão por decreto, a escolha ficou com quem responde
+pelo documento — com o resultado de cada opção à vista no momento de escolher:
+
+| | Saída | O que preserva |
+|---|---|---|
+| **Marcador** | `[PESSOA_1]`, `[CPF_1]` | nada do dado; a numeração estável mantém a leitura |
+| **Máscara parcial** | `J**** d* S****` | iniciais e alguns dígitos, para conferência visual |
+| **Cobertura total** | `*************` | nem o formato |
+
+A numeração do marcador é estável dentro do documento e insensível a caixa e
+acento — `João da Silva` e `JOÃO DA SILVA` recebem o mesmo `[PESSOA_1]`, que é
+o que permite acompanhar quem é quem sem saber quem são.
+
+### 8.3 Progresso e cancelamento de verdade
+
+O processamento roda numa thread que publica etapa e andamento, e consulta um
+sinalizador de cancelamento entre os blocos. Antes, a barra ficava parada em 0%
+do começo ao fim e "cancelar" apenas desistia de esperar, enquanto o Python
+seguia ocupando a máquina. O resultado é entregue uma vez e descartado da
+memória — ele contém o documento inteiro.
+
+**Ganho de recall inesperado no caminho:** ao investigar os vazamentos
+residuais, apareceu um defeito com efeito amplo. Quando o modelo reconhecia
+apenas parte de um nome (`ELIONEUDO EVARISTO`), a propagação repetia esse
+pedaço por todo o documento — e o sobrenome ficava exposto em **todas** as
+ocorrências. Os nomes propagados passaram a ser estendidos por preposição.
+
+## 9. Situação do upstream
 
 | | instalado antes | agora |
 |---|---|---|
@@ -461,7 +510,7 @@ Novidades do upstream avaliadas: timeout configurável de regex (2.2.362+),
 
 ---
 
-## 9. Como reproduzir
+## 10. Como reproduzir
 
 ```bash
 python3 -m venv .venv

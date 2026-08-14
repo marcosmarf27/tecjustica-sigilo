@@ -2,9 +2,9 @@
   "civel_0200161": {
     "sha256": "dca01fbba9e241cc67ee9c5dad866bb3284b3d296c7d06d340ffcd32944a1f49",
     "chars": 344001,
-    "segundos": 368.6,
+    "segundos": 390.3,
     "modo_nlp": "transformer",
-    "deteccoes": 2516,
+    "deteccoes": 2173,
     "tipos": {
       "PERSON": {
         "protecao_valor": 1.0,
@@ -25,13 +25,13 @@
         "protegidas_substantivas": 44
       },
       "RG": {
-        "protecao_valor": 0.875,
-        "recall_ocorrencia": 0.9333333333333333,
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
         "recall_boilerplate": NaN,
         "valores_unicos": 8,
-        "valores_protegidos": 7,
+        "valores_protegidos": 8,
         "ocorrencias_substantivas": 15,
-        "protegidas_substantivas": 14
+        "protegidas_substantivas": 15
       },
       "CEP": {
         "protecao_valor": 1.0,
@@ -92,9 +92,9 @@
   "juri_19-08": {
     "sha256": "2b07596ef72f50d1fde273a31815dc1a110dc9ce297bd523c268c3fa8d6da19f",
     "chars": 1061709,
-    "segundos": 1150.5,
+    "segundos": 1317.3,
     "modo_nlp": "transformer",
-    "deteccoes": 13854,
+    "deteccoes": 12892,
     "tipos": {
       "PERSON": {
         "protecao_valor": 1.0,
@@ -182,9 +182,9 @@
   "expedientes_13-08": {
     "sha256": "454d49180903728e341dfcfe946cc4aa422cf5414dbd4bd36dc7623ba83da1d4",
     "chars": 239272,
-    "segundos": 239.9,
+    "segundos": 245.3,
     "modo_nlp": "transformer",
-    "deteccoes": 2536,
+    "deteccoes": 2307,
     "tipos": {
       "PERSON": {
         "protecao_valor": 0.9333333333333333,
