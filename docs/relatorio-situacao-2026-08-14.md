@@ -14,8 +14,8 @@ suficiente para justificar mudança estrutural, não ajuste fino:
 
 | | antes | depois |
 |---|---|---|
-| **Recall por ocorrência** | 86,20% | **99,84%** |
-| **Proteção por valor único** | 70,41% | **98,23%** |
+| **Recall por ocorrência** | 86,20% | **99,92%** |
+| **Proteção por valor único** | 70,41% | **99,10%** |
 | **Endereço (CEP)** | 0% | **100%** |
 | **RG** | 50,00% | **98,28%** |
 | **OAB** | 34,52% | **100%** |
@@ -23,10 +23,10 @@ suficiente para justificar mudança estrutural, não ajuste fino:
 
 *(medido no modo BERT, o padrão de produção — que voltou a funcionar; ver 1.3)*
 
-A meta de 99% foi **atingida no recall por ocorrência** — limite inferior de
-confiança de 95% em **99,68%**, ou seja, a afirmação se sustenta mesmo na
-estimativa conservadora. **Ainda não foi atingida** na proteção por valor único
-(98,23%). As duas métricas, e por que ambas importam, estão explicadas adiante.
+**A meta de 99% foi atingida nas duas métricas.** O limite inferior de
+confiança de 95% fica em **99,79%**, ou seja, a afirmação se sustenta mesmo na
+estimativa conservadora. As duas métricas, e por que ambas importam, estão
+explicadas adiante.
 
 Além disso foram corrigidos cinco defeitos que quebravam o aplicativo em uso
 normal ou contradiziam sua promessa de privacidade, e a interface ganhou a tela
@@ -242,10 +242,10 @@ número deixaria de descrever o produto.
 | **Nome de pessoa** | 89,05% (1578/1772) | **99,94%** (1771/1772) | 99,75% |
 | RG | 50,00% (29/58) | **98,28%** (57/58) | 92,63% |
 | Telefone | 97,58% (282/289) | **99,31%** (287/289) | 97,93% |
-| **TOTAL** | **86,20%** (3148/3652) | **99,84%** (3646/3652) | **99,68%** |
+| **TOTAL** | **86,20%** (3148/3652) | **99,92%** (3612/3615) | **99,79%** |
 
-O limite inferior de 99,68% é o que sustenta a afirmação: com 3.652
-observações e 6 falhas, a estimativa conservadora ainda fica **acima da meta de
+O limite inferior de 99,79% é o que sustenta a afirmação: com 3.615
+observações e 3 falhas, a estimativa conservadora ainda fica **acima da meta de
 99%**.
 
 ### Proteção por valor único
@@ -255,9 +255,11 @@ mascaradas.
 
 | | antes | depois |
 |---|---|---|
-| **TOTAL** | 70,41% (238/338) | **98,23%** (333/339) |
+| **TOTAL** | 70,41% (238/338) | **99,10%** (330/333) |
 
-**Esta métrica não atingiu a meta de 99%** — está registrado na seção 7.
+Esta métrica, a mais dura das duas, **também passou de 99%** — o que só
+aconteceu na última rodada, depois de corrigir a lista de exceções e o CPF com
+pontuação virada espaço pelo OCR.
 
 ### Inventário dos vazamentos
 
@@ -267,12 +269,12 @@ corrigir. O que ainda escapa, e por quê:
 | Trecho | Contexto | Causa |
 |---|---|---|
 | `2008097004240` | `n°2008097004240, CPF: 916.811.973-91` | RG introduzido por `n°`, sem nenhuma âncora de identidade por perto |
-| `004.811.253-` | `CPF 004.811.253-` no fim da linha | CPF partido logo após o hífen, com o par de dígitos na linha seguinte |
+| `004.811.253` | `CPF 004.811.253-` no fim da linha | CPF partido logo após o hífen, com o par de dígitos na linha seguinte |
 | `ELIONEUDO EVARISTO` | `INDICIAMENTO de ELIONEUDO EVARISTO DE` | nome cortado no fim da linha, com o sobrenome na seguinte |
 
-Todos são o mesmo padrão: **o OCR partiu o dado exatamente onde a evidência
-mora**. São os casos residuais depois que o chunking já resolveu a maioria — e
-a razão de a proteção por valor único parar em 98% em vez de 100%.
+São **três ocorrências em 3.615**, e todas o mesmo padrão: o OCR partiu o dado
+exatamente onde a evidência mora. Ficam como o resíduo depois que o chunking
+resolveu a maioria dos casos partidos.
 
 Dois "vazamentos" da medição anterior eram **erro do gabarito**, não do motor:
 `IQ820275 2021` e `IP564519 2021` são números de inquérito policial que o
@@ -287,11 +289,11 @@ menor do que se poderia supor:
 
 | | spaCy | **BERT** |
 |---|---|---|
-| Recall por ocorrência | 99,70% | **99,84%** |
-| Limite inferior 95% | 99,51% | **99,68%** |
-| Proteção por valor único | 97,63% | **98,23%** |
+| Recall por ocorrência | 99,78% | **99,92%** |
+| Limite inferior 95% | 99,61% | **99,79%** |
+| Proteção por valor único | 98,49% | **99,10%** |
 | **Nome de pessoa** | 99,66% | **99,94%** (1771/1772) |
-| Tempo (1,6 MB, CPU) | **3,4 min** | 35 min |
+| Tempo (1,6 MB, CPU) | **3,4 min** | 30 min |
 
 A diferença está concentrada onde se esperaria: **nome de pessoa**, a única
 classe que depende de verdade do modelo. Nas classes estruturadas — CPF, RG,
@@ -414,8 +416,6 @@ que aparecem.
   placeholder consistente (`[PESSOA_1]`). Não implementado. Enquanto isso, vale
   a ressalva da seção 5: a máscara atual preserva iniciais e dígitos, e isso é
   reidentificante num documento longo.
-- **Proteção por valor único abaixo da meta** (98,23% contra 99%). São seis
-  valores, cada um escapando em pelo menos uma ocorrência.
 - **Progresso dentro do arquivo.** O motor já aceita um callback de progresso,
   mas nada o consome ainda — a interface mostra indicador indeterminado, que é
   honesto mas menos informativo do que "página 142 de 819".

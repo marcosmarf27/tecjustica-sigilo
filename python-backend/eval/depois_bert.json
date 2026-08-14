@@ -2,7 +2,7 @@
   "civel_0200161": {
     "sha256": "dca01fbba9e241cc67ee9c5dad866bb3284b3d296c7d06d340ffcd32944a1f49",
     "chars": 344001,
-    "segundos": 338.9,
+    "segundos": 368.6,
     "modo_nlp": "transformer",
     "deteccoes": 2516,
     "tipos": {
@@ -43,13 +43,13 @@
         "protegidas_substantivas": 34
       },
       "TELEFONE": {
-        "protecao_valor": 0.8666666666666667,
-        "recall_ocorrencia": 0.9473684210526315,
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
         "recall_boilerplate": 1.0,
-        "valores_unicos": 15,
-        "valores_protegidos": 13,
-        "ocorrencias_substantivas": 38,
-        "protegidas_substantivas": 36
+        "valores_unicos": 12,
+        "valores_protegidos": 12,
+        "ocorrencias_substantivas": 31,
+        "protegidas_substantivas": 31
       },
       "EMAIL": {
         "protecao_valor": 1.0,
@@ -92,9 +92,9 @@
   "juri_19-08": {
     "sha256": "2b07596ef72f50d1fde273a31815dc1a110dc9ce297bd523c268c3fa8d6da19f",
     "chars": 1061709,
-    "segundos": 1192.7,
+    "segundos": 1150.5,
     "modo_nlp": "transformer",
-    "deteccoes": 13853,
+    "deteccoes": 13854,
     "tipos": {
       "PERSON": {
         "protecao_valor": 1.0,
@@ -106,22 +106,22 @@
         "protegidas_substantivas": 1127
       },
       "CPF": {
-        "protecao_valor": 0.9545454545454546,
-        "recall_ocorrencia": 0.9852941176470589,
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
         "recall_boilerplate": NaN,
         "valores_unicos": 22,
-        "valores_protegidos": 21,
+        "valores_protegidos": 22,
         "ocorrencias_substantivas": 68,
-        "protegidas_substantivas": 67
+        "protegidas_substantivas": 68
       },
       "TELEFONE": {
         "protecao_valor": 1.0,
         "recall_ocorrencia": 1.0,
         "recall_boilerplate": 1.0,
-        "valores_unicos": 25,
-        "valores_protegidos": 25,
-        "ocorrencias_substantivas": 166,
-        "protegidas_substantivas": 166
+        "valores_unicos": 24,
+        "valores_protegidos": 24,
+        "ocorrencias_substantivas": 145,
+        "protegidas_substantivas": 145
       },
       "CEP": {
         "protecao_valor": 1.0,
@@ -182,7 +182,7 @@
   "expedientes_13-08": {
     "sha256": "454d49180903728e341dfcfe946cc4aa422cf5414dbd4bd36dc7623ba83da1d4",
     "chars": 239272,
-    "segundos": 437.9,
+    "segundos": 239.9,
     "modo_nlp": "transformer",
     "deteccoes": 2536,
     "tipos": {
@@ -217,10 +217,10 @@
         "protecao_valor": 1.0,
         "recall_ocorrencia": 1.0,
         "recall_boilerplate": 1.0,
-        "valores_unicos": 25,
-        "valores_protegidos": 25,
-        "ocorrencias_substantivas": 85,
-        "protegidas_substantivas": 85
+        "valores_unicos": 23,
+        "valores_protegidos": 23,
+        "ocorrencias_substantivas": 76,
+        "protegidas_substantivas": 76
       },
       "CEP": {
         "protecao_valor": 1.0,
