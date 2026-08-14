@@ -507,13 +507,13 @@ que aparecem.
   honesto mas menos informativo do que "página 142 de 819".
 - **Cancelamento é parcial.** Aborta a requisição e libera a interface, mas o
   processo Python continua trabalhando até terminar aquele arquivo.
-- **Motor de OCR alternativo.** O PP-OCRv6 small tem média 7,7 pontos acima do
-  Tesseract e um pior caso muito melhor (42,6% contra 17,7%), mas é ~5× mais
-  lento e soma ~170 MB ao instalador (seção 5.2). Como nenhum dos dois domina —
-  o Tesseract ganha em documento impresso — o desenho que faria sentido é
-  **híbrido**: Tesseract primeiro, e um segundo passe com o PP-OCR nas páginas
-  que renderem pouco texto. Fica como decisão de produto, com a medição pronta
-  para embasá-la.
+- **Motor de OCR: decidido, fica o Tesseract.** O PP-OCRv6 small tem média 7,7
+  pontos acima e um pior caso muito melhor (42,6% contra 17,7%), mas custa ~5×
+  o tempo e ~170 MB no instalador (seção 5.2). Avaliada a medição, a escolha foi
+  **motor único** — sem troca e sem o passe híbrido que chegou a ser cogitado
+  (Tesseract primeiro, PP-OCR só nas páginas fracas). O ganho ficaria restrito a
+  documento datilografado, e para esse caso a saída continua sendo OCR externo.
+  Não é pendência: é decisão tomada, com o número que a sustenta registrado.
 - **Bibliotecas do Python embarcado.** O código do backend foi sincronizado com
   `scripts/sync-backend.sh`, mas as bibliotecas dentro de
   `resources/python-backend/python-embed/` **ainda precisam ser atualizadas**
