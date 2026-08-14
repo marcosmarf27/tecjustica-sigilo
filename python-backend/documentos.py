@@ -57,6 +57,9 @@ class DocumentoExtraido:
     paginas: list[PaginaExtraida]
     total_paginas: int
     houve_ocr: bool
+    # Quantas páginas dependeram de reconhecimento. Vale a distinção: num auto
+    # misto, saber que 12 de 225 páginas vieram de OCR diz onde revisar.
+    paginas_ocr: int = 0
 
     def como_markdown(self) -> str:
         """
@@ -118,30 +121,43 @@ def tessdata_disponivel() -> bool:
 _FORMATOS_COM_TEXTO = {".docx", ".xlsx", ".pptx"}
 
 
-def _tem_camada_de_texto(caminho: str, amostra: int = 3) -> bool:
+# Uma página de texto de verdade tem centenas de caracteres. Abaixo disso o que
+# há é carimbo: a tarja "Assinado eletronicamente por…" que o PJe estampa por
+# cima de anexo digitalizado é texto nativo, e passaria por camada de texto num
+# limiar baixo — fazendo a página escaneada se declarar nativa.
+_MINIMO_CAMADA_DE_TEXTO = 200
+
+
+def _paginas_sem_texto_nativo(caminho: str) -> set[int] | None:
     """
-    True se o PDF já traz texto nativo, sondado sem OCR.
+    Quais páginas do PDF não trazem texto próprio — as candidatas a OCR.
 
-    O liteparse não informa se uma página passou por OCR — com `ocr_enabled=True`
-    o texto reconhecido chega pelos mesmos campos do texto nativo. A sondagem
-    resolve isso e é barata dos dois lados: numa página escaneada não há nada
-    para extrair, e num PDF nativo a extração de texto é a parte rápida.
+    O liteparse não informa se uma página passou por reconhecimento: com
+    `ocr_enabled=True` o texto reconhecido chega pelos mesmos campos do texto
+    nativo. A sondagem com o OCR desligado resolve isso, e é barata dos dois
+    lados — numa página escaneada não há nada para extrair, e num PDF nativo a
+    extração de texto é a parte rápida (~3 s em 225 páginas).
 
-    Saber a resposta importa porque a qualidade do OCR é o piso do recall: um
-    dado que o Tesseract não transcreveu não pode ser detectado por nenhum
-    recognizer, e quem revisa o documento precisa ser avisado disso.
+    A varredura é do documento inteiro, não de uma amostra: o auto típico mistura
+    petição nativa com anexo digitalizado, e é justamente no anexo que o aviso
+    importa. Saber a resposta importa porque a qualidade do OCR é o piso do
+    recall — um dado que o Tesseract não transcreveu não pode ser detectado por
+    nenhum recognizer, e quem revisa o documento precisa ser avisado disso.
+
+    Devolve None quando a sondagem falha: na dúvida, não se afirma nada.
     """
     import liteparse
 
     try:
-        resultado = liteparse.LiteParse(
-            ocr_enabled=False, quiet=True, max_pages=amostra
-        ).parse(caminho)
+        resultado = liteparse.LiteParse(ocr_enabled=False, quiet=True).parse(caminho)
     except Exception:
-        # Na dúvida, não afirma que houve OCR — melhor calar que mentir.
-        return True
+        return None
 
-    return any(len((pagina.text or "").strip()) > 40 for pagina in resultado.pages)
+    return {
+        pagina.page_num
+        for pagina in resultado.pages
+        if len((pagina.text or "").strip()) < _MINIMO_CAMADA_DE_TEXTO
+    }
 
 
 def _extrair_paginas(
@@ -198,12 +214,7 @@ def extrair(
 
     paginas, total_paginas = _extrair_paginas(caminho, max_paginas)
 
-    extensao = Path(caminho).suffix.lower()
-    if extensao == ".pdf":
-        houve_ocr = not _tem_camada_de_texto(caminho)
-    else:
-        # Imagem só tem como virar texto por OCR; documento de escritório, nunca.
-        houve_ocr = extensao not in _FORMATOS_COM_TEXTO
+    paginas_ocr = _contar_paginas_ocr(caminho, paginas)
 
     if progresso:
         progresso(len(paginas), len(paginas))
@@ -212,5 +223,33 @@ def extrair(
         caminho=caminho,
         paginas=paginas,
         total_paginas=total_paginas,
-        houve_ocr=houve_ocr,
+        houve_ocr=paginas_ocr != 0,
+        paginas_ocr=max(0, paginas_ocr),
+    )
+
+
+def _contar_paginas_ocr(caminho: str, paginas: list[PaginaExtraida]) -> int:
+    """
+    Quantas páginas do resultado vieram de reconhecimento. -1 se não deu para saber.
+
+    Uma página só conta se não tinha texto nativo **e** produziu texto depois do
+    OCR: a folha separadora em branco de um PDF nativo satisfaz a primeira
+    condição e não satisfaz a segunda, e seria contada à toa.
+    """
+    extensao = Path(caminho).suffix.lower()
+
+    if extensao != ".pdf":
+        # Imagem só tem como virar texto por OCR; documento de escritório, nunca.
+        if extensao in _FORMATOS_COM_TEXTO:
+            return 0
+        return sum(1 for pagina in paginas if pagina.texto.strip())
+
+    sem_texto_nativo = _paginas_sem_texto_nativo(caminho)
+    if sem_texto_nativo is None:
+        return -1
+
+    return sum(
+        1
+        for pagina in paginas
+        if pagina.numero in sem_texto_nativo and pagina.texto.strip()
     )

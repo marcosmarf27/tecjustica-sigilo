@@ -184,7 +184,15 @@ def processar(req: ProcessarRequest):
             texto = documento.como_markdown()
 
             if documento.houve_ocr:
-                job.etapa = "Documento lido por OCR"
+                # A contagem importa: num auto misto, saber quantas páginas
+                # dependeram de reconhecimento diz onde a revisão é necessária.
+                if documento.paginas_ocr and documento.total_paginas:
+                    job.etapa = (
+                        f"{documento.paginas_ocr} de {documento.total_paginas} "
+                        "páginas lidas por OCR — confira o resultado"
+                    )
+                else:
+                    job.etapa = "Documento lido por OCR — confira o resultado"
 
         if job.cancelado:
             return {}

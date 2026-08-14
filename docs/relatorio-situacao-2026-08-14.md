@@ -569,10 +569,28 @@ mesmos campos do texto nativo, e o liteparse não expõe nenhuma flag de OCR. Em
 sete PDFs 100% escaneados, a resposta foi `False` nas sete vezes.
 
 A detecção agora é explícita: imagem é sempre OCR; `.docx`/`.xlsx`/`.pptx`
-nunca são; e PDF é sondado com o OCR desligado para ver se já traz camada de
-texto. A sondagem é barata dos dois lados — numa página escaneada não há nada
-para extrair (0,0 s), e num PDF nativo a extração de texto é a parte rápida.
-Cinco testes em `tests/test_deteccao_ocr.py`, um deles sobre matrícula
+nunca são; e cada página de PDF é sondada com o OCR desligado para ver se traz
+camada de texto própria. A sondagem é barata dos dois lados — numa página
+escaneada não há nada para extrair, e num PDF nativo a extração de texto é a
+parte rápida.
+
+Três detalhes que decidem se o aviso é confiável:
+
+- **A varredura é do documento inteiro, não de uma amostra.** O auto típico
+  mistura petição nativa na frente com anexo digitalizado atrás; sondar as
+  primeiras páginas declararia o conjunto todo nativo e perderia justamente o
+  anexo, que é onde a revisão importa. O aviso passou a dizer a contagem:
+  *"12 de 225 páginas lidas por OCR — confira o resultado"*.
+- **O limiar de camada de texto é de 200 caracteres, não de um punhado.** O PJe
+  estampa a tarja "Assinado eletronicamente por…" por cima do anexo
+  digitalizado, e ela é texto nativo. Num limiar baixo, o carimbo faria a página
+  escaneada se declarar nativa — escondendo que todo o conteúdo veio de OCR.
+- **Folha em branco não conta.** A página só é contada se não tinha texto nativo
+  **e** produziu texto depois do reconhecimento. Sem isso, todo PDF com
+  separador vazio alegaria ter passado por OCR — e um aviso que dispara sempre
+  deixa de ser lido.
+
+Oito testes em `tests/test_deteccao_ocr.py`, um deles sobre matrícula
 digitalizada real.
 
 ## 9. Situação do upstream
