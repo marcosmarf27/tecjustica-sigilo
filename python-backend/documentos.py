@@ -39,6 +39,14 @@ EXTENSOES_DOCUMENTO = {
 
 IDIOMA_OCR = "por"
 
+# Resolução de rasterização antes do OCR. O liteparse não define nenhuma por
+# padrão, e a diferença é mensurável: em 300 dpi o Tesseract recupera 12 pontos
+# percentuais a mais de texto numa matrícula digitalizada e 6 em outra (medição
+# em docs/relatorio-situacao-2026-08-14.md, seção 5.1). Acima disso o ganho some
+# e o tempo cresce. Página escaneada de má qualidade continua sendo o caso onde
+# nenhuma resolução salva — ver a mesma seção.
+DPI_OCR = 300
+
 # Quantas páginas processar em paralelo. Deixa um núcleo livre para a interface
 # e para o modelo de linguagem, que roda em seguida.
 def _workers_padrao() -> int:
@@ -174,6 +182,7 @@ def _extrair_paginas(
         num_workers=_workers_padrao(),
         continue_on_page_error=True,
         keep_headers_footers=True,
+        dpi=DPI_OCR,
         quiet=True,
         **({"max_pages": max_paginas} if max_paginas else {}),
     )

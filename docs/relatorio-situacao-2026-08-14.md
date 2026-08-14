@@ -389,6 +389,46 @@ degradado, então parte da divergência é ruído dos dois lados. A contagem bru
 de caracteres confirma a direção — no pior caso o Tesseract extraiu 197 palavras
 onde a referência extraiu 716.
 
+### 5.2 Trocar de motor de OCR: o que foi testado
+
+O liteparse aceita qualquer motor atrás de um `POST /ocr` que devolva
+`{results: [{text, bbox, confidence}]}` — o Tesseract é só o padrão embutido.
+Isso permitiu medir alternativas sem tocar no aplicativo: um servidor de ~30
+linhas com **RapidOCR** (modelos PP-OCR em ONNX Runtime, sem PaddlePaddle) e o
+`ocr_server_url` apontado para ele.
+
+| Documento | Tesseract | PP-OCRv6 small | PP-OCRv5 mobile |
+|---|---|---|---|
+| Matrícula pg1 | 0,490 | **0,587** | 0,509 |
+| Matrícula pg2 | 0,451 | **0,695** | 0,399 |
+| Matrícula pg4 | 0,177 | **0,426** | 0,317 |
+| Matrícula nota 8 | 0,792 | 0,697 | **0,842** |
+| Petição apagada | **0,936** | 0,826 | 0,792 |
+| **Média** | 0,569 | **0,646** | 0,572 |
+| **Pior caso** | 0,177 | **0,426** | 0,317 |
+| Tempo por página | **~1 s** | 5–7 s | 5–8 s |
+
+**Nenhum motor domina.** O Tesseract é o melhor em documento impresso e o pior
+em datilografado; o PP-OCRv6 small inverte isso. O que separa os dois é o pior
+caso: o Tesseract desaba a 17,7%, o v6 small nunca cai abaixo de 42,6%. Em
+média o v6 small leva 7,7 pontos percentuais de vantagem.
+
+**O modelo `server` do PP-OCR (166 MB) está fora**: passou de 2 minutos numa
+única página em CPU, contra ~1 s do Tesseract. Qualidade que não cabe no
+orçamento de tempo de um aplicativo de mesa.
+
+Custo de adotar o v6 small: ~5× mais lento, e no instalador cerca de 170 MB
+(30 MB de modelos ONNX, o resto de `onnxruntime` e `opencv`), além de um
+servidor HTTP local a gerenciar como subprocesso. **Não foi adotado nesta
+rodada** — é uma decisão de produto, não uma correção, e está registrada na
+seção 7.
+
+**Ganho aplicado, esse sim, e sem dependência nova:** o liteparse não define
+resolução de rasterização por padrão. Fixar `dpi=300` rende 12 pontos
+percentuais numa matrícula e 6 em outra. Acima de 300 o ganho some e o tempo
+cresce; no pior documento o DPI não ajuda em nada — é degradação de origem, não
+de amostragem.
+
 ---
 
 ## 6. Interface
@@ -467,6 +507,13 @@ que aparecem.
   honesto mas menos informativo do que "página 142 de 819".
 - **Cancelamento é parcial.** Aborta a requisição e libera a interface, mas o
   processo Python continua trabalhando até terminar aquele arquivo.
+- **Motor de OCR alternativo.** O PP-OCRv6 small tem média 7,7 pontos acima do
+  Tesseract e um pior caso muito melhor (42,6% contra 17,7%), mas é ~5× mais
+  lento e soma ~170 MB ao instalador (seção 5.2). Como nenhum dos dois domina —
+  o Tesseract ganha em documento impresso — o desenho que faria sentido é
+  **híbrido**: Tesseract primeiro, e um segundo passe com o PP-OCR nas páginas
+  que renderem pouco texto. Fica como decisão de produto, com a medição pronta
+  para embasá-la.
 - **Bibliotecas do Python embarcado.** O código do backend foi sincronizado com
   `scripts/sync-backend.sh`, mas as bibliotecas dentro de
   `resources/python-backend/python-embed/` **ainda precisam ser atualizadas**
