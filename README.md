@@ -65,12 +65,23 @@ Termos como `Ministério Público`, `Tribunal de Justiça`, `Caixa Econômica`,
 **não** são mascarados — mesmo quando o modelo insiste em classificá-los
 como pessoa/local. Configurável via `config/deny_list.json` sem recompilar.
 
+### 🔍 Tela de revisão — dá para conferir o que foi mascarado
+Anonimizar sem poder auditar é fé, não garantia. Cada trecho detectado aparece
+como **tarja de redação**; passar o cursor (ou focar pelo teclado) revela o
+valor original por baixo. A lista lateral traz **todas as ocorrências com o
+grau de confiança**, e um clique leva até o trecho no texto.
+
+Achou um falso positivo? **"Não é PII"** grava a exceção e ela vale já no
+próximo processamento, sem reiniciar o app.
+
 ### 💻 Interface que respeita o fluxo do operador
 - **Arraste e solte** múltiplos arquivos (até 10) — `.txt`, `.md`, `.rtf`.
-- **Histórico local** em localStorage: abra resultados anteriores com 1 clique.
-- **Preview side-by-side** com highlight das entidades detectadas.
-- **Um botão de salvar** grava `nome_anonimizado.txt` ao lado do original.
+- **Cancelar** a qualquer momento; um arquivo que falha não derruba o lote.
+- **Um botão de salvar** grava `nome_anonimizado.txt` ao lado do original,
+  pedindo confirmação antes de substituir.
 - **Toggle de entidades**: escolha mascarar só CPF, ou só nomes, ou tudo.
+- **Histórico** com o que foi processado — sem guardar o documento em disco
+  (veja abaixo).
 
 ### ⌨️ CLI nativa (Windows + WSL)
 Além da GUI, a tela **Linha de Comando** instala automaticamente o comando
@@ -85,10 +96,16 @@ presidio-anon autos/*.txt --in-place
 presidio-anon termo.txt -q --format json   # para agentes/pipelines
 ```
 
-### 🔒 Zero envio de dados
+### 🔒 Zero envio de dados — e nada de PII em disco
 Tudo roda como processo local na sua máquina. Nenhuma chamada para serviço
-externo no caminho da anonimização. O modelo BERT é baixado apenas **uma vez**
+externo, nem no caminho da anonimização nem em qualquer outro: até as fontes da
+interface são empacotadas junto. O modelo BERT é baixado apenas **uma vez**
 (HuggingFace) na primeira execução; depois disso, offline.
+
+O histórico guarda apenas nome do arquivo, data e contagem por tipo. **O texto
+do documento e a lista de dados encontrados nunca vão para o disco** — ficam só
+na memória, enquanto o app está aberto. Um índice de todos os CPFs e endereços
+de um processo é exatamente o artefato que este app existe para evitar.
 
 ## 📥 Baixar
 
@@ -114,7 +131,9 @@ Linux/Mac: rode em modo dev (abaixo). Build nativo sob demanda.
 | `OAB_BR` | `OAB/CE 45.678` | regex |
 | `PHONE_NUMBER_BR` | `(85) 99876-5432`, `+55 85…` | regex |
 | `EMAIL_ADDRESS` | `joao@exemplo.com` | regex padrão Presidio |
-| `LOCATION` | endereços, cidades | NER BERT |
+| `ENDERECO_BR` | `Rua Cassiano Correia, 4, Boa Esperança` | regex de logradouro + âncora |
+| `CEP_BR` | `62755-000` | regex + âncora de endereço |
+| `LOCATION` | cidades, topônimos | NER BERT |
 | `DATE_OF_BIRTH` | `15/03/1985` | regex + contexto |
 | `CONTA_BANCARIA` | `Ag 1234 CC 56789-0` | regex |
 
@@ -124,7 +143,9 @@ auditoria (ex: `CPF 123.***.***-09`, `nome J*** d* S****`) — configurável em
 
 ## Stack
 
-- **Desktop**: Electron 41 + React 19 + TypeScript + Tailwind.
+- **Desktop**: Electron 41 + React 19 + TypeScript + Tailwind 4.
+- **Design system**: tokens em `src/styles/tokens.css`, documentados em
+  [`docs/design-system.md`](docs/design-system.md). Fontes auto-hospedadas.
 - **Backend**: FastAPI + [Microsoft Presidio](https://microsoft.github.io/presidio/).
 - **NER default**: BERT fine-tuned LeNER-Br (F1 ≈ 0.91).
 - **NER fallback**: `pt_core_news_lg` (modo `PRESIDIO_NLP_MODE=spacy`).
@@ -148,14 +169,29 @@ Para usar o modo leve (sem baixar BERT):
 PRESIDIO_NLP_MODE=spacy npm run dev:electron
 ```
 
-## Testes
+## Testes e medição de acurácia
 
 ```bash
-.venv/bin/pytest python-backend/tests -v
+cd python-backend
+PRESIDIO_NLP_MODE=spacy ../.venv/bin/python -m pytest tests -q
 ```
 
-Mede recall e precisão sobre fixture jurídica **sintética** (sem dados reais).
-Ver `python-backend/tests/fixtures/`.
+A suíte tem casos de regressão vindos de **OCR real de processo**: entidade
+partida entre linhas, número grudado na palavra seguinte, dígito trocado por
+letra parecida. São esses os casos que separam 86% de 99% de recall.
+
+Para medir acurácia sobre um corpus seu:
+
+```bash
+PRESIDIO_NLP_MODE=spacy ../.venv/bin/python -m eval.run_eval
+../.venv/bin/python -m eval.agregar eval/depois_spacy.json
+```
+
+O harness constrói o gabarito de forma independente do detector e reporta
+recall por ocorrência **e** proteção por valor único, com o inventário dos
+vazamentos. Aponte o corpus com `PRESIDIO_EVAL_CORPUS`.
+
+Resultados da última medição em [`docs/relatorio-situacao-2026-08-14.md`](docs/relatorio-situacao-2026-08-14.md).
 
 ## Configuração por JSON (sem recompilar)
 

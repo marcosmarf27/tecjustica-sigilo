@@ -24,12 +24,20 @@ interface CliAPI {
 }
 
 interface ElectronAPI {
+  /** Porta em que o backend Python realmente subiu (pode não ser a padrão). */
+  getBackendPort: () => Promise<number>;
+  /** Caminho absoluto de um File — substitui o antigo File.path. */
+  getPathForFile: (file: File) => string;
   readFile: (path: string) => Promise<string>;
-  saveFile: (path: string, content: string) => Promise<void>;
+  saveFile: (
+    path: string,
+    content: string
+  ) => Promise<{ salvo: boolean; motivo?: string }>;
   selectFiles: () => Promise<{ name: string; path: string }[]>;
   cli: CliAPI;
 }
 
 interface Window {
-  electronAPI: ElectronAPI;
+  /** Ausente quando a interface roda fora do Electron (dev no navegador). */
+  electronAPI?: ElectronAPI;
 }

@@ -65,6 +65,11 @@ def health():
     return {
         "status": "ready" if engine.is_ready() else "loading",
         "nlp_mode": engine.nlp_mode,
+        # Quando o modo pedido não é o que está rodando, a interface precisa
+        # dizer isso: o modo leve detecta menos entidades em texto jurídico, e
+        # cair para ele em silêncio dá uma falsa sensação de segurança.
+        "nlp_mode_solicitado": engine.modo_solicitado,
+        "motivo_fallback": engine.motivo_fallback,
     }
 
 

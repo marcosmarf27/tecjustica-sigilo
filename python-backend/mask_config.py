@@ -59,14 +59,32 @@ def mask_email(text: str) -> str:
 
 
 def mask_phone(text: str) -> str:
-    """Mostra DDD + 2 últimos: '(85) 99999-1234' → '(85) *****-**34'"""
-    digits = re.sub(r"\D", "", text)
-    if len(digits) >= 10:
-        ddd = digits[:2]
-        last2 = digits[-2:]
-        middle_len = len(digits) - 4
-        return f"({ddd}) {'*' * middle_len}{last2}"
-    return "*" * len(text)
+    """
+    Mostra DDD e dois últimos dígitos, preservando a pontuação do original:
+    '(85) 99999-1234' → '(85) *****-**34'
+
+    Mascarar dígito a dígito, em vez de reconstruir o formato, evita dois
+    problemas: o span pode não incluir o parêntese de abertura (e reconstruí-lo
+    produziria '((85)'), e o comprimento do resultado se mantém igual ao da
+    entrada, o que é o que permite aplicar as máscaras em lote sem desalinhar
+    o texto.
+    """
+    digitos = re.sub(r"\D", "", text)
+    if len(digitos) < 10:
+        return re.sub(r"\d", "*", text)
+
+    total = len(digitos)
+    visiveis = {0, 1, total - 2, total - 1}  # DDD e dois últimos
+
+    saida = []
+    indice = 0
+    for ch in text:
+        if ch.isdigit():
+            saida.append(ch if indice in visiveis else "*")
+            indice += 1
+        else:
+            saida.append(ch)
+    return "".join(saida)
 
 
 def mask_location(text: str) -> str:
@@ -74,6 +92,39 @@ def mask_location(text: str) -> str:
     if len(text) <= 2:
         return text
     return text[:2] + "*" * (len(text) - 2)
+
+
+def mask_cep(text: str) -> str:
+    """
+    Preserva a região, esconde o endereço: '62755-000' → '62***-***'.
+
+    Os dois primeiros dígitos identificam o estado/região, o que costuma ser
+    necessário para a leitura processual; o resto localiza o domicílio.
+    """
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 8:
+        return f"{digits[:2]}***-***"
+    return "*" * len(text)
+
+
+def mask_endereco(text: str) -> str:
+    """
+    Mantém o tipo do logradouro e mascara o resto:
+    'Rua Cassiano Correia, 4, Boa Esperança' → 'Rua *********************************'
+
+    O tipo sozinho não identifica ninguém e preserva a legibilidade da frase.
+    """
+    match = re.match(
+        r"\s*(Rua|RUA|R\.|Avenida|AVENIDA|Av\.|AV\.|Travessa|TRAVESSA|Trav\.|"
+        r"Alameda|Al\.|Estrada|ESTRADA|Rodovia|Rod\.|Sítio|SÍTIO|Sitio|SITIO|"
+        r"Distrito|DISTRITO|Localidade|LOCALIDADE|Conjunto|Conj\.|Praça|PRAÇA|"
+        r"Praca|Vila|VILA|Loteamento|Assentamento|Povoado|Fazenda|Quadra)\s+",
+        text,
+    )
+    if match:
+        prefixo = match.group(0)
+        return prefixo + "*" * (len(text) - len(prefixo))
+    return "*" * len(text)
 
 
 def mask_oab(text: str) -> str:
@@ -129,6 +180,8 @@ MASK_FUNCTIONS: dict[str, MaskFn] = {
     "EMAIL_ADDRESS": mask_email,
     "PHONE_NUMBER_BR": mask_phone,
     "LOCATION": mask_location,
+    "CEP_BR": mask_cep,
+    "ENDERECO_BR": mask_endereco,
     "OAB_BR": mask_oab,
     "DATE_OF_BIRTH": mask_date_of_birth,
     "NIT_PIS_PASEP": mask_nit,

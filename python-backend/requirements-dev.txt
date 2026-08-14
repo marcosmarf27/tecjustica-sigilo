@@ -1,0 +1,7 @@
+# Dependências de desenvolvimento e avaliação de acurácia.
+# Instale junto com requirements.txt para rodar a suíte:
+#   pip install -r python-backend/requirements.txt -r python-backend/requirements-dev.txt
+
+-r requirements.txt
+
+pytest==9.1.1

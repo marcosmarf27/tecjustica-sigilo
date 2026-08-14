@@ -5,6 +5,8 @@ export type EntityTypeId =
   | "RG_BR"
   | "PHONE_NUMBER_BR"
   | "EMAIL_ADDRESS"
+  | "ENDERECO_BR"
+  | "CEP_BR"
   | "LOCATION"
   | "OAB_BR"
   | "DATE_OF_BIRTH"
@@ -27,7 +29,9 @@ export const ALL_ENTITIES: EntityInfo[] = [
   { id: "RG_BR", label: "RG", color: "#e11d48" },
   { id: "PHONE_NUMBER_BR", label: "Telefone", color: "#8b5cf6" },
   { id: "EMAIL_ADDRESS", label: "E-mail", color: "#06b6d4" },
-  { id: "LOCATION", label: "Endereço/Local", color: "#10b981" },
+  { id: "ENDERECO_BR", label: "Endereço", color: "#10b981" },
+  { id: "CEP_BR", label: "CEP", color: "#059669" },
+  { id: "LOCATION", label: "Cidade/Local", color: "#0ea5e9" },
   { id: "OAB_BR", label: "OAB", color: "#6366f1" },
   { id: "DATE_OF_BIRTH", label: "Data Nasc.", color: "#ec4899" },
   { id: "NIT_PIS_PASEP", label: "NIT/PIS", color: "#14b8a6" },

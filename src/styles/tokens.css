@@ -1,0 +1,196 @@
+/**
+ * Design system — Presidio Anon
+ * ============================================================================
+ *
+ * Direção: **tinta de cartório**. O produto vive dentro do vocabulário do
+ * processo judicial brasileiro, e é de lá que vem a identidade — não do
+ * cinza-ardósia com acento índigo que qualquer aplicativo usa.
+ *
+ *   · A cor de ação é o **violeta-anilina do carimbo** de cartório, a tinta que
+ *     todo mundo que mexe com autos reconhece.
+ *   · O fundo é **grafite quente**, não azulado: o azul-ardósia é o default de
+ *     interface; o grafite levemente terroso lembra papel impresso sob luz
+ *     fraca e deixa o violeta do carimbo brilhar sem competir.
+ *   · O elemento de assinatura é a **tarja de redação** — o retângulo sólido
+ *     sobre o dado sigiloso. É o gesto que define o produto, e por isso é o
+ *     único lugar onde a interface se permite ser enfática.
+ *
+ * Tipografia: IBM Plex Sans e IBM Plex Mono, auto-hospedadas. Plex tem a
+ * seriedade institucional que o contexto pede sem parecer software genérico, e
+ * a família mono é irmã da sans — o texto do documento e a interface ficam
+ * visivelmente da mesma casa. Auto-hospedar não é preferência estética: um
+ * `@import` do Google Fonts faria o aplicativo telefonar para fora a cada
+ * abertura, contradizendo a promessa de operação 100% local.
+ *
+ * Contraste: todos os pares de texto/fundo abaixo passam em WCAG AA (≥ 4.5:1
+ * para corpo, ≥ 3:1 para elementos de interface). As cores de entidade foram
+ * escolhidas sobre a superfície real em que aparecem, não no vácuo.
+ */
+
+@theme {
+  /* --- Superfícies ------------------------------------------------------ */
+  --color-bg: #17151a;
+  --color-surface: #201d24;
+  --color-surface-raised: #2a262f;
+  --color-surface-hover: #34303a;
+  --color-border: #413c48;
+  --color-border-subtle: #2e2a34;
+
+  /* --- Texto ------------------------------------------------------------ */
+  /* text-secondary e text-tertiary foram clareados até passarem em AA sobre
+     --color-surface; os valores antigos (#8892a8 / #5c6478) reprovavam, e
+     eram usados na maior parte do texto de apoio. */
+  --color-text: #f2eff5;
+  --color-text-secondary: #b9b2c2;
+  --color-text-tertiary: #918a9b;
+
+  /* --- Ação: violeta-anilina de carimbo --------------------------------- */
+  --color-accent: #a680ff;
+  --color-accent-hover: #bda0ff;
+  --color-accent-strong: #6d3aa8;
+  --color-accent-muted: #a680ff1f;
+  --color-on-accent: #14101c;
+
+  /* --- Estado ----------------------------------------------------------- */
+  --color-success: #4ade80;
+  --color-danger: #ff8a7a;
+  --color-warning: #f5bd4f;
+  --color-info: #7cc4fb;
+
+  /* --- Entidades -------------------------------------------------------- */
+  /* Uma cor por tipo de PII, todas legíveis sobre --color-surface-raised.
+     Vinham de um arquivo de tipos do frontend, soltas; agora fazem parte do
+     sistema e podem ser usadas na tarja, no chip e na lista sem divergir. */
+  --color-entity-person: #f5bd4f;
+  --color-entity-cpf: #ff8a7a;
+  --color-entity-cnpj: #ffa96b;
+  --color-entity-rg: #ff8fa8;
+  --color-entity-phone: #c4a2ff;
+  --color-entity-email: #6fd3e8;
+  --color-entity-address: #5fd9a4;
+  --color-entity-cep: #7fe0c0;
+  --color-entity-location: #7cc4fb;
+  --color-entity-oab: #a680ff;
+  --color-entity-birthdate: #ff9ecb;
+  --color-entity-nit: #62d9c8;
+  --color-entity-process: #d0a2ff;
+  --color-entity-bank: #ff92ab;
+
+  /* --- Tipografia ------------------------------------------------------- */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", "Consolas", monospace;
+
+  /* Escala tipográfica. Antes a interface usava valores avulsos
+     (text-[10px] até text-[15px]) sem regra; estes são os degraus. */
+  --text-2xs: 0.6875rem; /* 11px — metadado, contagem */
+  --text-xs: 0.75rem;    /* 12px — rótulo, chip */
+  --text-sm: 0.8125rem;  /* 13px — corpo da interface */
+  --text-base: 0.9375rem;/* 15px — corpo do documento */
+  --text-lg: 1.125rem;   /* 18px — título de seção */
+  --text-xl: 1.5rem;     /* 24px — título de tela */
+  --text-2xl: 2rem;      /* 32px — número de destaque */
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-document: 1.75;
+
+  /* --- Espaçamento ------------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* --- Forma ------------------------------------------------------------ */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.45);
+
+  /* --- Camadas ---------------------------------------------------------- */
+  --z-sticky: 10;
+  --z-overlay: 100;
+  --z-toast: 200;
+}
+
+/* ==========================================================================
+   Foco
+   ==========================================================================
+   Não havia nenhum estilo de foco no projeto: quem navega por teclado ficava
+   sem saber onde estava. O anel usa a cor de ação sobre um halo escuro para
+   permanecer visível em qualquer superfície.
+*/
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   Tarja de redação — o elemento de assinatura
+   ==========================================================================
+   Cada trecho mascarado aparece como uma tarja sólida, do jeito que um
+   documento censurado se apresenta no papel. Passar o mouse ou focar pelo
+   teclado "levanta" a tarja e revela o valor original, que é o que permite
+   conferir se a anonimização acertou — a tarefa central de quem responde pelo
+   sigilo do documento.
+*/
+.tarja {
+  position: relative;
+  display: inline;
+  border-radius: 2px;
+  padding: 0.1em 0.25em;
+  margin: 0 0.05em;
+  cursor: pointer;
+  color: transparent;
+  background-color: var(--cor-entidade, var(--color-accent));
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.tarja::selection {
+  color: transparent;
+}
+
+.tarja:hover,
+.tarja:focus-visible,
+.tarja[data-revelada="true"] {
+  color: var(--color-on-accent);
+  background-color: color-mix(in srgb, var(--cor-entidade, var(--color-accent)) 85%, white);
+}
+
+/* Marcação leve, para quando o objetivo é localizar sem esconder. */
+.marcacao {
+  border-radius: 2px;
+  padding: 0.1em 0.2em;
+  background-color: color-mix(in srgb, var(--cor-entidade, var(--color-accent)) 22%, transparent);
+  border-bottom: 2px solid var(--cor-entidade, var(--color-accent));
+}
+
+.marcacao[data-ativa="true"] {
+  background-color: color-mix(in srgb, var(--cor-entidade, var(--color-accent)) 45%, transparent);
+  box-shadow: 0 0 0 2px var(--cor-entidade, var(--color-accent));
+}
+
+/* ==========================================================================
+   Movimento
+   ==========================================================================
+   Quem pediu menos movimento no sistema operacional recebe menos movimento.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -101,7 +101,7 @@ function createWindow(): void {
       nodeIntegration: false,
     },
     titleBarStyle: "default",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#0c0f1a",
   });
 
   const isDev = !app.isPackaged;
@@ -132,7 +132,25 @@ ipcMain.handle("read-file", async (_event, filePath: string) => {
 ipcMain.handle(
   "save-file",
   async (_event, filePath: string, content: string) => {
+    // Gravar por cima de um resultado anterior sem avisar destrói trabalho já
+    // conferido — reprocessar o mesmo documento com outra configuração é
+    // rotina, e o nome de saída é sempre o mesmo.
+    if (fs.existsSync(filePath) && mainWindow) {
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        buttons: ["Substituir", "Cancelar"],
+        defaultId: 1,
+        cancelId: 1,
+        title: "Arquivo já existe",
+        message: `Já existe um arquivo chamado ${path.basename(filePath)} nessa pasta.`,
+        detail: "Substituir apaga o conteúdo anterior.",
+      });
+      if (response !== 0) {
+        return { salvo: false, motivo: "cancelado" };
+      }
+    }
     fs.writeFileSync(filePath, content, "utf-8");
+    return { salvo: true };
   }
 );
 
@@ -332,10 +350,15 @@ ipcMain.handle("select-files", async () => {
   }));
 });
 
+// Porta efetiva do backend, resolvida no boot e consultada pelo renderer.
+let backendPort = PYTHON_PORT;
+
+ipcMain.handle("get-backend-port", () => backendPort);
+
 // App lifecycle
 app.whenReady().then(async () => {
-  const port = await findAvailablePort(PYTHON_PORT);
-  await startPythonBackend(port);
+  backendPort = await findAvailablePort(PYTHON_PORT);
+  await startPythonBackend(backendPort);
   createWindow();
 });
 

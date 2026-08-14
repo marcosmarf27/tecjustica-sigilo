@@ -3,6 +3,7 @@ interface ProcessingViewProps {
   total: number;
   fileName: string;
   phase?: string;
+  onCancelar?: () => void;
 }
 
 export function ProcessingView({
@@ -10,71 +11,113 @@ export function ProcessingView({
   total,
   fileName,
   phase = "Analisando",
+  onCancelar,
 }: ProcessingViewProps) {
   const progress = total > 0 ? (current / total) * 100 : 0;
   const isDone = current === total && total > 0;
+  // Com um único arquivo — o caso mais comum — não há avanço a mostrar até o
+  // fim, então o anel viraria um 0% travado por minutos. Um indicador
+  // indeterminado é honesto; uma barra parada em 0% parece travamento.
+  const indeterminado = total <= 1 && !isDone;
 
   return (
     <div className="flex h-full items-center justify-center">
       <div className="w-full max-w-md animate-fade-in px-8 text-center">
-        {/* Circular progress */}
         <div className="relative mx-auto mb-8 h-24 w-24">
-          <svg className="h-24 w-24 -rotate-90" viewBox="0 0 96 96">
+          <svg
+            className={`h-24 w-24 -rotate-90 ${indeterminado ? "" : ""}`}
+            viewBox="0 0 96 96"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={indeterminado ? undefined : Math.round(progress)}
+            aria-label={
+              indeterminado
+                ? `${phase}: ${fileName}`
+                : `${phase}: ${current} de ${total}`
+            }
+            style={
+              indeterminado
+                ? { animation: "spin 1.6s linear infinite" }
+                : undefined
+            }
+          >
             <circle
-              cx="48" cy="48" r="40"
+              cx="48"
+              cy="48"
+              r="40"
               fill="none"
               stroke="var(--color-border)"
               strokeWidth="5"
             />
             <circle
-              cx="48" cy="48" r="40"
+              cx="48"
+              cy="48"
+              r="40"
               fill="none"
               stroke="var(--color-accent)"
               strokeWidth="5"
               strokeLinecap="round"
-              strokeDasharray={`${progress * 2.51} 251`}
-              className="transition-all duration-700 ease-out"
+              strokeDasharray={indeterminado ? "60 251" : `${progress * 2.51} 251`}
+              className={indeterminado ? "" : "transition-all duration-700 ease-out"}
             />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-accent tabular-nums">
-              {Math.round(progress)}%
-            </span>
-          </div>
+          {!indeterminado && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold text-accent tabular-nums">
+                {Math.round(progress)}%
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Status */}
-        <h2 className="text-lg font-semibold text-text">
-          {isDone ? "Finalizando..." : `${phase}`}
+        <h2 className="text-lg font-semibold text-text" aria-live="polite">
+          {isDone ? "Finalizando…" : phase}
         </h2>
 
         <div className="mt-4 rounded-lg bg-surface-raised/70 px-4 py-3">
-          <div className="flex items-center justify-between text-[12px]">
-            <span className="text-text-tertiary">Arquivo</span>
-            <span className="font-medium text-text tabular-nums">
-              {current} de {total}
-            </span>
-          </div>
-          <p className="mt-1.5 truncate text-left text-[13px] font-medium text-accent">
+          {total > 1 && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-text-tertiary">Arquivo</span>
+              <span className="font-medium text-text tabular-nums">
+                {current} de {total}
+              </span>
+            </div>
+          )}
+          <p className="mt-1.5 truncate text-left text-sm font-medium text-accent">
             {fileName}
           </p>
         </div>
 
-        {/* Step indicators */}
-        <div className="mt-6 flex items-center justify-center gap-3">
-          {Array.from({ length: total }, (_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-500 ${
-                i < current
-                  ? "w-6 bg-accent"
-                  : i === current - 1
-                    ? "w-6 bg-accent animate-pulse-soft"
-                    : "w-1.5 bg-border"
-              }`}
-            />
-          ))}
-        </div>
+        {total > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-3">
+            {Array.from({ length: total }, (_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  i < current
+                    ? "w-6 bg-accent"
+                    : i === current - 1
+                      ? "w-6 animate-pulse-soft bg-accent"
+                      : "w-1.5 bg-border"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {onCancelar && !isDone && (
+          <button
+            onClick={onCancelar}
+            className="mt-7 rounded-lg border border-border px-4 py-2 text-xs font-medium text-text-secondary transition hover:border-danger hover:text-danger"
+          >
+            Cancelar
+          </button>
+        )}
+
+        <p className="mt-4 text-2xs text-text-tertiary">
+          Documentos longos levam alguns minutos. Nada sai da sua máquina.
+        </p>
       </div>
     </div>
   );
