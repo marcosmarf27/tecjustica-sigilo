@@ -346,6 +346,49 @@ auditoria: `123.***.***-09`, `J**** d* S****`, `Fo*******`. Num documento de
 frequentemente suficientes para reidentificar. **Isto não foi alterado nesta
 rodada** — está registrado como pendência na seção 7.
 
+**O 99,94% mede a anonimização, não o OCR.** Os três documentos do corpus
+chegaram já em markdown, reconhecidos por outro pipeline. O OCR embarcado no
+aplicativo — Tesseract, via liteparse — é um componente **diferente**, e a
+qualidade dele é o **piso** de tudo o que vem depois: um dado que o
+reconhecimento não transcreveu não pode ser detectado por recognizer nenhum.
+Esse piso foi medido à parte, na seção 5.1.
+
+### 5.1 O OCR embarcado, medido
+
+Sete PDFs 100% escaneados (33 páginas: matrículas, cédula de crédito, petição),
+com nota humana de qualidade atribuída antes de qualquer medição. O texto do
+Tesseract foi comparado ao do PaddleOCR sobre os mesmos arquivos — recall de
+palavras, contando repetição.
+
+| Documento | Nota humana | Palavras recuperadas |
+|---|---|---|
+| Cédula de crédito | muito bom | **94,3%** |
+| Petição (impressão apagada) | mediano | **93,6%** |
+| Matrícula datilografada | bom (8/10) | 79,2% |
+| Processo, última página ruim | bom | 77,8% |
+| Matrícula, página 1 | razoável | 49,0% |
+| Matrícula, página 2 | péssimo (1/10) | 45,1% |
+| Matrícula, página 4 | ruim (4/10) | **17,7%** |
+
+A leitura é clara e tem uma fronteira nítida: **em documento impresso o
+Tesseract acompanha o motor de referência** — 94% num contrato, 94% numa
+petição de impressão fraca, a ~1 s por página e sem custo. **Em matrícula de
+cartório datilografada ele desaba**, chegando a perder 82% do texto da página.
+
+Para quem responde pelo sigilo, o que importa é a natureza da falha: texto não
+transcrito **não vaza** — ele simplesmente não chega ao documento de saída. O
+risco não é de vazamento, é de **entregar um documento mutilado achando que
+está completo**. Por isso o aviso de que o texto veio de OCR passou a ser
+correto (era sempre falso; ver seção 8.5), e a recomendação é: **matrícula
+digitalizada e documento datilografado pedem OCR externo**; o embarcado serve
+bem para peça impressa e PDF nativo.
+
+Ressalva da própria medição: a referência é outro motor de OCR, não transcrição
+humana. Nos dois piores casos o motor de referência também produziu texto
+degradado, então parte da divergência é ruído dos dois lados. A contagem bruta
+de caracteres confirma a direção — no pior caso o Tesseract extraiu 197 palavras
+onde a referência extraiu 716.
+
 ---
 
 ## 6. Interface
@@ -512,6 +555,25 @@ ler um documento do disco e receber o texto de volta.
 
 Travado por oito testes em `tests/test_seguranca_api.py`, incluindo a tentativa
 de ler `/etc/passwd`, que é recusada duas vezes.
+
+### 8.5 O aviso de "lido por OCR" era sempre falso
+
+O aplicativo mostra a etapa "Documento lido por OCR" para sinalizar que o texto
+passou por reconhecimento — o momento em que a revisão humana mais importa,
+porque é onde o conteúdo pode ter chegado incompleto (seção 5.1).
+
+Esse aviso **nunca aparecia**. A detecção comparava dois campos que o liteparse
+devolve (`markdown` e `text`) supondo que uma página escaneada viria sem o
+primeiro. Ela vem com os dois preenchidos — o texto reconhecido chega pelos
+mesmos campos do texto nativo, e o liteparse não expõe nenhuma flag de OCR. Em
+sete PDFs 100% escaneados, a resposta foi `False` nas sete vezes.
+
+A detecção agora é explícita: imagem é sempre OCR; `.docx`/`.xlsx`/`.pptx`
+nunca são; e PDF é sondado com o OCR desligado para ver se já traz camada de
+texto. A sondagem é barata dos dois lados — numa página escaneada não há nada
+para extrair (0,0 s), e num PDF nativo a extração de texto é a parte rápida.
+Cinco testes em `tests/test_deteccao_ocr.py`, um deles sobre matrícula
+digitalizada real.
 
 ## 9. Situação do upstream
 

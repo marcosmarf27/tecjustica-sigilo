@@ -114,6 +114,67 @@ def tessdata_disponivel() -> bool:
     return _tessdata_dir() is not None
 
 
+# Formatos cujo texto é estruturado: nunca passam por OCR.
+_FORMATOS_COM_TEXTO = {".docx", ".xlsx", ".pptx"}
+
+
+def _tem_camada_de_texto(caminho: str, amostra: int = 3) -> bool:
+    """
+    True se o PDF já traz texto nativo, sondado sem OCR.
+
+    O liteparse não informa se uma página passou por OCR — com `ocr_enabled=True`
+    o texto reconhecido chega pelos mesmos campos do texto nativo. A sondagem
+    resolve isso e é barata dos dois lados: numa página escaneada não há nada
+    para extrair, e num PDF nativo a extração de texto é a parte rápida.
+
+    Saber a resposta importa porque a qualidade do OCR é o piso do recall: um
+    dado que o Tesseract não transcreveu não pode ser detectado por nenhum
+    recognizer, e quem revisa o documento precisa ser avisado disso.
+    """
+    import liteparse
+
+    try:
+        resultado = liteparse.LiteParse(
+            ocr_enabled=False, quiet=True, max_pages=amostra
+        ).parse(caminho)
+    except Exception:
+        # Na dúvida, não afirma que houve OCR — melhor calar que mentir.
+        return True
+
+    return any(len((pagina.text or "").strip()) > 40 for pagina in resultado.pages)
+
+
+def _extrair_paginas(
+    caminho: str, max_paginas: int | None = None
+) -> tuple[list[PaginaExtraida], int]:
+    """Lê o documento pelo liteparse e devolve as páginas e o total."""
+    import liteparse
+
+    parser = liteparse.LiteParse(
+        ocr_enabled=True,
+        ocr_language=IDIOMA_OCR,
+        tessdata_path=_tessdata_dir(),
+        output_format="markdown",
+        num_workers=_workers_padrao(),
+        continue_on_page_error=True,
+        keep_headers_footers=True,
+        quiet=True,
+        **({"max_pages": max_paginas} if max_paginas else {}),
+    )
+
+    resultado = parser.parse(caminho)
+
+    paginas: list[PaginaExtraida] = []
+    for pagina in resultado.pages:
+        # `markdown` traz a estrutura (títulos, tabelas); `text` é o cru.
+        conteudo = (pagina.markdown or "").strip() or (pagina.text or "").strip()
+        paginas.append(
+            PaginaExtraida(numero=pagina.page_num, texto=_limpar(conteudo))
+        )
+
+    return paginas, resultado.total_pages
+
+
 def extrair(
     caminho: str | Path,
     progresso: Callable[[int, int], None] | None = None,
@@ -128,40 +189,21 @@ def extrair(
     página de verdade seria preciso fatiar o documento, o que custa mais do que
     informa.
     """
-    import liteparse
-
     caminho = str(caminho)
     if not Path(caminho).exists():
         raise FileNotFoundError(caminho)
 
-    parser = liteparse.LiteParse(
-        ocr_enabled=True,
-        ocr_language=IDIOMA_OCR,
-        tessdata_path=_tessdata_dir(),
-        output_format="markdown",
-        num_workers=_workers_padrao(),
-        continue_on_page_error=True,
-        keep_headers_footers=True,
-        quiet=True,
-        **({"max_pages": max_paginas} if max_paginas else {}),
-    )
-
     if progresso:
         progresso(0, 0)
 
-    resultado = parser.parse(caminho)
+    paginas, total_paginas = _extrair_paginas(caminho, max_paginas)
 
-    paginas: list[PaginaExtraida] = []
-    houve_ocr = False
-    for pagina in resultado.pages:
-        # `markdown` traz a estrutura (títulos, tabelas); `text` é o cru.
-        # Páginas só com imagem vêm sem markdown, e aí o texto vem do OCR.
-        conteudo = (pagina.markdown or "").strip() or (pagina.text or "").strip()
-        if not (pagina.markdown or "").strip() and (pagina.text or "").strip():
-            houve_ocr = True
-        paginas.append(
-            PaginaExtraida(numero=pagina.page_num, texto=_limpar(conteudo))
-        )
+    extensao = Path(caminho).suffix.lower()
+    if extensao == ".pdf":
+        houve_ocr = not _tem_camada_de_texto(caminho)
+    else:
+        # Imagem só tem como virar texto por OCR; documento de escritório, nunca.
+        houve_ocr = extensao not in _FORMATOS_COM_TEXTO
 
     if progresso:
         progresso(len(paginas), len(paginas))
@@ -169,6 +211,6 @@ def extrair(
     return DocumentoExtraido(
         caminho=caminho,
         paginas=paginas,
-        total_paginas=resultado.total_pages,
+        total_paginas=total_paginas,
         houve_ocr=houve_ocr,
     )
