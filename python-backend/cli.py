@@ -26,6 +26,8 @@ import os
 import sys
 from pathlib import Path
 
+from mask_config import POLITICA_PADRAO, POLITICAS
+
 from engine import get_engine
 
 
@@ -50,8 +52,12 @@ def _parse_entities(raw: str | None) -> list[str]:
     return [e.strip() for e in raw.split(",") if e.strip()]
 
 
-def _process_one(engine, text: str, entities: list[str]) -> dict:
-    return engine.anonymize(text=text, entities=entities)
+def _process_one(
+    engine, text: str, entities: list[str], politica: str
+) -> dict:
+    return engine.anonymize(
+        text=text, entities=entities, politica_mascara=politica
+    )
 
 
 def _cmd_single(args, engine) -> int:
@@ -68,7 +74,7 @@ def _cmd_single(args, engine) -> int:
     else:
         text = _read_input(None)
 
-    result = _process_one(engine, text, entities)
+    result = _process_one(engine, text, entities, args.mascara)
 
     if args.format == "json":
         out = json.dumps(result, ensure_ascii=False, indent=2)
@@ -88,7 +94,7 @@ def _cmd_batch(args, engine) -> int:
     for path_str in args.files:
         path = Path(path_str)
         text = path.read_text(encoding="utf-8")
-        result = _process_one(engine, text, entities)
+        result = _process_one(engine, text, entities, args.mascara)
 
         if args.in_place:
             dest = path
@@ -137,6 +143,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "-e", "--entities",
         help="Lista separada por vírgula de entidades a mascarar (ex: PERSON,CPF_BR,CNPJ_BR). Default: todas.",
+    )
+    parser.add_argument(
+        "-m",
+        "--mascara",
+        choices=POLITICAS,
+        default=POLITICA_PADRAO,
+        help=(
+            "como substituir o dado encontrado: "
+            "placeholder = [PESSOA_1] (nada permanece), "
+            "parcial = J**** d* S**** (mantém iniciais), "
+            "total = ************* (esconde até o formato)"
+        ),
     )
     parser.add_argument(
         "--nlp-mode",

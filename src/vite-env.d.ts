@@ -26,6 +26,8 @@ interface CliAPI {
 interface ElectronAPI {
   /** Porta em que o backend Python realmente subiu (pode não ser a padrão). */
   getBackendPort: () => Promise<number>;
+  /** Credencial da sessão; sem ela o backend recusa as requisições. */
+  getBackendToken: () => Promise<string>;
   /** Caminho absoluto de um File — substitui o antigo File.path. */
   getPathForFile: (file: File) => string;
   readFile: (path: string) => Promise<string>;

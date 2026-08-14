@@ -489,6 +489,30 @@ apenas parte de um nome (`ELIONEUDO EVARISTO`), a propagação repetia esse
 pedaço por todo o documento — e o sobrenome ficava exposto em **todas** as
 ocorrências. Os nomes propagados passaram a ser estendidos por preposição.
 
+### 8.4 A API local ganhou credencial
+
+Revisando o que foi acrescentado, apareceu uma brecha **criada nesta rodada**:
+`/processar` abre um arquivo pelo caminho e devolve o conteúdo, e o servidor
+aceitava requisição de qualquer origem.
+
+Escutar em `127.0.0.1` não protege: qualquer página aberta no navegador da
+máquina consegue falar com uma porta local. Um site poderia mandar o backend
+ler um documento do disco e receber o texto de volta.
+
+**Correção, em duas camadas:**
+
+- **Token de sessão.** O backend sorteia um segredo a cada execução e o anuncia
+  na saída; o processo principal do Electron o lê e repassa à interface. Sem
+  ele, 403. O token vive só em memória, dos dois lados, e muda a cada abertura.
+  `/health` fica de fora, porque é por ela que a interface descobre que o
+  servidor subiu.
+- **Restrição de formato.** Mesmo com credencial válida, só os formatos que o
+  aplicativo declara ler são aceitos — a credencial protege de sites, não de um
+  caminho digitado errado.
+
+Travado por oito testes em `tests/test_seguranca_api.py`, incluindo a tentativa
+de ler `/etc/passwd`, que é recusada duas vezes.
+
 ## 9. Situação do upstream
 
 | | instalado antes | agora |

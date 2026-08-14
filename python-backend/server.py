@@ -4,11 +4,13 @@ Roda localmente como processo filho do Electron.
 """
 
 import argparse
+import os
+import secrets
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 import documentos
@@ -21,12 +23,34 @@ from striprtf.striprtf import rtf_to_text
 
 app = FastAPI(title="Presidio Anon API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Segredo de sessão.
+#
+# O servidor escuta em 127.0.0.1, mas isso sozinho não protege: qualquer página
+# aberta no navegador da máquina consegue falar com uma porta local. E como
+# `/processar` abre um arquivo pelo caminho e devolve o conteúdo, sem um
+# segredo um site qualquer poderia mandar o backend ler documentos do disco.
+#
+# O Electron lê este token da saída do processo e o repassa à interface; quem
+# não o tiver recebe 403. Ele muda a cada execução e nunca vai para o disco.
+TOKEN_SESSAO = os.environ.get("PRESIDIO_TOKEN") or secrets.token_urlsafe(32)
+
+# Rotas sem token: `/health` só informa se o motor subiu, e é por ela que a
+# interface descobre que o servidor está de pé.
+ROTAS_PUBLICAS = {"/health", "/docs", "/openapi.json"}
+
+
+@app.middleware("http")
+async def exigir_token(request: Request, call_next):
+    if request.url.path in ROTAS_PUBLICAS or request.method == "OPTIONS":
+        return await call_next(request)
+
+    enviado = request.headers.get("x-presidio-token", "")
+    if not secrets.compare_digest(enviado, TOKEN_SESSAO):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "requisição sem credencial desta sessão"},
+        )
+    return await call_next(request)
 
 
 class AnonymizeRequest(BaseModel):
@@ -128,6 +152,18 @@ class ProcessarRequest(BaseModel):
 def processar(req: ProcessarRequest):
     if not req.caminho and req.texto is None:
         raise HTTPException(status_code=400, detail="informe 'caminho' ou 'texto'")
+
+    if req.caminho:
+        alvo = Path(req.caminho)
+        if not alvo.is_file():
+            raise HTTPException(status_code=404, detail="arquivo não encontrado")
+        # Só formatos que o aplicativo declara ler. Sem isso, um caminho
+        # arbitrário viraria leitura de qualquer arquivo do disco.
+        if not documentos.suportado(alvo):
+            raise HTTPException(
+                status_code=415,
+                detail=f"formato não suportado: {alvo.suffix or 'sem extensão'}",
+            )
 
     nome = req.nome_arquivo or (Path(req.caminho).name if req.caminho else "texto")
     job = registro.criar(nome)
@@ -238,6 +274,8 @@ if __name__ == "__main__":
     engine = get_engine()
     print(f"Carregando modelo NLP (modo={engine.nlp_mode})...", flush=True)
     engine.initialize()
+    # O Electron lê esta linha para saber o token da sessão.
+    print(f"PRESIDIO_TOKEN={TOKEN_SESSAO}", flush=True)
     print(f"Modelo carregado. Servidor rodando na porta {args.port}", flush=True)
     sys.stdout.flush()
 

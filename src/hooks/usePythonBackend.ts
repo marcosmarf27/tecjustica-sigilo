@@ -32,6 +32,15 @@ export interface Progresso {
   nome_arquivo: string;
 }
 
+/**
+ * Credencial desta execução, entregue pelo processo principal.
+ *
+ * Existe porque o backend abre arquivos do disco a pedido da interface: sem
+ * ela, qualquer página aberta no navegador poderia mandar a porta local ler um
+ * documento e devolver o conteúdo. Vive só em memória.
+ */
+let tokenSessao = "";
+
 async function comTimeout(
   url: string,
   init: RequestInit,
@@ -44,7 +53,11 @@ async function comTimeout(
   externo?.addEventListener("abort", cancelar);
 
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetch(url, {
+      ...init,
+      headers: { ...(init.headers ?? {}), "X-Presidio-Token": tokenSessao },
+      signal: controller.signal,
+    });
   } finally {
     clearTimeout(timer);
     externo?.removeEventListener("abort", cancelar);
@@ -73,6 +86,12 @@ export function usePythonBackend() {
 
     const verificar = async () => {
       try {
+        if (!tokenSessao) {
+          // O backend só anuncia o token depois de subir; até lá, tenta de novo
+          // a cada rodada do health check.
+          tokenSessao = (await window.electronAPI?.getBackendToken?.()) ?? "";
+        }
+
         const res = await comTimeout(
           `${baseRef.current}/health`,
           {},
@@ -195,6 +214,7 @@ export function usePythonBackend() {
         // Sem timeout curto aqui: cancelar é o pedido mais importante do fluxo.
         fetch(`${baseRef.current}/processar/${jobId}/cancelar`, {
           method: "POST",
+          headers: { "X-Presidio-Token": tokenSessao },
         }).catch(() => undefined);
       };
       signal?.addEventListener("abort", cancelar);

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   getBackendPort: (): Promise<number> => ipcRenderer.invoke("get-backend-port"),
+  getBackendToken: (): Promise<string> => ipcRenderer.invoke("get-backend-token"),
   /** Caminho absoluto de um File vindo de drag-and-drop ou <input type="file">. */
   getPathForFile: (file: File): string => {
     try {

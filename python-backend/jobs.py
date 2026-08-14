@@ -91,14 +91,26 @@ class RegistroDeJobs:
             self._jobs.pop(job_id, None)
 
     def _podar(self) -> None:
-        """Remove os trabalhos terminados mais antigos quando passam do limite."""
+        """
+        Remove os trabalhos terminados mais antigos quando passam do limite.
+
+        Um trabalho concluído cujo resultado ainda não foi buscado fica de
+        fora: descartá-lo faria a interface pedir o resultado e receber "não
+        encontrado", perdendo silenciosamente um documento já processado.
+        """
         if len(self._jobs) <= self._maximo:
             return
-        terminados = sorted(
-            (j for j in self._jobs.values() if j.estado in (CONCLUIDO, CANCELADO, ERRO)),
+
+        descartaveis = sorted(
+            (
+                j
+                for j in self._jobs.values()
+                if j.estado in (CANCELADO, ERRO)
+                or (j.estado == CONCLUIDO and j.resultado is None)
+            ),
             key=lambda j: j.criado_em,
         )
-        for job in terminados[: len(self._jobs) - self._maximo]:
+        for job in descartaveis[: len(self._jobs) - self._maximo]:
             self._jobs.pop(job.id, None)
 
     def executar(self, job: Job, tarefa: Callable[[Job], dict[str, Any]]) -> None:
