@@ -16,6 +16,13 @@ uvicorn[standard]==0.52.3
 spacy==3.8.15
 striprtf==0.0.32
 
+# --- Leitura de PDF, DOCX e imagens ---
+# PDFium para o texto nativo e Tesseract para OCR, ambos embutidos no wheel.
+# Os dados de idioma do Tesseract NÃO vêm no pacote: sem eles o liteparse os
+# busca na rede na primeira execução, o que quebraria a operação offline. Por
+# isso o por.traineddata é empacotado em resources/tessdata/.
+liteparse==2.12.0
+
 # --- Modo BERT (PRESIDIO_NLP_MODE=transformer, o padrão) ---
 #
 # `spacy-huggingface-pipelines` é OBRIGATÓRIO e faltava aqui. O Presidio só

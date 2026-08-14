@@ -2,9 +2,9 @@
   "civel_0200161": {
     "sha256": "dca01fbba9e241cc67ee9c5dad866bb3284b3d296c7d06d340ffcd32944a1f49",
     "chars": 344001,
-    "segundos": 26.5,
+    "segundos": 29.7,
     "modo_nlp": "spacy",
-    "deteccoes": 3641,
+    "deteccoes": 2992,
     "tipos": {
       "PERSON": {
         "protecao_valor": 0.9333333333333333,
@@ -25,13 +25,13 @@
         "protegidas_substantivas": 44
       },
       "RG": {
-        "protecao_valor": 0.875,
-        "recall_ocorrencia": 0.9333333333333333,
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
         "recall_boilerplate": NaN,
         "valores_unicos": 8,
-        "valores_protegidos": 7,
+        "valores_protegidos": 8,
         "ocorrencias_substantivas": 15,
-        "protegidas_substantivas": 14
+        "protegidas_substantivas": 15
       },
       "CEP": {
         "protecao_valor": 1.0,
@@ -92,18 +92,18 @@
   "juri_19-08": {
     "sha256": "2b07596ef72f50d1fde273a31815dc1a110dc9ce297bd523c268c3fa8d6da19f",
     "chars": 1061709,
-    "segundos": 154.0,
+    "segundos": 287.6,
     "modo_nlp": "spacy",
-    "deteccoes": 16731,
+    "deteccoes": 14904,
     "tipos": {
       "PERSON": {
-        "protecao_valor": 0.9736842105263158,
-        "recall_ocorrencia": 0.9991126885536823,
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
         "recall_boilerplate": 1.0,
         "valores_unicos": 38,
-        "valores_protegidos": 37,
+        "valores_protegidos": 38,
         "ocorrencias_substantivas": 1127,
-        "protegidas_substantivas": 1126
+        "protegidas_substantivas": 1127
       },
       "CPF": {
         "protecao_valor": 1.0,
@@ -182,18 +182,18 @@
   "expedientes_13-08": {
     "sha256": "454d49180903728e341dfcfe946cc4aa422cf5414dbd4bd36dc7623ba83da1d4",
     "chars": 239272,
-    "segundos": 12.1,
+    "segundos": 16.8,
     "modo_nlp": "spacy",
-    "deteccoes": 3436,
+    "deteccoes": 3056,
     "tipos": {
       "PERSON": {
-        "protecao_valor": 0.9333333333333333,
-        "recall_ocorrencia": 0.9929824561403509,
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
         "recall_boilerplate": NaN,
         "valores_unicos": 15,
-        "valores_protegidos": 14,
+        "valores_protegidos": 15,
         "ocorrencias_substantivas": 285,
-        "protegidas_substantivas": 283
+        "protegidas_substantivas": 285
       },
       "CPF": {
         "protecao_valor": 0.9285714285714286,

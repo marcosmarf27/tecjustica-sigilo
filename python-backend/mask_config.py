@@ -1,12 +1,49 @@
 """
-Regras de mask customizadas por entidade.
-Cada função recebe o texto original da entidade e retorna o texto mascarado.
+Políticas de mascaramento.
+
+Três políticas, e a escolha é do operador porque o compromisso é real:
+
+- **placeholder** — `[PESSOA_1]`, `[CPF_2]`. Nada do dado sobrevive, e a
+  numeração estável dentro do documento deixa acompanhar quem é quem na
+  leitura. É a única que não permite reidentificação por fragmento.
+- **parcial** — `J**** d* S****`, `123.***.***-09`. Preserva pistas para
+  conferência visual, ao custo de manter iniciais e alguns dígitos. Em
+  documento longo, esses fragmentos somados costumam bastar para reidentificar.
+- **total** — cobre tudo com `*`, sem revelar sequer o formato.
+
+`aplicar_mascaras` é o ponto de entrada; `apply_mask` fica para quem chama uma
+entidade isolada (a CLI e os testes).
 """
+
+from __future__ import annotations
 
 import re
 from typing import Callable
 
 MaskFn = Callable[[str], str]
+
+POLITICAS = ("placeholder", "parcial", "total")
+POLITICA_PADRAO = "placeholder"
+
+# Nome legível de cada entidade dentro do placeholder. Sai em português porque
+# o documento anonimizado é lido por gente, não por máquina.
+ROTULO_ENTIDADE: dict[str, str] = {
+    "PERSON": "PESSOA",
+    "CPF_BR": "CPF",
+    "CNPJ_BR": "CNPJ",
+    "RG_BR": "RG",
+    "EMAIL_ADDRESS": "EMAIL",
+    "PHONE_NUMBER_BR": "TELEFONE",
+    "PHONE_NUMBER": "TELEFONE",
+    "LOCATION": "LOCAL",
+    "CEP_BR": "CEP",
+    "ENDERECO_BR": "ENDEREÇO",
+    "OAB_BR": "OAB",
+    "DATE_OF_BIRTH": "NASCIMENTO",
+    "NIT_PIS_PASEP": "NIT",
+    "NUMERO_PROCESSO_CNJ": "PROCESSO",
+    "CONTA_BANCARIA": "CONTA",
+}
 
 
 def mask_person(text: str) -> str:
@@ -191,9 +228,61 @@ MASK_FUNCTIONS: dict[str, MaskFn] = {
 
 
 def apply_mask(entity_type: str, text: str) -> str:
-    """Aplica a função de mask correspondente ao tipo de entidade."""
+    """Máscara parcial de uma entidade isolada, sem contexto de documento."""
     fn = MASK_FUNCTIONS.get(entity_type)
     if fn is not None:
         return fn(text)
     # Fallback: mascara tudo
     return "*" * len(text)
+
+
+def _normalizar(texto: str) -> str:
+    """Forma comparável de um valor, para que a mesma pessoa receba o mesmo número."""
+    import unicodedata
+
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
+    return " ".join(sem_acento.lower().split())
+
+
+class Mascarador:
+    """
+    Aplica a política escolhida, mantendo a numeração dos placeholders estável
+    dentro de um documento.
+
+    O estado é por documento e por tipo: o primeiro nome encontrado vira
+    `[PESSOA_1]` e toda ocorrência daquele mesmo nome — inclusive escrita com
+    outra caixa ou acentuação, que é o que o OCR produz — recebe o mesmo
+    número. É isso que mantém o texto legível: dá para acompanhar que
+    `[PESSOA_1]` e `[PESSOA_2]` são pessoas diferentes sem saber quem são.
+    """
+
+    def __init__(self, politica: str = POLITICA_PADRAO):
+        if politica not in POLITICAS:
+            raise ValueError(
+                f"política de máscara desconhecida: {politica!r} "
+                f"(use uma de {', '.join(POLITICAS)})"
+            )
+        self.politica = politica
+        self._indices: dict[str, dict[str, int]] = {}
+
+    def mascarar(self, entity_type: str, texto: str) -> str:
+        if self.politica == "parcial":
+            return apply_mask(entity_type, texto)
+        if self.politica == "total":
+            return "*" * len(texto)
+        return self._placeholder(entity_type, texto)
+
+    def _placeholder(self, entity_type: str, texto: str) -> str:
+        por_tipo = self._indices.setdefault(entity_type, {})
+        chave = _normalizar(texto)
+        if chave not in por_tipo:
+            por_tipo[chave] = len(por_tipo) + 1
+        rotulo = ROTULO_ENTIDADE.get(entity_type, entity_type)
+        return f"[{rotulo}_{por_tipo[chave]}]"
+
+    def resumo(self) -> dict[str, int]:
+        """Quantos valores distintos foram encontrados por tipo."""
+        return {tipo: len(vals) for tipo, vals in self._indices.items()}

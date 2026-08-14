@@ -32,6 +32,9 @@ fixtures-reais/
 # Artefatos de build pesados (Python embed, libs, modelos)
 # Toda a árvore de empacotamento fica fora (850MB+ com torch/transformers)
 resources/python-backend/
+# Dados de idioma do Tesseract (8 MB de binário). Obtidos automaticamente na
+# primeira execução do liteparse, ou copiados por scripts/sync-backend.sh.
+resources/tessdata/
 
 # IDE / OS
 .vscode/

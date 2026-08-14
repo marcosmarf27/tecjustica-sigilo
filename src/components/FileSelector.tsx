@@ -2,7 +2,27 @@ import { useCallback, useRef, useState } from "react";
 import type { FileItem } from "../types";
 
 const MAX_FILES = 10;
-const ACCEPTED_EXTENSIONS = [".txt", ".md", ".rtf"];
+
+// Texto puro: o próprio navegador lê e manda o conteúdo.
+const EXTENSOES_TEXTO = [".txt", ".md", ".rtf"];
+
+// Documentos que o backend abre a partir do caminho, fazendo OCR quando a
+// página é digitalizada — o caso normal em autos de processo.
+const EXTENSOES_DOCUMENTO = [
+  ".pdf",
+  ".docx",
+  ".xlsx",
+  ".pptx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".tif",
+  ".tiff",
+  ".bmp",
+  ".webp",
+];
+
+const ACCEPTED_EXTENSIONS = [...EXTENSOES_TEXTO, ...EXTENSOES_DOCUMENTO];
 
 interface FileSelectorProps {
   files: FileItem[];
@@ -31,21 +51,35 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
         if (files.length + newFiles.length >= MAX_FILES) break;
         if (files.some((f) => f.name === file.name)) continue;
 
-        // Tenta UTF-8 estrito; se falhar, assume cp1252 (comum em RTF Windows)
-        const buffer = await file.arrayBuffer();
-        let content: string;
-        try {
-          content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-        } catch {
-          content = new TextDecoder("windows-1252").decode(buffer);
+        // File.path não existe mais no Electron; o caminho real vem do
+        // preload. Sem ele, o arquivo seria salvo no diretório errado — e um
+        // documento binário nem poderia ser aberto pelo backend.
+        const caminho = window.electronAPI?.getPathForFile?.(file) || file.name;
+        const precisaExtracao = EXTENSOES_DOCUMENTO.includes(ext);
+
+        if (precisaExtracao && !window.electronAPI?.getPathForFile) {
+          // Fora do Electron não há caminho de disco para entregar ao backend.
+          recusados.push(file.name);
+          continue;
         }
+
+        let content = "";
+        if (!precisaExtracao) {
+          // Tenta UTF-8 estrito; se falhar, assume cp1252 (comum em RTF Windows)
+          const buffer = await file.arrayBuffer();
+          try {
+            content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+          } catch {
+            content = new TextDecoder("windows-1252").decode(buffer);
+          }
+        }
+
         newFiles.push({
           name: file.name,
-          // File.path não existe mais no Electron; o caminho real vem do
-          // preload. Sem ele, o arquivo seria salvo no diretório errado.
-          path: window.electronAPI?.getPathForFile?.(file) || file.name,
+          path: caminho,
           content,
           size: file.size,
+          precisaExtracao,
         });
       }
 
@@ -90,7 +124,7 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
         <div>
           <h2 className="text-base font-semibold text-text">Arquivos</h2>
           <p className="mt-0.5 text-xs text-text-tertiary">
-            Arraste ou selecione arquivos .txt, .md e .rtf
+            PDF, Word, imagem digitalizada ou texto
           </p>
         </div>
         <span
@@ -144,7 +178,7 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
           <span className="font-medium text-accent">selecione</span>
         </p>
         <p className="mt-1 text-2xs text-text-tertiary">
-          .txt, .md e .rtf — max {MAX_FILES} arquivos
+          PDF · DOCX · imagem · TXT · MD · RTF — até {MAX_FILES} arquivos
         </p>
       </div>
 
@@ -152,7 +186,7 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
         ref={inputRef}
         type="file"
         multiple
-        accept=".txt,.md,.rtf"
+        accept={ACCEPTED_EXTENSIONS.join(",")}
         className="hidden"
         onChange={(e) => {
           if (e.target.files) addFiles(e.target.files);
@@ -162,8 +196,16 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
 
       {rejeitados.length > 0 && (
         <p role="status" className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-2xs text-warning">
-          Não dá para ler {rejeitados.join(", ")}. Por enquanto o aplicativo
-          aceita apenas .txt, .md e .rtf — para PDF, extraia o texto antes.
+          Não dá para ler {rejeitados.join(", ")}. Os formatos aceitos são PDF,
+          DOCX, XLSX, PPTX, imagens digitalizadas, TXT, MD e RTF.
+        </p>
+      )}
+
+      {files.some((f) => f.precisaExtracao) && (
+        <p className="mt-3 rounded-lg bg-accent/10 px-3 py-2 text-2xs text-accent">
+          Documentos digitalizados passam por reconhecimento de texto antes da
+          anonimização. Isso leva alguns segundos por página, e roda inteiramente
+          nesta máquina.
         </p>
       )}
 

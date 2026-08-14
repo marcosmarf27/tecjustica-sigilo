@@ -22,10 +22,25 @@ from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
 from recognizers import criar_recognizers_brasil
-from mask_config import apply_mask
+from mask_config import POLITICA_PADRAO, Mascarador, apply_mask
 from config_loader import load_deny_list, normalize
 
 _instance: "PresidioEngine | None" = None
+
+
+class CancelamentoSolicitado(RuntimeError):
+    """Levantada quando o operador cancela o processamento em andamento."""
+
+
+class _SpanSimples:
+    """Portador de start/end para reaproveitar `_extend_person`, que espera um
+    objeto com esses atributos mutáveis (é o formato do RecognizerResult)."""
+
+    __slots__ = ("start", "end")
+
+    def __init__(self, start: int, end: int):
+        self.start = start
+        self.end = end
 
 # Regex para detectar sequências de 2+ palavras ALL CAPS (prováveis nomes).
 # Só é aplicado no modo spacy — o BERT jurídico não precisa desse truque.
@@ -264,6 +279,8 @@ class PresidioEngine:
         entities: list[str],
         language: str = "pt",
         progresso: "Callable[[int, int], None] | None" = None,
+        politica_mascara: str = POLITICA_PADRAO,
+        cancelado: "Callable[[], bool] | None" = None,
     ) -> dict:
         """
         Analisa e anonimiza o texto em janelas com sobreposição.
@@ -271,6 +288,13 @@ class PresidioEngine:
         `progresso`, se informado, é chamado como (janelas_prontas, total) —
         é o que permite à interface mostrar avanço real dentro de um arquivo
         grande, em vez de ficar parada em 0%.
+
+        `cancelado` é consultado entre as janelas: quando devolve True, o
+        trabalho para de verdade, em vez de a interface apenas desistir de
+        esperar enquanto o processo segue ocupando a máquina.
+
+        `politica_mascara` escolhe entre placeholder numerado, máscara parcial
+        e cobertura total — ver `mask_config`.
 
         Retorna dict com:
           - anonymized_text: texto com PII mascarado
@@ -296,6 +320,10 @@ class PresidioEngine:
         brutos: list[tuple[int, int, str, float]] = []
 
         for i, (inicio, fim) in enumerate(limites):
+            if cancelado is not None and cancelado():
+                raise CancelamentoSolicitado(
+                    f"cancelado após {i} de {len(limites)} blocos"
+                )
             trecho = vista[inicio:fim]
             if not trecho.strip():
                 if progresso:
@@ -330,8 +358,24 @@ class PresidioEngine:
             if progresso:
                 progresso(i + 1, len(limites))
 
-        brutos.extend(self._propagar_nomes(text, brutos))
+        propagados = self._propagar_nomes(text, brutos)
+
+        # Os nomes propagados também precisam ser estendidos e aparados: se o
+        # modelo só reconheceu "ELIONEUDO EVARISTO", a propagação repete esse
+        # pedaço pelo documento e o sobrenome continuaria exposto em toda
+        # ocorrência. A extensão por preposição alcança "DE ABREU".
+        estendidos: list[tuple[int, int, str, float]] = []
+        for ini, fim, tipo, score in propagados:
+            marcador = _SpanSimples(ini, fim)
+            self._extend_person(vista, marcador)
+            ajustado = self._aparar(vista, marcador.start, marcador.end)
+            if ajustado is None:
+                continue
+            estendidos.append((ajustado[0], ajustado[1], tipo, score))
+
+        brutos.extend(estendidos)
         spans = self._fundir_spans(text, brutos)
+        mascarador = Mascarador(politica_mascara)
 
         entidades = [
             {
@@ -345,8 +389,10 @@ class PresidioEngine:
         ]
 
         return {
-            "anonymized_text": self._aplicar_mascaras(text, spans),
+            "anonymized_text": self._aplicar_mascaras(text, spans, mascarador),
             "entities_found": entidades,
+            "politica_mascara": politica_mascara,
+            "valores_distintos": mascarador.resumo(),
         }
 
     @staticmethod
@@ -488,12 +534,27 @@ class PresidioEngine:
 
     @staticmethod
     def _aplicar_mascaras(
-        texto: str, spans: list[tuple[int, int, str, float]]
+        texto: str,
+        spans: list[tuple[int, int, str, float]],
+        mascarador: Mascarador,
     ) -> str:
-        """Aplica as máscaras de trás para frente, sobre spans já disjuntos."""
+        """
+        Aplica as máscaras sobre spans já disjuntos.
+
+        A numeração dos placeholders precisa seguir a ordem de leitura, então a
+        atribuição dos números é feita da esquerda para a direita; a
+        substituição no texto é que vai de trás para frente, para não deslocar
+        as posições ainda não aplicadas.
+        """
+        ordenados = sorted(spans, key=lambda s: s[0])
+        mascaras = [
+            (ini, fim, mascarador.mascarar(tipo, texto[ini:fim]))
+            for ini, fim, tipo, _ in ordenados
+        ]
+
         saida = texto
-        for ini, fim, tipo, _ in sorted(spans, key=lambda s: s[0], reverse=True):
-            saida = saida[:ini] + apply_mask(tipo, texto[ini:fim]) + saida[fim:]
+        for ini, fim, mascara in reversed(mascaras):
+            saida = saida[:ini] + mascara + saida[fim:]
         return saida
 
     def _apply_deny_list(self, text: str, results: list) -> list:

@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { AnonymizeResponse, EntityType } from "../types";
+import type {
+  AnonymizeResponse,
+  EntityType,
+  PoliticaMascara,
+} from "../types";
 
 type BackendStatus = "loading" | "ready" | "error";
 type NlpMode = "transformer" | "spacy" | "unknown";
@@ -14,6 +18,19 @@ const PORTA_PADRAO = 8123;
 // falha do backend vire erro visível em vez de espera infinita.
 const TIMEOUT_ANONIMIZACAO_MS = 30 * 60 * 1000;
 const TIMEOUT_RAPIDO_MS = 30 * 1000;
+// De quanto em quanto tempo perguntar como vai o processamento. Um segundo é
+// o bastante para a barra parecer viva sem encher o backend de requisições.
+const INTERVALO_PROGRESSO_MS = 1000;
+
+/** Andamento de um processamento em curso, como o backend o descreve. */
+export interface Progresso {
+  estado: "extraindo" | "analisando" | "concluido" | "cancelado" | "erro";
+  etapa: string;
+  atual: number;
+  total: number;
+  erro: string | null;
+  nome_arquivo: string;
+}
 
 async function comTimeout(
   url: string,
@@ -135,6 +152,91 @@ export function usePythonBackend() {
     []
   );
 
+  /**
+   * Processa um documento ou texto em segundo plano, informando progresso.
+   *
+   * O trabalho roda no backend numa thread própria; aqui só se acompanha o
+   * andamento e se pede cancelamento. É o que permite mostrar em que etapa a
+   * anonimização está e interrompê-la de verdade — a versão síncrona anterior
+   * deixava a interface adivinhando.
+   */
+  const processar = useCallback(
+    async (
+      entrada: { caminho?: string; texto?: string; nomeArquivo: string },
+      entities: EntityType[],
+      politica: PoliticaMascara,
+      aoProgredir?: (p: Progresso) => void,
+      signal?: AbortSignal
+    ): Promise<AnonymizeResponse & { texto_original: string }> => {
+      const inicio = await comTimeout(
+        `${baseRef.current}/processar`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            caminho: entrada.caminho,
+            texto: entrada.texto,
+            nome_arquivo: entrada.nomeArquivo,
+            entities,
+            language: "pt",
+            politica_mascara: politica,
+          }),
+        },
+        TIMEOUT_RAPIDO_MS
+      );
+
+      if (!inicio.ok) {
+        throw new Error(`Não foi possível iniciar o processamento (${inicio.status})`);
+      }
+
+      const { job_id: jobId } = await inicio.json();
+
+      const cancelar = () => {
+        // Sem timeout curto aqui: cancelar é o pedido mais importante do fluxo.
+        fetch(`${baseRef.current}/processar/${jobId}/cancelar`, {
+          method: "POST",
+        }).catch(() => undefined);
+      };
+      signal?.addEventListener("abort", cancelar);
+
+      try {
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          await new Promise((r) => setTimeout(r, INTERVALO_PROGRESSO_MS));
+
+          const res = await comTimeout(
+            `${baseRef.current}/processar/${jobId}`,
+            {},
+            TIMEOUT_RAPIDO_MS
+          );
+          if (!res.ok) throw new Error("Perdi contato com o processamento");
+
+          const estado: Progresso = await res.json();
+          aoProgredir?.(estado);
+
+          if (estado.estado === "cancelado") {
+            throw new DOMException("Processamento cancelado", "AbortError");
+          }
+          if (estado.estado === "erro") {
+            throw new Error(estado.erro || "O processamento falhou");
+          }
+          if (estado.estado === "concluido") break;
+        }
+
+        const res = await comTimeout(
+          `${baseRef.current}/processar/${jobId}/resultado`,
+          {},
+          TIMEOUT_RAPIDO_MS
+        );
+        if (!res.ok) throw new Error("Não foi possível ler o resultado");
+        return res.json();
+      } finally {
+        signal?.removeEventListener("abort", cancelar);
+      }
+    },
+    []
+  );
+
   const anonymize = useCallback(
     async (
       text: string,
@@ -202,6 +304,7 @@ export function usePythonBackend() {
     nlpMode,
     avisoDeModo,
     anonymize,
+    processar,
     extractText,
     reconectar,
     adicionarNaDenyList,

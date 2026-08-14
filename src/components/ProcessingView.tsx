@@ -15,10 +15,10 @@ export function ProcessingView({
 }: ProcessingViewProps) {
   const progress = total > 0 ? (current / total) * 100 : 0;
   const isDone = current === total && total > 0;
-  // Com um único arquivo — o caso mais comum — não há avanço a mostrar até o
-  // fim, então o anel viraria um 0% travado por minutos. Um indicador
-  // indeterminado é honesto; uma barra parada em 0% parece travamento.
-  const indeterminado = total <= 1 && !isDone;
+  // Sem total conhecido não há o que mostrar: enquanto o documento está sendo
+  // aberto, nem o número de páginas se sabe ainda. Aí o indicador roda solto,
+  // que é honesto — uma barra parada em 0% parece travamento.
+  const indeterminado = total <= 0 && !isDone;
 
   return (
     <div className="flex h-full items-center justify-center">
@@ -76,9 +76,9 @@ export function ProcessingView({
         </h2>
 
         <div className="mt-4 rounded-lg bg-surface-raised/70 px-4 py-3">
-          {total > 1 && (
+          {total > 0 && (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-text-tertiary">Arquivo</span>
+              <span className="text-text-tertiary">Progresso</span>
               <span className="font-medium text-text tabular-nums">
                 {current} de {total}
               </span>
@@ -88,23 +88,6 @@ export function ProcessingView({
             {fileName}
           </p>
         </div>
-
-        {total > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-3">
-            {Array.from({ length: total }, (_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  i < current
-                    ? "w-6 bg-accent"
-                    : i === current - 1
-                      ? "w-6 animate-pulse-soft bg-accent"
-                      : "w-1.5 bg-border"
-                }`}
-              />
-            ))}
-          </div>
-        )}
 
         {onCancelar && !isDone && (
           <button

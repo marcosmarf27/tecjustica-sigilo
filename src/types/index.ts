@@ -42,9 +42,51 @@ export const ALL_ENTITIES: EntityInfo[] = [
 export interface FileItem {
   name: string;
   path: string;
+  /** Vazio para documentos que o backend lê do disco (PDF, DOCX, imagem). */
   content: string;
   size: number;
+  /** True quando o texto só existe depois da extração/OCR no backend. */
+  precisaExtracao?: boolean;
 }
+
+/**
+ * Como o dado detectado é substituído no documento.
+ *
+ * O compromisso é real e por isso a escolha é do operador: o marcador não
+ * deixa nada para trás, a máscara parcial permite conferência visual mas
+ * preserva iniciais e dígitos, e a cobertura total esconde até o formato.
+ */
+export type PoliticaMascara = "placeholder" | "parcial" | "total";
+
+export interface OpcaoPolitica {
+  id: PoliticaMascara;
+  titulo: string;
+  descricao: string;
+  exemplo: string;
+}
+
+export const POLITICAS_MASCARA: OpcaoPolitica[] = [
+  {
+    id: "placeholder",
+    titulo: "Marcador",
+    descricao:
+      "Nada do dado permanece. A numeração é estável, então dá para acompanhar quem é quem na leitura.",
+    exemplo: "[PESSOA_1], [CPF_1]",
+  },
+  {
+    id: "parcial",
+    titulo: "Máscara parcial",
+    descricao:
+      "Mantém pistas para conferir de relance. Em documento longo, os fragmentos somados podem reidentificar.",
+    exemplo: "J**** d* S****, 123.***.***-09",
+  },
+  {
+    id: "total",
+    titulo: "Cobertura total",
+    descricao: "Esconde inclusive o formato do dado. É o mais fechado dos três.",
+    exemplo: "*************",
+  },
+];
 
 export interface EntityFound {
   type: string;

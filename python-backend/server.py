@@ -4,13 +4,19 @@ Roda localmente como processo filho do Electron.
 """
 
 import argparse
+from pathlib import Path
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import documentos
+import jobs
 from engine import get_engine
 from config_loader import get_raw_deny_list, save_deny_list
+from jobs import Job, registro
+from mask_config import POLITICA_PADRAO, POLITICAS
 from striprtf.striprtf import rtf_to_text
 
 app = FastAPI(title="Presidio Anon API")
@@ -27,6 +33,7 @@ class AnonymizeRequest(BaseModel):
     text: str
     entities: list[str]
     language: str = "pt"
+    politica_mascara: str = POLITICA_PADRAO
 
 
 class EntityFound(BaseModel):
@@ -70,16 +77,27 @@ def health():
         # cair para ele em silêncio dá uma falsa sensação de segurança.
         "nlp_mode_solicitado": engine.modo_solicitado,
         "motivo_fallback": engine.motivo_fallback,
+        "politicas_mascara": list(POLITICAS),
+        "politica_padrao": POLITICA_PADRAO,
+        "formatos_documento": sorted(documentos.EXTENSOES_DOCUMENTO),
+        # False significa que o OCR precisaria buscar os dados de idioma na
+        # rede — o que a interface deve avisar antes de prometer sigilo.
+        "ocr_offline": documentos.tessdata_disponivel(),
     }
 
 
 @app.post("/anonymize", response_model=AnonymizeResponse)
 def anonymize(req: AnonymizeRequest):
+    """
+    Anonimização síncrona. Mantida para a CLI e para textos curtos; a interface
+    usa `/processar`, que informa progresso e permite cancelar.
+    """
     engine = get_engine()
     result = engine.anonymize(
         text=req.text,
         entities=req.entities,
         language=req.language,
+        politica_mascara=req.politica_mascara,
     )
     return AnonymizeResponse(
         anonymized_text=result["anonymized_text"],
@@ -87,6 +105,113 @@ def anonymize(req: AnonymizeRequest):
             EntityFound(**e) for e in result["entities_found"]
         ],
     )
+
+
+# --- Processamento com progresso e cancelamento ----------------------------
+
+
+class ProcessarRequest(BaseModel):
+    """
+    Ou `caminho` (documento em disco: PDF, DOCX, imagem) ou `texto` já lido.
+    Documento passa antes pela extração; texto vai direto para a análise.
+    """
+
+    caminho: str | None = None
+    texto: str | None = None
+    nome_arquivo: str = ""
+    entities: list[str] = []
+    language: str = "pt"
+    politica_mascara: str = POLITICA_PADRAO
+
+
+@app.post("/processar")
+def processar(req: ProcessarRequest):
+    if not req.caminho and req.texto is None:
+        raise HTTPException(status_code=400, detail="informe 'caminho' ou 'texto'")
+
+    nome = req.nome_arquivo or (Path(req.caminho).name if req.caminho else "texto")
+    job = registro.criar(nome)
+
+    def tarefa(job: Job) -> dict:
+        texto = req.texto or ""
+
+        if req.caminho:
+            job.estado = jobs.EXTRAINDO
+            job.etapa = "Lendo o documento"
+
+            def progresso_extracao(prontas: int, total: int) -> None:
+                job.atual, job.total = prontas, total
+                if total:
+                    job.etapa = f"Lendo o documento — {total} páginas"
+
+            documento = documentos.extrair(req.caminho, progresso=progresso_extracao)
+            texto = documento.como_markdown()
+
+            if documento.houve_ocr:
+                job.etapa = "Documento lido por OCR"
+
+        if job.cancelado:
+            return {}
+
+        job.estado = jobs.ANALISANDO
+        job.etapa = "Procurando dados pessoais"
+
+        def progresso_analise(prontos: int, total: int) -> None:
+            job.atual, job.total = prontos, total
+
+        engine = get_engine()
+        resultado = engine.anonymize(
+            text=texto,
+            entities=req.entities,
+            language=req.language,
+            progresso=progresso_analise,
+            politica_mascara=req.politica_mascara,
+            cancelado=lambda: job.cancelado,
+        )
+        resultado["texto_original"] = texto
+        return resultado
+
+    registro.executar(job, tarefa)
+    return {"job_id": job.id, **job.para_json()}
+
+
+@app.get("/processar/{job_id}")
+def status_do_job(job_id: str):
+    job = registro.obter(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="processamento não encontrado")
+    return job.para_json()
+
+
+@app.get("/processar/{job_id}/resultado")
+def resultado_do_job(job_id: str):
+    """
+    Entrega o resultado uma vez e o descarta da memória — ele contém o
+    documento inteiro, e mantê-lo depois de lido só prolongaria o tempo em que
+    dado pessoal fica no processo.
+    """
+    job = registro.obter(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="processamento não encontrado")
+    if job.estado != jobs.CONCLUIDO or job.resultado is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"processamento ainda em '{job.estado}'",
+        )
+
+    resultado = job.resultado
+    job.resultado = None
+    registro.descartar(job_id)
+    return resultado
+
+
+@app.post("/processar/{job_id}/cancelar")
+def cancelar_job(job_id: str):
+    job = registro.obter(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="processamento não encontrado")
+    job.cancelar()
+    return job.para_json()
 
 
 @app.get("/config/deny-list")

@@ -292,7 +292,7 @@ def criar_recognizers_brasil() -> list[PatternRecognizer]:
                 "rg_ancorado",
                 r"(?:RG|R\.\s?G\.?|[Rr]egistro\s+[Gg]eral|[Ii]dentidade|"
                 r"[Cc][ée]dula\s+de\s+[Ii]dentidade|[Cc]arteira\s+de\s+[Ii]dentidade)"
-                r"[\s.:nºo°/-]{0,6}"
+                r"[\s.:n°ºo/-]{0,24}"
                 r"(?P<valor>\d[\d.\s-]{4,16}[\dXx])"
                 r"(?=\s*(?:SSP|SESP|DETRAN|PC|IFP|SDS|[^\d]|$))",
                 0.85,

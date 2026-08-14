@@ -23,8 +23,17 @@ def engine():
     return eng
 
 
-def anonimizar(engine, texto: str, entidades: list[str] | None = None) -> str:
-    return engine.anonymize(text=texto, entities=entidades or [])["anonymized_text"]
+def anonimizar(
+    engine,
+    texto: str,
+    entidades: list[str] | None = None,
+    politica: str = "placeholder",
+) -> str:
+    return engine.anonymize(
+        text=texto,
+        entities=entidades or [],
+        politica_mascara=politica,
+    )["anonymized_text"]
 
 
 # --- Entidade partida pela quebra de linha ---------------------------------
@@ -110,16 +119,25 @@ def test_cep_isolado_em_endereco(engine):
 
 def test_rua_com_nome_de_pessoa_sai_como_endereco(engine):
     # Logradouro com nome de pessoa é a regra, não a exceção. O resultado
-    # precisa ser uma máscara coerente de endereço, não pedaços de nome.
+    # precisa ser uma máscara coerente de endereço, não pedaços de nome
+    # costurados — daí verificar que sai UM marcador de endereço, e não uma
+    # sequência de marcadores de pessoa.
     texto = "Rua Antônio José Correia, n° 134, Centro; CEP 62755-000"
     saida = anonimizar(engine, texto)
     assert "Antônio José Correia" not in saida
-    assert saida.startswith("Rua ")
+    assert saida.count("[ENDEREÇO_") == 1
+    assert "[PESSOA_" not in saida
+
+    # Na política de máscara parcial, o tipo do logradouro fica legível.
+    parcial = anonimizar(engine, texto, politica="parcial")
+    assert parcial.startswith("Rua ")
 
 
 # --- Rótulos que o OCR não deve arrastar para dentro da máscara ------------
 
 def test_orgao_emissor_do_rg_nao_e_mascarado(engine):
+    # Nem o órgão nem a sigla da UF são dado pessoal: "CE" sozinho não
+    # identifica ninguém, e mascará-lo só deixa o documento ilegível.
     saida = anonimizar(engine, "RG: 93002347504 SSP/CE, residente")
     assert "SSP/CE" in saida, "o órgão emissor não é dado pessoal"
 

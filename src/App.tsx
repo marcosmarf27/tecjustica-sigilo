@@ -8,8 +8,16 @@ import { ProcessingView } from "./components/ProcessingView";
 import { RevisaoView } from "./components/RevisaoView";
 import { CliInstaller } from "./components/CliInstaller";
 import { Toast } from "./components/Toast";
-import type { FileItem, ProcessedFile, EntityType, HistoryItem, EntityFound } from "./types";
+import type {
+  FileItem,
+  ProcessedFile,
+  EntityType,
+  HistoryItem,
+  EntityFound,
+  PoliticaMascara,
+} from "./types";
 import { ALL_ENTITIES } from "./types";
+import { PoliticaSelector } from "./components/PoliticaSelector";
 
 type AppScreen = "select" | "processing" | "preview" | "cli";
 
@@ -24,6 +32,7 @@ export default function App() {
     nlpMode,
     avisoDeModo,
     anonymize,
+    processar,
     extractText,
     reconectar,
     adicionarNaDenyList,
@@ -34,6 +43,8 @@ export default function App() {
   const [selectedEntities, setSelectedEntities] = useState<EntityType[]>(
     ALL_ENTITIES.map((e) => e.id)
   );
+  const [politicaMascara, setPoliticaMascara] =
+    useState<PoliticaMascara>("placeholder");
   const [processedFiles, setProcessedFiles] = useState<ProcessedFile[]>([]);
   const [activeHistoryId, setActiveHistoryId] = useState<string>();
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -89,20 +100,38 @@ export default function App() {
         const isRtf = file.name.toLowerCase().endsWith(".rtf");
 
         try {
-          const textContent = isRtf
-            ? await extractText(file.content, "rtf")
-            : file.content;
+          // Documento binário (PDF, DOCX, imagem) é lido pelo backend, que faz
+          // OCR quando a página é digitalizada. Texto já em mãos vai direto.
+          const entrada = file.precisaExtracao
+            ? { caminho: file.path, nomeArquivo: file.name }
+            : {
+                texto: isRtf
+                  ? await extractText(file.content, "rtf")
+                  : file.content,
+                nomeArquivo: file.name,
+              };
 
-          const result = await anonymize(
-            textContent,
+          const result = await processar(
+            entrada,
             selectedEntities,
+            politicaMascara,
+            (p) =>
+              setProcessingProgress({
+                current: p.atual,
+                total: p.total,
+                fileName: file.name,
+                phase:
+                  files.length > 1
+                    ? `${p.etapa} (${i + 1} de ${files.length})`
+                    : p.etapa,
+              }),
             controller.signal
           );
 
           results.push({
             originalName: file.name,
             originalPath: file.path,
-            originalContent: textContent,
+            originalContent: result.texto_original,
             anonymizedContent: result.anonymized_text,
             entitiesFound: result.entities_found,
           });
@@ -414,6 +443,13 @@ export default function App() {
                   selected={selectedEntities}
                   onChange={setSelectedEntities}
                 />
+
+                <div className="mt-6">
+                  <PoliticaSelector
+                    valor={politicaMascara}
+                    onChange={setPoliticaMascara}
+                  />
+                </div>
 
                 <button
                   onClick={handleAnonymize}
