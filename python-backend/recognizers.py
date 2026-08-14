@@ -240,6 +240,12 @@ def criar_recognizers_brasil() -> list[PatternRecognizer]:
         supported_entity="CPF_BR",
         patterns=[
             Pattern("cpf_fmt", r"(?<!\d)\d{3}\.\d{3}\.\d{3}\s{0,30}-\s{0,30}\d{2}", 0.6),
+            # O OCR troca a pontuação do CPF por espaço: "030 736 473 -92".
+            Pattern(
+                "cpf_espacado",
+                r"(?<![\d.])\d{3}[.\s]\s{0,3}\d{3}[.\s]\s{0,3}\d{3}\s{0,3}-\s{0,3}\d{2}(?!\d)",
+                0.55,
+            ),
             # OCR troca dígitos por letras parecidas: g/9, O/0, l/1, S/5, B/8.
             Pattern(
                 "cpf_fmt_ocr",

@@ -328,6 +328,14 @@ def _confirmado(texto: str, c) -> bool:
         # Ambos os padrões de RG já exigem rótulo ou órgão emissor por perto.
         return 5 <= len(digitos) <= 14
 
+    if c.tipo == "TELEFONE":
+        # Sigla colada antes (IQ, IP, BO) indica número de procedimento, não
+        # telefone. E um telefone não termina em algo que é claramente um ano.
+        antes = texto[max(0, c.start - 3):c.start]
+        if re.search(r"[A-Za-z]$", antes):
+            return False
+        return not re.search(r"\b(?:19|20)\d{2}$", c.texto)
+
     if c.tipo == "CNPJ":
         return cnpj_valid(digitos) or _tem_ancora(texto, "CNPJ", c.start, c.end)
 

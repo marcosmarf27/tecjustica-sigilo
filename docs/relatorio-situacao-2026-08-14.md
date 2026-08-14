@@ -14,17 +14,19 @@ suficiente para justificar mudança estrutural, não ajuste fino:
 
 | | antes | depois |
 |---|---|---|
-| **Recall por ocorrência** | 86,20% | **99,70%** |
-| **Proteção por valor único** | 70,41% | **97,63%** |
+| **Recall por ocorrência** | 86,20% | **99,84%** |
+| **Proteção por valor único** | 70,41% | **98,23%** |
 | **Endereço (CEP)** | 0% | **100%** |
 | **RG** | 50,00% | **98,28%** |
 | **OAB** | 34,52% | **100%** |
-| **Nome de pessoa** | 89,05% | **99,66%** |
+| **Nome de pessoa** | 89,05% | **99,94%** |
+
+*(medido no modo BERT, o padrão de produção — que voltou a funcionar; ver 1.3)*
 
 A meta de 99% foi **atingida no recall por ocorrência** — limite inferior de
-confiança de 95% em **99,51%**, ou seja, a afirmação se sustenta mesmo na
+confiança de 95% em **99,68%**, ou seja, a afirmação se sustenta mesmo na
 estimativa conservadora. **Ainda não foi atingida** na proteção por valor único
-(97,63%). As duas métricas, e por que ambas importam, estão explicadas adiante.
+(98,23%). As duas métricas, e por que ambas importam, estão explicadas adiante.
 
 Além disso foram corrigidos cinco defeitos que quebravam o aplicativo em uso
 normal ou contradiziam sua promessa de privacidade, e a interface ganhou a tela
@@ -140,7 +142,8 @@ flexível. Regra que evita catástrofe: nunca menos de duas palavras
 significativas — propagar um sobrenome isolado ("SILVA") mascararia metade do
 corpus.
 
-Isso levou nome de pessoa de 89,05% para 99,10% de recall.
+Isso levou nome de pessoa de 89,05% para 99,94% de recall — restou uma
+única ocorrência não mascarada em 1.772.
 
 ### 2.3 Recognizers novos e corrigidos
 
@@ -160,6 +163,16 @@ Isso levou nome de pessoa de 89,05% para 99,10% de recall.
 
 - `pis` casava dentro de `episódios` — 11 falsos positivos e nenhum acerto real
   no corpus. Corrigido.
+- **A lista de exceções era por tipo, e o tipo muda com o modelo.** "VARA
+  CRIMINAL" sai como `LOCATION` no modo leve e como `ORGANIZATION` no BERT;
+  "Código de Processo Penal" sai como `LAW`, tipo que a lista nem cobria. A
+  lista ganhou uma seção `"*"` válida para qualquer tipo — um termo
+  institucional não é dado pessoal em classificação nenhuma. Além disso, o
+  modelo marca o bloco inteiro em volta do termo ("2ª VARA CRIMINAL DA COMARCA
+  DE FORTALEZA", "Código de Processo Penal, artigo 41"), então para tipos
+  institucionais **conter** um termo da lista passou a bastar para descartar.
+  `PERSON` fica fora dessa regra de propósito: ali o span pode ser "Ministério
+  Público Dr. FULANO", e descartar apagaria o nome em vez de revelá-lo.
 - Siglas de órgão emissor (`SSP`, `SSPDS`, `DETRAN`) entraram na lista de
   exceções: mascará-las só degrada a leitura sem ganho de privacidade.
 - Datas processuais deixaram de ser tratadas como data de nascimento.
@@ -226,13 +239,13 @@ número deixaria de descrever o produto.
 | CPF | 97,18% (138/142) | **98,59%** (140/142) | 95,83% |
 | E-mail | 77,24% (112/145) | **100,00%** (145/145) | 98,17% |
 | OAB | 34,52% (29/84) | **100,00%** (84/84) | 96,88% |
-| **Nome de pessoa** | 89,05% (1578/1772) | **99,66%** (1766/1772) | 99,35% |
+| **Nome de pessoa** | 89,05% (1578/1772) | **99,94%** (1771/1772) | 99,75% |
 | RG | 50,00% (29/58) | **98,28%** (57/58) | 92,63% |
 | Telefone | 97,58% (282/289) | **99,31%** (287/289) | 97,93% |
-| **TOTAL** | **86,20%** (3148/3652) | **99,70%** (3641/3652) | **99,51%** |
+| **TOTAL** | **86,20%** (3148/3652) | **99,84%** (3646/3652) | **99,68%** |
 
-O limite inferior de 99,51% é o que sustenta a afirmação: com 3.652
-observações e 11 falhas, a estimativa conservadora ainda fica **acima da meta de
+O limite inferior de 99,68% é o que sustenta a afirmação: com 3.652
+observações e 6 falhas, a estimativa conservadora ainda fica **acima da meta de
 99%**.
 
 ### Proteção por valor único
@@ -242,22 +255,67 @@ mascaradas.
 
 | | antes | depois |
 |---|---|---|
-| **TOTAL** | 70,41% (238/338) | **97,63%** (330/338) |
+| **TOTAL** | 70,41% (238/338) | **98,23%** (333/339) |
 
-Oito valores distintos ainda escapam em pelo menos uma ocorrência: 2 CPF,
-1 RG, 2 telefones e 3 nomes. **Esta métrica não atingiu a meta de 99%** —
-está registrado na seção 7.
+**Esta métrica não atingiu a meta de 99%** — está registrado na seção 7.
+
+### Inventário dos vazamentos
+
+Uma lista de casos concretos diz mais do que a porcentagem, e é ela que permite
+corrigir. O que ainda escapa, e por quê:
+
+| Trecho | Contexto | Causa |
+|---|---|---|
+| `2008097004240` | `n°2008097004240, CPF: 916.811.973-91` | RG introduzido por `n°`, sem nenhuma âncora de identidade por perto |
+| `004.811.253-` | `CPF 004.811.253-` no fim da linha | CPF partido logo após o hífen, com o par de dígitos na linha seguinte |
+| `ELIONEUDO EVARISTO` | `INDICIAMENTO de ELIONEUDO EVARISTO DE` | nome cortado no fim da linha, com o sobrenome na seguinte |
+
+Todos são o mesmo padrão: **o OCR partiu o dado exatamente onde a evidência
+mora**. São os casos residuais depois que o chunking já resolveu a maioria — e
+a razão de a proteção por valor único parar em 98% em vez de 100%.
+
+Dois "vazamentos" da medição anterior eram **erro do gabarito**, não do motor:
+`IQ820275 2021` e `IP564519 2021` são números de inquérito policial que o
+extrator de candidatos confundiu com telefone. Corrigido — um gabarito errado
+esconde os vazamentos reais atrás de ruído.
+
+### Modo BERT × modo spaCy
+
+Os números acima são do modo leve. Com o modo BERT — o padrão de produção,
+que voltou a funcionar (seção 1.3) — o resultado é melhor, mas a diferença é
+menor do que se poderia supor:
+
+| | spaCy | **BERT** |
+|---|---|---|
+| Recall por ocorrência | 99,70% | **99,84%** |
+| Limite inferior 95% | 99,51% | **99,68%** |
+| Proteção por valor único | 97,63% | **98,23%** |
+| **Nome de pessoa** | 99,66% | **99,94%** (1771/1772) |
+| Tempo (1,6 MB, CPU) | **3,4 min** | 35 min |
+
+A diferença está concentrada onde se esperaria: **nome de pessoa**, a única
+classe que depende de verdade do modelo. Nas classes estruturadas — CPF, RG,
+CEP, telefone, OAB, e-mail, CNJ — os dois modos são **idênticos**, porque quem
+as detecta são as regex ancoradas e a propagação, não o NER.
+
+**A decisão de produto que isso abre:** o BERT custa 10× mais tempo e ~1,3 GB
+de download para ganhar 0,14 ponto percentual no total e 0,28 em nomes. Sob o
+critério "nada pode vazar", o ganho em nomes justifica manter o BERT como
+padrão — são três valores únicos a mais protegidos, e nome é a PII mais
+sensível de um processo. Mas o modo leve deixou de ser um degradê aceitável
+para virar uma alternativa legítima: para lote grande, ou máquina fraca, roda
+em um décimo do tempo com recall acima de 99%.
 
 ### Desempenho
 
-| documento | tamanho | tempo |
-|---|---|---|
-| Cível (reintegração de posse) | 344 KB | 24,9 s |
-| Júri | 1,06 MB | 164,1 s |
-| Expedientes (Maria da Penha) | 239 KB | 15,6 s |
+| documento | tamanho | spaCy | BERT |
+|---|---|---|---|
+| Cível (reintegração de posse) | 344 KB | 24,9 s | 438 s |
+| Júri | 1,06 MB | 164,1 s | 1.367 s |
+| Expedientes (Maria da Penha) | 239 KB | 15,6 s | 270 s |
 
-Modo spaCy, CPU. O chunking reduziu o número de inferências em uma ordem de
-grandeza em relação à análise linha a linha.
+O chunking reduziu o número de inferências em uma ordem de grandeza em relação
+à análise linha a linha — é o que torna o modo BERT viável em CPU.
 
 ---
 
@@ -356,7 +414,7 @@ que aparecem.
   placeholder consistente (`[PESSOA_1]`). Não implementado. Enquanto isso, vale
   a ressalva da seção 5: a máscara atual preserva iniciais e dígitos, e isso é
   reidentificante num documento longo.
-- **Proteção por valor único abaixo da meta** (97,63% contra 99%). São oito
+- **Proteção por valor único abaixo da meta** (98,23% contra 99%). São seis
   valores, cada um escapando em pelo menos uma ocorrência.
 - **Progresso dentro do arquivo.** O motor já aceita um callback de progresso,
   mas nada o consome ainda — a interface mostra indicador indeterminado, que é

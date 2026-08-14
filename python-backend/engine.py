@@ -86,6 +86,10 @@ PRIORIDADE_ENTIDADE = [
 ]
 _PRIORIDADE = {nome: i + 1 for i, nome in enumerate(PRIORIDADE_ENTIDADE)}
 
+# Tipos que nomeiam instituições, atos e diplomas legais — nunca uma pessoa.
+# A deny list pode ser aplicada por contenção neles sem risco de apagar um nome.
+_TIPOS_INSTITUCIONAIS = {"ORGANIZATION", "LAW", "CASE_LAW", "LOCATION", "DATE_TIME"}
+
 # Partículas que não contam como palavra significativa de um nome.
 _PREPOSICOES = {"de", "da", "do", "das", "dos", "e", "di", "del", "von", "san"}
 
@@ -500,13 +504,34 @@ class PresidioEngine:
             institucional (ex: 'Ministério Público Dr. FULANO' → 'FULANO').
           - detecção é prefixo de um termo da deny list → descarta.
         """
+        # A chave "*" vale para qualquer tipo. Sem ela, a lista precisaria
+        # repetir cada termo em todo tipo que o modelo possa atribuir — e o
+        # modelo muda de opinião: "VARA CRIMINAL" sai como LOCATION no modo
+        # leve e como ORGANIZATION no BERT, "Código de Processo Penal" sai como
+        # LAW. Um termo institucional não é dado pessoal em tipo nenhum.
+        globais = self._deny_list.get("*", set())
+
         out = []
         for r in results:
-            terms = self._deny_list.get(r.entity_type, set())
+            terms = self._deny_list.get(r.entity_type, set()) | globais
             detected = text[r.start:r.end]
             norm = normalize(detected)
 
             if norm in terms:
+                continue
+
+            # O modelo costuma marcar o bloco inteiro em volta do termo:
+            # "2ª VARA CRIMINAL DA COMARCA DE FORTALEZA", "Código de Processo
+            # Penal, artigo 41". Comparar por igualdade deixa tudo isso passar.
+            #
+            # Para tipos institucionais, conter um termo da lista basta para
+            # descartar — nenhum deles carrega nome de pessoa dentro. PERSON
+            # fica de fora desta regra de propósito: ali o span pode ser
+            # "Ministério Público Dr. FULANO", e descartar apagaria o nome em
+            # vez de revelá-lo (é o que o trim de prefixo abaixo resolve).
+            if r.entity_type in _TIPOS_INSTITUCIONAIS and any(
+                termo and termo in norm for termo in terms
+            ):
                 continue
 
             # Prefixo institucional: trimma e mantém só a cauda (ex.: nome real)
