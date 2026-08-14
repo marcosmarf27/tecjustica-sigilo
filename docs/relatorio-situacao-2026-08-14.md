@@ -612,6 +612,39 @@ gitignored e vinha sendo atualizado à mão — drift silencioso garantido. Agor
 Novidades do upstream avaliadas: timeout configurável de regex (2.2.362+),
 `HuggingFaceNerRecognizer` oficial, backend ONNX Runtime, batch na REST API.
 
+### 9.1 O que o Python embarcado ainda traz de diferente
+
+`sync-backend.sh` copia o código, não as bibliotecas: o Python embarcado é uma
+instalação Windows de 1,6 GB atualizada por outro caminho. Conferido pacote a
+pacote contra `requirements.txt`:
+
+| Pacote | Fixado | No instalador |
+|---|---|---|
+| presidio-analyzer / anonymizer | 2.2.364 | **2.2.364** — atualizado agora |
+| fastapi | 0.141.1 | 0.135.2 |
+| spacy | 3.8.15 | 3.8.13 |
+| torch | 2.13.0 | 2.11.0+cpu |
+
+O Presidio foi alinhado porque é ele que decide o que é PII — rodar a
+anonimização em versão diferente da que foi medida invalidaria os números desta
+auditoria. Os wheels são `py3-none-any`, então a atualização não depende de
+Windows, e os `predefined_recognizers` do instalador passaram a ser idênticos
+aos do ambiente onde os 40 testes rodam.
+
+As outras três ficaram para trás de propósito: `torch` e `spacy` trazem binários
+compilados para Windows (torch sozinho passa de 800 MB), e atualizá-los às cegas
+a partir do WSL — sem conseguir executar o resultado para conferir — trocaria
+uma divergência conhecida por um risco não medido. Nenhuma delas participa da
+decisão sobre o que é dado pessoal.
+
+O `--check` do script cobre só o código. **Comparar as versões das bibliotecas
+continua sendo passo manual**, e vale rodar antes de publicar instalador.
+
+Achado à parte, não corrigido: quatro pacotes têm dois `.dist-info` no
+embarcado (`numpy` 2.4.3 e 2.4.4, `regex`, `filelock`, `packaging`) — resíduo de
+instalação sobreposta in-place. Não afeta a execução, mas torna `pip list`
+pouco confiável ali.
+
 ---
 
 ## 10. Como reproduzir

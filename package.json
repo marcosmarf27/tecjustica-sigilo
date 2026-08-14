@@ -8,7 +8,7 @@
     "build:electron-ts": "tsc -p tsconfig.electron.json",
     "dev:electron": "npm run build:electron-ts && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "tsc -p tsconfig.electron.json && vite build",
-    "build:dist": "npm run build && electron-builder",
+    "build:dist": "npm run build && electron-builder --win",
     "preview": "vite preview"
   },
   "keywords": [],
