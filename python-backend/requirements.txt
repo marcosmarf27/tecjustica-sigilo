@@ -1,8 +1,40 @@
-presidio-analyzer>=2.2.362
-presidio-anonymizer>=2.2.362
-fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
-spacy>=3.7.0
-striprtf>=0.0.26
-transformers>=4.41.0
-torch>=2.2.0
+# Versões fixas, não pisos.
+#
+# Antes este arquivo usava `>=`, o que fazia cada instalação resolver para o
+# que estivesse publicado no dia — e o instalador acabou embarcando
+# presidio-analyzer 2.2.362 enquanto uma instalação nova trazia 2.2.364.
+# Anonimização é o tipo de coisa em que o resultado precisa ser o mesmo em toda
+# máquina; pin exato é o que garante isso.
+#
+# Para atualizar: suba a versão aqui, rode `pytest python-backend/tests` e
+# confira o recall com `python -m eval.run_eval` antes de aceitar.
+
+presidio-analyzer==2.2.364
+presidio-anonymizer==2.2.364
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+spacy==3.8.15
+striprtf==0.0.32
+
+# --- Leitura de PDF, DOCX e imagens ---
+# PDFium para o texto nativo e Tesseract para OCR, ambos embutidos no wheel.
+# Os dados de idioma do Tesseract NÃO vêm no pacote: sem eles o liteparse os
+# busca na rede na primeira execução, o que quebraria a operação offline. Por
+# isso o por.traineddata é empacotado em resources/tessdata/.
+liteparse==2.12.0
+
+# --- Modo BERT (PRESIDIO_NLP_MODE=transformer, o padrão) ---
+#
+# `spacy-huggingface-pipelines` é OBRIGATÓRIO e faltava aqui. O Presidio só
+# registra o motor "transformers" se este pacote estiver presente
+# (`TransformersNlpEngine.is_available`); sem ele, ter transformers e torch
+# instalados não basta — o motor cai silenciosamente para spaCy, que é o modo
+# de qualidade inferior, sem que ninguém perceba.
+#
+# Ele exige transformers da série 4.x, então a versão fica presa aqui.
+spacy-huggingface-pipelines==0.0.4
+transformers==4.57.6
+torch==2.13.0
+
+# O modelo spaCy não é instalável por aqui — depende de `spacy download`:
+#   python -m spacy download pt_core_news_lg

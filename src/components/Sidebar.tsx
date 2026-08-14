@@ -52,7 +52,7 @@ export function Sidebar({
           <h1 className="text-sm font-semibold tracking-tight text-text">
             Presidio Anon
           </h1>
-          <p className="text-[11px] text-text-tertiary">Anonimizador de PII</p>
+          <p className="text-2xs text-text-tertiary">Anonimizador de PII</p>
         </div>
       </div>
 
@@ -69,7 +69,7 @@ export function Sidebar({
         </button>
         <button
           onClick={onOpenCli}
-          className="flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-[13px] font-medium text-text-secondary transition hover:bg-surface-hover hover:text-text"
+          className="flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-sm font-medium text-text-secondary transition hover:bg-surface-hover hover:text-text"
         >
           <svg className="h-4 w-4 text-text-tertiary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M4 17l6-6-6-6M12 19h8" />
@@ -80,13 +80,13 @@ export function Sidebar({
 
       {/* History list */}
       <div className="flex items-center justify-between px-5 pt-5 pb-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
+        <span className="text-2xs font-medium uppercase tracking-wider text-text-tertiary">
           Histórico
         </span>
         {history.length > 0 && (
           <button
             onClick={onClearHistory}
-            className="text-[11px] text-text-tertiary transition-colors hover:text-danger"
+            className="text-2xs text-text-tertiary transition-colors hover:text-danger"
           >
             Limpar
           </button>
@@ -137,14 +137,14 @@ export function Sidebar({
                     </span>
 
                     {/* File names */}
-                    <p className="truncate pr-5 text-[13px] font-medium text-text">
+                    <p className="truncate pr-5 text-sm font-medium text-text">
                       {entry.fileNames.length === 1
                         ? entry.fileNames[0]
                         : `${entry.fileNames.length} arquivos`}
                     </p>
 
                     {/* Date + entity count */}
-                    <p className="mt-0.5 text-[11px] text-text-tertiary">
+                    <p className="mt-0.5 text-2xs text-text-tertiary">
                       {formatDate(entry.date)} · {entry.totalEntities} entidade{entry.totalEntities !== 1 ? "s" : ""}
                     </p>
 
@@ -155,10 +155,10 @@ export function Sidebar({
                         return (
                           <span
                             key={type}
-                            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]"
+                            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs"
                             style={{
-                              backgroundColor: `${info?.color || "#666"}15`,
-                              color: info?.color || "#666",
+                              backgroundColor: `${info?.color ?? "#918a9b"}1f`,
+                              color: info?.color ?? "#918a9b",
                             }}
                           >
                             {count}

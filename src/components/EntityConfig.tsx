@@ -20,8 +20,8 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
     <div className="animate-fade-in" style={{ animationDelay: "100ms" }}>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-[15px] font-semibold text-text">Entidades</h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
+          <h2 className="text-base font-semibold text-text">Entidades</h2>
+          <p className="mt-0.5 text-xs text-text-tertiary">
             Selecione o que anonimizar
           </p>
         </div>
@@ -29,7 +29,7 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
           onClick={() =>
             onChange(allSelected ? [] : ALL_ENTITIES.map((e) => e.id))
           }
-          className="rounded-md px-2 py-1 text-[12px] font-medium text-accent transition hover:bg-accent/10"
+          className="rounded-md px-2 py-1 text-xs font-medium text-accent transition hover:bg-accent/10"
         >
           {allSelected ? "Nenhuma" : "Todas"}
         </button>
@@ -42,7 +42,7 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
             <button
               key={entity.id}
               onClick={() => toggleEntity(entity.id)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12px] font-medium transition-all duration-150 ${
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-all duration-150 ${
                 isSelected
                   ? "border-transparent text-text"
                   : "border-border-subtle bg-transparent text-text-tertiary hover:border-border hover:text-text-secondary"
@@ -59,7 +59,9 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
               <span
                 className="h-2 w-2 shrink-0 rounded-full transition-all"
                 style={{
-                  backgroundColor: isSelected ? entity.color : "#3a4055",
+                  backgroundColor: isSelected
+                      ? entity.color
+                      : "var(--color-border)",
                   boxShadow: isSelected
                     ? `0 0 6px ${entity.color}40`
                     : "none",

@@ -1,15 +1,23 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { usePythonBackend } from "./hooks/usePythonBackend";
 import { useHistory } from "./hooks/useHistory";
 import { Sidebar } from "./components/Sidebar";
 import { FileSelector } from "./components/FileSelector";
 import { EntityConfig } from "./components/EntityConfig";
 import { ProcessingView } from "./components/ProcessingView";
-import { PreviewView } from "./components/PreviewView";
+import { RevisaoView } from "./components/RevisaoView";
 import { CliInstaller } from "./components/CliInstaller";
 import { Toast } from "./components/Toast";
-import type { FileItem, ProcessedFile, EntityType, HistoryItem } from "./types";
+import type {
+  FileItem,
+  ProcessedFile,
+  EntityType,
+  HistoryItem,
+  EntityFound,
+  PoliticaMascara,
+} from "./types";
 import { ALL_ENTITIES } from "./types";
+import { PoliticaSelector } from "./components/PoliticaSelector";
 
 type AppScreen = "select" | "processing" | "preview" | "cli";
 
@@ -19,16 +27,28 @@ interface ToastState {
 }
 
 export default function App() {
-  const { status, nlpMode, anonymize, extractText } = usePythonBackend();
+  const {
+    status,
+    nlpMode,
+    avisoDeModo,
+    anonymize,
+    processar,
+    extractText,
+    reconectar,
+    adicionarNaDenyList,
+  } = usePythonBackend();
   const history = useHistory();
   const [screen, setScreen] = useState<AppScreen>("select");
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedEntities, setSelectedEntities] = useState<EntityType[]>(
     ALL_ENTITIES.map((e) => e.id)
   );
+  const [politicaMascara, setPoliticaMascara] =
+    useState<PoliticaMascara>("placeholder");
   const [processedFiles, setProcessedFiles] = useState<ProcessedFile[]>([]);
   const [activeHistoryId, setActiveHistoryId] = useState<string>();
   const [toast, setToast] = useState<ToastState | null>(null);
+  const cancelamentoRef = useRef<AbortController | null>(null);
   const [processingProgress, setProcessingProgress] = useState({
     current: 0,
     total: 0,
@@ -60,9 +80,13 @@ export default function App() {
     await flush();
 
     const results: ProcessedFile[] = [];
+    const falhas: string[] = [];
+    const controller = new AbortController();
+    cancelamentoRef.current = controller;
 
     try {
       for (let i = 0; i < files.length; i++) {
+        if (controller.signal.aborted) break;
         const file = files[i];
 
         setProcessingProgress({
@@ -74,19 +98,49 @@ export default function App() {
         await flush();
 
         const isRtf = file.name.toLowerCase().endsWith(".rtf");
-        const textContent = isRtf
-          ? await extractText(file.content, "rtf")
-          : file.content;
 
-        const result = await anonymize(textContent, selectedEntities);
+        try {
+          // Documento binário (PDF, DOCX, imagem) é lido pelo backend, que faz
+          // OCR quando a página é digitalizada. Texto já em mãos vai direto.
+          const entrada = file.precisaExtracao
+            ? { caminho: file.path, nomeArquivo: file.name }
+            : {
+                texto: isRtf
+                  ? await extractText(file.content, "rtf")
+                  : file.content,
+                nomeArquivo: file.name,
+              };
 
-        results.push({
-          originalName: file.name,
-          originalPath: file.path,
-          originalContent: file.content,
-          anonymizedContent: result.anonymized_text,
-          entitiesFound: result.entities_found,
-        });
+          const result = await processar(
+            entrada,
+            selectedEntities,
+            politicaMascara,
+            (p) =>
+              setProcessingProgress({
+                current: p.atual,
+                total: p.total,
+                fileName: file.name,
+                phase:
+                  files.length > 1
+                    ? `${p.etapa} (${i + 1} de ${files.length})`
+                    : p.etapa,
+              }),
+            controller.signal
+          );
+
+          results.push({
+            originalName: file.name,
+            originalPath: file.path,
+            originalContent: result.texto_original,
+            anonymizedContent: result.anonymized_text,
+            entitiesFound: result.entities_found,
+          });
+        } catch (err) {
+          if (controller.signal.aborted) break;
+          // Um arquivo problemático não pode levar o lote inteiro junto.
+          falhas.push(file.name);
+          console.error(`Falha em ${file.name}:`, err);
+        }
 
         setProcessingProgress({
           current: i + 1,
@@ -106,6 +160,19 @@ export default function App() {
         "error"
       );
     } finally {
+      cancelamentoRef.current = null;
+
+      if (controller.signal.aborted) {
+        showToast("Anonimização cancelada.", "error");
+      } else if (falhas.length > 0) {
+        showToast(
+          falhas.length === files.length
+            ? `Nenhum arquivo pôde ser processado.`
+            : `${results.length} de ${files.length} processados. Falharam: ${falhas.join(", ")}`,
+          "error"
+        );
+      }
+
       // SEMPRE sai da tela de processing, mesmo com erro
       if (results.length > 0) {
         setProcessedFiles(results);
@@ -204,6 +271,25 @@ export default function App() {
     showToast(`Download: ${newName}`, "success");
   };
 
+  const handleRejeitarDeteccao = async (entidade: EntityFound) => {
+    try {
+      await adicionarNaDenyList(entidade.type, entidade.text);
+      showToast(
+        `"${entidade.text}" não será mais mascarado. Processe de novo para ver o efeito.`,
+        "success"
+      );
+    } catch (err) {
+      showToast(
+        `Não foi possível gravar a exceção: ${err instanceof Error ? err.message : "erro desconhecido"}`,
+        "error"
+      );
+    }
+  };
+
+  const handleCancelar = () => {
+    cancelamentoRef.current?.abort();
+  };
+
   const handleBack = () => {
     setScreen("select");
     setProcessedFiles([]);
@@ -218,7 +304,15 @@ export default function App() {
   };
 
   const handleOpenHistoryEntry = (entry: HistoryItem) => {
-    setProcessedFiles(entry.results);
+    const resultados = history.resultadosDe(entry.id);
+    if (!resultados || resultados.length === 0) {
+      showToast(
+        "Este processamento é de uma sessão anterior. O conteúdo não fica salvo em disco — processe o arquivo de novo.",
+        "error"
+      );
+      return;
+    }
+    setProcessedFiles(resultados);
     setActiveHistoryId(entry.id);
     setScreen("preview");
   };
@@ -246,7 +340,7 @@ export default function App() {
           <h2 className="text-lg font-semibold text-text">
             Carregando motor de anonimização
           </h2>
-          <p className="mt-2 text-[13px] text-text-tertiary">
+          <p className="mt-2 text-sm text-text-tertiary">
             {nlpMode === "transformer"
               ? "Inicializando modelo BERT jurídico (primeira execução pode levar alguns minutos)..."
               : "O modelo de linguagem está sendo inicializado..."}
@@ -271,11 +365,18 @@ export default function App() {
             </svg>
           </div>
           <h2 className="text-lg font-semibold text-danger">
-            Erro ao conectar
+            O motor de anonimização não respondeu
           </h2>
-          <p className="mt-2 text-[13px] text-text-tertiary">
-            Verifique se o servidor Python está rodando.
+          <p className="mx-auto mt-2 max-w-sm text-sm text-text-tertiary">
+            Ele roda como um programa local junto com o aplicativo. Tentar de
+            novo costuma resolver; se persistir, feche e abra o aplicativo.
           </p>
+          <button
+            onClick={reconectar}
+            className="mt-5 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-on-accent transition hover:bg-accent-hover"
+          >
+            Tentar de novo
+          </button>
         </div>
       </div>
     );
@@ -296,6 +397,18 @@ export default function App() {
         activeEntryId={activeHistoryId}
       />
 
+      {/* Aviso de motor degradado — precisa ser visível, não só no log */}
+      {avisoDeModo && (
+        <div
+          role="status"
+          className="absolute inset-x-0 top-0 z-overlay border-b border-warning/40 bg-warning/10 px-5 py-2 text-center text-xs text-warning"
+        >
+          Rodando com o modelo leve: o modelo jurídico completo não pôde ser
+          carregado, então menos nomes e locais serão encontrados. Revise o
+          resultado com atenção redobrada.
+        </div>
+      )}
+
       {/* Main content */}
       <main className="flex flex-1 flex-col overflow-hidden">
         {screen === "select" && (
@@ -306,13 +419,13 @@ export default function App() {
                   <h1 className="text-xl font-bold tracking-tight text-text">
                     Novo processamento
                   </h1>
-                  <p className="mt-1 text-[13px] text-text-tertiary">
+                  <p className="mt-1 text-sm text-text-tertiary">
                     Selecione os arquivos e configure a anonimização
                   </p>
                 </div>
                 {nlpMode !== "unknown" && (
                   <span
-                    className="shrink-0 rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-text-tertiary"
+                    className="shrink-0 rounded-full border border-border bg-surface px-2.5 py-1 text-2xs font-medium text-text-tertiary"
                     title={
                       nlpMode === "transformer"
                         ? "Modelo BERT fine-tuned em jurisprudência brasileira (LeNER-Br)"
@@ -331,6 +444,13 @@ export default function App() {
                   onChange={setSelectedEntities}
                 />
 
+                <div className="mt-6">
+                  <PoliticaSelector
+                    valor={politicaMascara}
+                    onChange={setPoliticaMascara}
+                  />
+                </div>
+
                 <button
                   onClick={handleAnonymize}
                   disabled={
@@ -338,7 +458,7 @@ export default function App() {
                     selectedEntities.length === 0 ||
                     isProcessing
                   }
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:bg-accent-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-on-accent shadow-sm transition-all hover:bg-accent-hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -358,15 +478,17 @@ export default function App() {
             total={processingProgress.total}
             fileName={processingProgress.fileName}
             phase={processingProgress.phase}
+            onCancelar={handleCancelar}
           />
         )}
 
         {screen === "preview" && (
-          <PreviewView
+          <RevisaoView
             files={processedFiles}
             onSaveAll={handleSaveAll}
             onDownloadFile={handleDownloadSingle}
             onBack={handleBack}
+            onRejeitarDeteccao={handleRejeitarDeteccao}
           />
         )}
 

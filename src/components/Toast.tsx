@@ -51,7 +51,7 @@ export function Toast({
           <line x1="9" y1="9" x2="15" y2="15" />
         </svg>
       )}
-      <span className="text-[13px] font-medium text-text">{message}</span>
+      <span className="text-sm font-medium text-text">{message}</span>
     </div>
   );
 }

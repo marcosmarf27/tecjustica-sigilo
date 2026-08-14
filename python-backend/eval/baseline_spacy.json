@@ -1,0 +1,272 @@
+{
+  "civel_0200161": {
+    "sha256": "dca01fbba9e241cc67ee9c5dad866bb3284b3d296c7d06d340ffcd32944a1f49",
+    "chars": 344001,
+    "segundos": 24.2,
+    "modo_nlp": "spacy",
+    "deteccoes": 5260,
+    "tipos": {
+      "PERSON": {
+        "protecao_valor": 0.4666666666666667,
+        "recall_ocorrencia": 0.8833333333333333,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 15,
+        "valores_protegidos": 7,
+        "ocorrencias_substantivas": 360,
+        "protegidas_substantivas": 318
+      },
+      "CPF": {
+        "protecao_valor": 0.9285714285714286,
+        "recall_ocorrencia": 0.9772727272727273,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 14,
+        "valores_protegidos": 13,
+        "ocorrencias_substantivas": 44,
+        "protegidas_substantivas": 43
+      },
+      "RG": {
+        "protecao_valor": 0.25,
+        "recall_ocorrencia": 0.26666666666666666,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 8,
+        "valores_protegidos": 2,
+        "ocorrencias_substantivas": 15,
+        "protegidas_substantivas": 4
+      },
+      "CEP": {
+        "protecao_valor": 0.0,
+        "recall_ocorrencia": 0.0,
+        "recall_boilerplate": 0.0,
+        "valores_unicos": 13,
+        "valores_protegidos": 0,
+        "ocorrencias_substantivas": 34,
+        "protegidas_substantivas": 0
+      },
+      "TELEFONE": {
+        "protecao_valor": 0.8,
+        "recall_ocorrencia": 0.9210526315789473,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 15,
+        "valores_protegidos": 12,
+        "ocorrencias_substantivas": 38,
+        "protegidas_substantivas": 35
+      },
+      "EMAIL": {
+        "protecao_valor": 0.875,
+        "recall_ocorrencia": 0.7027027027027027,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 8,
+        "valores_protegidos": 7,
+        "ocorrencias_substantivas": 37,
+        "protegidas_substantivas": 26
+      },
+      "CNJ": {
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 5,
+        "valores_protegidos": 5,
+        "ocorrencias_substantivas": 178,
+        "protegidas_substantivas": 178
+      },
+      "CNPJ": {
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 9,
+        "valores_protegidos": 9,
+        "ocorrencias_substantivas": 12,
+        "protegidas_substantivas": 12
+      },
+      "OAB": {
+        "protecao_valor": 0.42857142857142855,
+        "recall_ocorrencia": 0.16666666666666666,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 7,
+        "valores_protegidos": 3,
+        "ocorrencias_substantivas": 36,
+        "protegidas_substantivas": 6
+      }
+    }
+  },
+  "juri_19-08": {
+    "sha256": "2b07596ef72f50d1fde273a31815dc1a110dc9ce297bd523c268c3fa8d6da19f",
+    "chars": 1061709,
+    "segundos": 71.0,
+    "modo_nlp": "spacy",
+    "deteccoes": 16931,
+    "tipos": {
+      "PERSON": {
+        "protecao_valor": 0.5,
+        "recall_ocorrencia": 0.8944099378881988,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 42,
+        "valores_protegidos": 21,
+        "ocorrencias_substantivas": 1127,
+        "protegidas_substantivas": 1008
+      },
+      "CPF": {
+        "protecao_valor": 0.9090909090909091,
+        "recall_ocorrencia": 0.9705882352941176,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 22,
+        "valores_protegidos": 20,
+        "ocorrencias_substantivas": 68,
+        "protegidas_substantivas": 66
+      },
+      "TELEFONE": {
+        "protecao_valor": 0.96,
+        "recall_ocorrencia": 0.9939759036144579,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 25,
+        "valores_protegidos": 24,
+        "ocorrencias_substantivas": 166,
+        "protegidas_substantivas": 165
+      },
+      "CEP": {
+        "protecao_valor": 0.0,
+        "recall_ocorrencia": 0.0,
+        "recall_boilerplate": 0.0,
+        "valores_unicos": 15,
+        "valores_protegidos": 0,
+        "ocorrencias_substantivas": 114,
+        "protegidas_substantivas": 0
+      },
+      "CNJ": {
+        "protecao_valor": 0.92,
+        "recall_ocorrencia": 0.9951690821256038,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 25,
+        "valores_protegidos": 23,
+        "ocorrencias_substantivas": 621,
+        "protegidas_substantivas": 618
+      },
+      "RG": {
+        "protecao_valor": 0.5,
+        "recall_ocorrencia": 0.48484848484848486,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 12,
+        "valores_protegidos": 6,
+        "ocorrencias_substantivas": 33,
+        "protegidas_substantivas": 16
+      },
+      "EMAIL": {
+        "protecao_valor": 0.8695652173913043,
+        "recall_ocorrencia": 0.9605263157894737,
+        "recall_boilerplate": 0.8237885462555066,
+        "valores_unicos": 23,
+        "valores_protegidos": 20,
+        "ocorrencias_substantivas": 76,
+        "protegidas_substantivas": 73
+      },
+      "OAB": {
+        "protecao_valor": 0.6,
+        "recall_ocorrencia": 0.4878048780487805,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 10,
+        "valores_protegidos": 6,
+        "ocorrencias_substantivas": 41,
+        "protegidas_substantivas": 20
+      },
+      "CNPJ": {
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 6,
+        "valores_protegidos": 6,
+        "ocorrencias_substantivas": 12,
+        "protegidas_substantivas": 12
+      }
+    }
+  },
+  "expedientes_13-08": {
+    "sha256": "454d49180903728e341dfcfe946cc4aa422cf5414dbd4bd36dc7623ba83da1d4",
+    "chars": 239272,
+    "segundos": 16.9,
+    "modo_nlp": "spacy",
+    "deteccoes": 4138,
+    "tipos": {
+      "PERSON": {
+        "protecao_valor": 0.5333333333333333,
+        "recall_ocorrencia": 0.8140350877192982,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 15,
+        "valores_protegidos": 8,
+        "ocorrencias_substantivas": 285,
+        "protegidas_substantivas": 232
+      },
+      "CPF": {
+        "protecao_valor": 0.9285714285714286,
+        "recall_ocorrencia": 0.9666666666666667,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 14,
+        "valores_protegidos": 13,
+        "ocorrencias_substantivas": 30,
+        "protegidas_substantivas": 29
+      },
+      "RG": {
+        "protecao_valor": 0.8,
+        "recall_ocorrencia": 0.9,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 5,
+        "valores_protegidos": 4,
+        "ocorrencias_substantivas": 10,
+        "protegidas_substantivas": 9
+      },
+      "TELEFONE": {
+        "protecao_valor": 0.88,
+        "recall_ocorrencia": 0.9647058823529412,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 25,
+        "valores_protegidos": 22,
+        "ocorrencias_substantivas": 85,
+        "protegidas_substantivas": 82
+      },
+      "CEP": {
+        "protecao_valor": 0.0,
+        "recall_ocorrencia": 0.0,
+        "recall_boilerplate": 0.0,
+        "valores_unicos": 3,
+        "valores_protegidos": 0,
+        "ocorrencias_substantivas": 29,
+        "protegidas_substantivas": 0
+      },
+      "CNJ": {
+        "protecao_valor": 0.875,
+        "recall_ocorrencia": 0.9875776397515528,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 8,
+        "valores_protegidos": 7,
+        "ocorrencias_substantivas": 161,
+        "protegidas_substantivas": 159
+      },
+      "EMAIL": {
+        "protecao_valor": 0.7777777777777778,
+        "recall_ocorrencia": 0.40625,
+        "recall_boilerplate": 1.0,
+        "valores_unicos": 9,
+        "valores_protegidos": 7,
+        "ocorrencias_substantivas": 32,
+        "protegidas_substantivas": 13
+      },
+      "OAB": {
+        "protecao_valor": 0.6666666666666666,
+        "recall_ocorrencia": 0.42857142857142855,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 3,
+        "valores_protegidos": 2,
+        "ocorrencias_substantivas": 7,
+        "protegidas_substantivas": 3
+      },
+      "CNPJ": {
+        "protecao_valor": 1.0,
+        "recall_ocorrencia": 1.0,
+        "recall_boilerplate": NaN,
+        "valores_unicos": 1,
+        "valores_protegidos": 1,
+        "ocorrencias_substantivas": 1,
+        "protegidas_substantivas": 1
+      }
+    }
+  }
+}

@@ -73,11 +73,11 @@ export function CliInstaller({ onClose, showToast }: Props) {
             <h1 className="text-xl font-bold tracking-tight text-text">
               Linha de comando
             </h1>
-            <p className="mt-1 text-[13px] text-text-tertiary">
-              Habilita o comando <code className="rounded bg-surface-raised px-1 py-0.5 text-[12px]">presidio-anon</code> no terminal.
+            <p className="mt-1 text-sm text-text-tertiary">
+              Habilita o comando <code className="rounded bg-surface-raised px-1 py-0.5 text-xs">presidio-anon</code> no terminal.
             </p>
           </div>
-          <button onClick={onClose} className="text-[13px] text-text-tertiary hover:text-text">
+          <button onClick={onClose} className="text-sm text-text-tertiary hover:text-text">
             Fechar
           </button>
         </div>
@@ -86,13 +86,13 @@ export function CliInstaller({ onClose, showToast }: Props) {
         <div className="mb-4 rounded-xl border border-border bg-surface p-5">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-[15px] font-semibold text-text">Windows (cmd / PowerShell)</h2>
-              <p className="mt-0.5 text-[12px] text-text-tertiary">
+              <h2 className="text-base font-semibold text-text">Windows (cmd / PowerShell)</h2>
+              <p className="mt-0.5 text-xs text-text-tertiary">
                 Adiciona a pasta do backend ao seu PATH de usuário.
               </p>
             </div>
             <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+              className={`rounded-full px-2.5 py-1 text-2xs font-medium ${
                 status?.windows.installed
                   ? "bg-success/15 text-success"
                   : "bg-surface-raised text-text-secondary"
@@ -102,7 +102,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
             </span>
           </div>
 
-          <div className="mb-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-[11px] text-text-secondary">
+          <div className="mb-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-2xs text-text-secondary">
             <div>presidio-anon arquivo.txt -o saida.txt</div>
             <div className="mt-1 text-text-tertiary">type arquivo.txt | presidio-anon --format json</div>
           </div>
@@ -112,7 +112,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
               <button
                 disabled={busy !== null}
                 onClick={() => run("win-off", () => api.uninstallWindows())}
-                className="rounded-lg border border-border px-3 py-2 text-[13px] font-medium text-text transition hover:bg-surface-raised disabled:opacity-40"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text transition hover:bg-surface-raised disabled:opacity-40"
               >
                 Desativar
               </button>
@@ -120,14 +120,14 @@ export function CliInstaller({ onClose, showToast }: Props) {
               <button
                 disabled={busy !== null}
                 onClick={() => run("win-on", () => api.installWindows())}
-                className="rounded-lg bg-accent px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-accent-hover disabled:opacity-40"
+                className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-40"
               >
                 {busy === "win-on" ? "Ativando..." : "Ativar no Windows"}
               </button>
             )}
           </div>
 
-          <p className="mt-3 text-[11px] text-text-tertiary">
+          <p className="mt-3 text-2xs text-text-tertiary">
             Após ativar, reabra o terminal. O comando será chamado via wrapper <code>.cmd</code>.
           </p>
         </div>
@@ -136,13 +136,13 @@ export function CliInstaller({ onClose, showToast }: Props) {
         <div className="mb-4 rounded-xl border border-border bg-surface p-5">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-[15px] font-semibold text-text">WSL (bash / zsh)</h2>
-              <p className="mt-0.5 text-[12px] text-text-tertiary">
+              <h2 className="text-base font-semibold text-text">WSL (bash / zsh)</h2>
+              <p className="mt-0.5 text-xs text-text-tertiary">
                 Instala um shim em <code>~/.local/bin/presidio-anon</code> que chama o Python embutido via interop.
               </p>
             </div>
             <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+              className={`rounded-full px-2.5 py-1 text-2xs font-medium ${
                 status?.wsl.installed
                   ? "bg-success/15 text-success"
                   : !status?.wsl.available
@@ -154,7 +154,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
             </span>
           </div>
 
-          <div className="mb-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-[11px] text-text-secondary">
+          <div className="mb-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-2xs text-text-secondary">
             <div>presidio-anon arquivo.txt -o saida.txt</div>
             <div className="mt-1 text-text-tertiary">cat arquivo.txt | presidio-anon --format json --entities PERSON,CPF_BR</div>
           </div>
@@ -163,7 +163,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
             {!status?.wsl.available ? (
               <button
                 disabled
-                className="rounded-lg border border-border px-3 py-2 text-[13px] font-medium text-text-tertiary"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-tertiary"
               >
                 WSL não disponível
               </button>
@@ -171,7 +171,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
               <button
                 disabled={busy !== null}
                 onClick={() => run("wsl-off", () => api.uninstallWsl())}
-                className="rounded-lg border border-border px-3 py-2 text-[13px] font-medium text-text transition hover:bg-surface-raised disabled:opacity-40"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text transition hover:bg-surface-raised disabled:opacity-40"
               >
                 Desativar
               </button>
@@ -179,7 +179,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
               <button
                 disabled={busy !== null}
                 onClick={() => run("wsl-on", () => api.installWsl())}
-                className="rounded-lg bg-accent px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-accent-hover disabled:opacity-40"
+                className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-40"
               >
                 {busy === "wsl-on" ? "Ativando..." : "Ativar no WSL"}
               </button>
@@ -187,7 +187,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
           </div>
 
           {status?.wsl.installed && (
-            <p className="mt-3 text-[11px] text-text-tertiary">
+            <p className="mt-3 text-2xs text-text-tertiary">
               Shim em <code>{status.wsl.shimPath}</code>. Se <code>~/.local/bin</code> não estiver no PATH, adicione em <code>~/.bashrc</code>.
             </p>
           )}
@@ -195,20 +195,20 @@ export function CliInstaller({ onClose, showToast }: Props) {
 
         {/* Para agentes */}
         <div className="rounded-xl border border-border bg-surface p-5">
-          <h2 className="text-[15px] font-semibold text-text">Para agentes (Claude Code, etc.)</h2>
-          <p className="mt-1 text-[12px] text-text-tertiary">
+          <h2 className="text-base font-semibold text-text">Para agentes (Claude Code, etc.)</h2>
+          <p className="mt-1 text-xs text-text-tertiary">
             Use a flag <code>--format json</code> e redirecione stderr para ignorar o banner de inicialização:
           </p>
-          <div className="mt-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-[11px] text-text-secondary">
+          <div className="mt-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-2xs text-text-secondary">
             presidio-anon entrada.txt -q --format json
           </div>
-          <p className="mt-3 text-[11px] text-text-tertiary">
+          <p className="mt-3 text-2xs text-text-tertiary">
             Saída é um JSON com <code>anonymized_text</code> e <code>entities_found</code> (tipo, texto, posições, score).
           </p>
         </div>
 
         {status && (
-          <p className="mt-6 text-[11px] text-text-tertiary">
+          <p className="mt-6 text-2xs text-text-tertiary">
             Backend em: <code>{status.backendDir}</code>
           </p>
         )}

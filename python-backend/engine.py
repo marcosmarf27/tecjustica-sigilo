@@ -1,6 +1,11 @@
 """
-Engine singleton que inicializa o Presidio AnalyzerEngine + AnonymizerEngine
-com suporte a pt-BR.
+Engine singleton que inicializa o Presidio AnalyzerEngine com suporte a pt-BR.
+
+O texto é analisado em janelas com sobreposição sobre uma vista sem quebras de
+linha (ver `_vista_linear`), e os spans de todas as janelas são fundidos por um
+mapa de tipo por caractere. As máscaras são as de `mask_config`, aplicadas
+diretamente — o `AnonymizerEngine` do Presidio não as produziria sem operadores
+customizados, e por isso não é usado.
 
 NLP backend:
   - PRESIDIO_NLP_MODE=transformer (default): usa pierreguillou/ner-bert-large-cased-pt-lenerbr,
@@ -11,16 +16,31 @@ NLP backend:
 
 import os
 import re
+from typing import Callable
 
 from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 from presidio_analyzer.nlp_engine import NlpEngineProvider
-from presidio_anonymizer import AnonymizerEngine
 
 from recognizers import criar_recognizers_brasil
-from mask_config import apply_mask
+from mask_config import POLITICA_PADRAO, Mascarador, apply_mask
 from config_loader import load_deny_list, normalize
 
 _instance: "PresidioEngine | None" = None
+
+
+class CancelamentoSolicitado(RuntimeError):
+    """Levantada quando o operador cancela o processamento em andamento."""
+
+
+class _SpanSimples:
+    """Portador de start/end para reaproveitar `_extend_person`, que espera um
+    objeto com esses atributos mutáveis (é o formato do RecognizerResult)."""
+
+    __slots__ = ("start", "end")
+
+    def __init__(self, start: int, end: int):
+        self.start = start
+        self.end = end
 
 # Regex para detectar sequências de 2+ palavras ALL CAPS (prováveis nomes).
 # Só é aplicado no modo spacy — o BERT jurídico não precisa desse truque.
@@ -52,6 +72,77 @@ _STOP_WORDS_NAME_EXT = {
     "instancia", "instância", "origem", "defesa", "acusacao", "acusação",
     "sentenca", "sentença",
 }
+
+# --- Chunking -------------------------------------------------------------
+#
+# O texto é analisado em janelas, não linha a linha. Analisar por linha faz o
+# OCR desta base vazar sistematicamente: o rótulo "RG:" termina uma linha e o
+# número está na seguinte, "(85)" se separa de "99233-2854", "CEP - 60.755-"
+# quebra antes do "000", e um nome se parte entre duas colunas do PDF. Isolada,
+# cada metade é irreconhecível.
+#
+# TAMANHO_JANELA é conservador de propósito: o BERT aceita 512 tokens, e OCR
+# com blocos de dígitos tokeniza a pouco mais de um caractere por token.
+TAMANHO_JANELA = 1200
+# O overlap precisa ser maior que a maior entidade esperada. Um período de
+# qualificação ("brasileiro, casado, filho de X e Y, nascido em..., portador
+# do RG..., residente à Rua...") passa de 200 caracteres.
+OVERLAP_JANELA = 300
+
+# Quando dois spans disputam o mesmo trecho, vence o tipo mais específico.
+# Efeito desejado em "Rua Antônio José Correia": sai um ENDERECO_BR inteiro,
+# em vez de um PERSON costurado com pedaços de LOCATION.
+PRIORIDADE_ENTIDADE = [
+    "DATE_TIME", "LAW", "CASE_LAW", "ORGANIZATION",
+    "DATE_OF_BIRTH", "LOCATION", "PERSON", "ENDERECO_BR", "CEP_BR",
+    "EMAIL_ADDRESS", "PHONE_NUMBER", "PHONE_NUMBER_BR", "CONTA_BANCARIA",
+    "OAB_BR", "NIT_PIS_PASEP", "RG_BR", "CNPJ_BR", "NUMERO_PROCESSO_CNJ",
+    "CPF_BR",
+]
+_PRIORIDADE = {nome: i + 1 for i, nome in enumerate(PRIORIDADE_ENTIDADE)}
+
+# Tipos que nomeiam instituições, atos e diplomas legais — nunca uma pessoa.
+# A deny list pode ser aplicada por contenção neles sem risco de apagar um nome.
+_TIPOS_INSTITUCIONAIS = {"ORGANIZATION", "LAW", "CASE_LAW", "LOCATION", "DATE_TIME"}
+
+# Partículas que não contam como palavra significativa de um nome.
+_PREPOSICOES = {"de", "da", "do", "das", "dos", "e", "di", "del", "von", "san"}
+
+
+def _vista_linear(texto: str) -> str:
+    """
+    Troca quebras de linha e tabulações por espaço, preservando o comprimento.
+
+    Preservar o comprimento é o que permite usar os offsets desta vista
+    diretamente no texto original, sem tabela de tradução. Qualquer
+    transformação que mude o tamanho (remover hífen de fim de linha, normalizar
+    Unicode, colapsar espaços) desalinharia todos os spans — e o sintoma seria
+    máscara no lugar errado, não uma exceção.
+    """
+    return texto.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+
+
+def _janelas(texto: str, tamanho: int, overlap: int) -> list[tuple[int, int]]:
+    """
+    Divide o texto em janelas com sobreposição, cortando sempre em fim de
+    linha para não partir uma entidade ao meio.
+    """
+    if len(texto) <= tamanho:
+        return [(0, len(texto))]
+
+    limites: list[tuple[int, int]] = []
+    inicio = 0
+    while inicio < len(texto):
+        fim = min(inicio + tamanho, len(texto))
+        if fim < len(texto):
+            quebra = texto.rfind("\n", inicio + tamanho - overlap, fim)
+            if quebra > inicio:
+                fim = quebra + 1
+        limites.append((inicio, fim))
+        if fim >= len(texto):
+            break
+        inicio = max(inicio + 1, fim - overlap)
+    return limites
 
 
 def _spacy_config() -> dict:
@@ -98,14 +189,25 @@ def _transformer_config() -> dict:
 class PresidioEngine:
     def __init__(self):
         self._analyzer: AnalyzerEngine | None = None
-        self._anonymizer: AnonymizerEngine | None = None
         self._ready = False
         self._nlp_mode = os.environ.get("PRESIDIO_NLP_MODE", "transformer").lower()
+        self._modo_solicitado = self._nlp_mode
+        self._motivo_fallback: str | None = None
         self._deny_list: dict[str, set[str]] = {}
 
     @property
     def nlp_mode(self) -> str:
         return self._nlp_mode
+
+    @property
+    def modo_solicitado(self) -> str:
+        """O modo pedido por configuração, que pode não ser o que está rodando."""
+        return self._modo_solicitado
+
+    @property
+    def motivo_fallback(self) -> str | None:
+        """Por que o modo pedido não pôde ser usado, se foi o caso."""
+        return self._motivo_fallback
 
     def initialize(self):
         """Carrega modelo NLP e inicializa os engines. Chamado uma vez."""
@@ -113,16 +215,34 @@ class PresidioEngine:
             return
 
         nlp_engine = None
+        self._motivo_fallback = None
+
         if self._nlp_mode == "transformer":
+            # Checar `import transformers` não basta e dá falso positivo: o
+            # Presidio só registra o motor "transformers" quando o pacote
+            # `spacy-huggingface-pipelines` está instalado. Sem ele, tudo parece
+            # certo até a criação do engine falhar — e o app passa a rodar em
+            # spaCy sem ninguém perceber, com qualidade bem inferior.
             try:
-                import transformers  # noqa: F401
-                import torch  # noqa: F401
+                from presidio_analyzer.nlp_engine import NlpEngineProvider as _P
+
+                disponiveis = list(_P().nlp_engines)
+                if "transformers" not in disponiveis:
+                    raise RuntimeError(
+                        "o motor 'transformers' não está registrado no Presidio — "
+                        "falta o pacote spacy-huggingface-pipelines "
+                        f"(motores disponíveis: {', '.join(disponiveis)})"
+                    )
+
                 provider = NlpEngineProvider(nlp_configuration=_transformer_config())
                 nlp_engine = provider.create_engine()
             except Exception as exc:
+                self._motivo_fallback = str(exc)
                 print(
-                    f"[engine] Falha ao carregar modo transformer ({exc!r}). "
-                    "Caindo para spaCy.",
+                    f"[engine] AVISO: o modo BERT não pôde ser carregado — {exc}. "
+                    "Rodando com spaCy, que detecta menos entidades em texto "
+                    "jurídico. Instale as dependências do modo transformer para "
+                    "usar o modelo completo.",
                     flush=True,
                 )
                 self._nlp_mode = "spacy"
@@ -143,7 +263,6 @@ class PresidioEngine:
             nlp_engine=nlp_engine,
             supported_languages=["pt"],
         )
-        self._anonymizer = AnonymizerEngine()
         self._deny_list = load_deny_list()
         self._ready = True
 
@@ -159,95 +278,284 @@ class PresidioEngine:
         text: str,
         entities: list[str],
         language: str = "pt",
+        progresso: "Callable[[int, int], None] | None" = None,
+        politica_mascara: str = POLITICA_PADRAO,
+        cancelado: "Callable[[], bool] | None" = None,
     ) -> dict:
         """
-        Analisa e anonimiza o texto, processando parágrafo por parágrafo
-        para evitar o limite de 1M chars do spaCy e permitir progresso granular.
+        Analisa e anonimiza o texto em janelas com sobreposição.
+
+        `progresso`, se informado, é chamado como (janelas_prontas, total) —
+        é o que permite à interface mostrar avanço real dentro de um arquivo
+        grande, em vez de ficar parada em 0%.
+
+        `cancelado` é consultado entre as janelas: quando devolve True, o
+        trabalho para de verdade, em vez de a interface apenas desistir de
+        esperar enquanto o processo segue ocupando a máquina.
+
+        `politica_mascara` escolhe entre placeholder numerado, máscara parcial
+        e cobertura total — ver `mask_config`.
 
         Retorna dict com:
           - anonymized_text: texto com PII mascarado
-          - entities_found: lista de entidades detectadas
+          - entities_found: lista de entidades detectadas, em offsets do
+            texto original
         """
-        if not self._ready or self._analyzer is None or self._anonymizer is None:
+        if not self._ready or self._analyzer is None:
             raise RuntimeError("Engine não inicializado. Chame initialize() primeiro.")
 
-        paragraphs = text.split("\n")
-        anonymized_paragraphs = []
-        all_entities = []
-        offset = 0  # Para ajustar posições globais das entidades
+        # Vista linear: mesmo comprimento, sem quebras de linha. É sobre ela
+        # que tudo é analisado, para que uma entidade partida entre duas linhas
+        # pelo OCR volte a ser contígua.
+        vista = _vista_linear(text)
+        assert len(vista) == len(text), "a vista precisa preservar o comprimento"
 
-        for paragraph in paragraphs:
-            if not paragraph.strip():
-                anonymized_paragraphs.append(paragraph)
-                offset += len(paragraph) + 1  # +1 para o \n
+        # No modo spaCy, ALL CAPS vira Title Case para o NER reconhecer nomes.
+        # `str.title()` preserva o comprimento, então os offsets seguem válidos.
+        if self._nlp_mode == "spacy":
+            vista = _RE_CAPS_SEQUENCE.sub(lambda m: m.group(0).title(), vista)
+            assert len(vista) == len(text), "o pré-processo mudou o comprimento"
+
+        limites = _janelas(vista, TAMANHO_JANELA, OVERLAP_JANELA)
+        brutos: list[tuple[int, int, str, float]] = []
+
+        for i, (inicio, fim) in enumerate(limites):
+            if cancelado is not None and cancelado():
+                raise CancelamentoSolicitado(
+                    f"cancelado após {i} de {len(limites)} blocos"
+                )
+            trecho = vista[inicio:fim]
+            if not trecho.strip():
+                if progresso:
+                    progresso(i + 1, len(limites))
                 continue
 
-            # No modo spacy, converte ALL CAPS → Title Case para que o NER
-            # CNN reconheça. O BERT jurídico não precisa desse pré-processo.
-            if self._nlp_mode == "spacy":
-                preprocessed = _RE_CAPS_SEQUENCE.sub(
-                    lambda m: m.group(0).title(), paragraph
-                )
-            else:
-                preprocessed = paragraph
-
-            results = self._analyzer.analyze(
-                text=preprocessed,
+            resultados = self._analyzer.analyze(
+                text=trecho,
                 language=language,
                 entities=entities if entities else None,
                 score_threshold=0.35,
             )
 
-            if not results:
-                anonymized_paragraphs.append(paragraph)
-                offset += len(paragraph) + 1
-                continue
-
             if entities:
-                results = [r for r in results if r.entity_type in entities]
+                resultados = [r for r in resultados if r.entity_type in entities]
 
-            adjusted = []
-            for r in results:
-                txt = preprocessed[r.start:r.end]
-                start, end = r.start, r.end
+            for r in resultados:
+                r.start += inicio
+                r.end += inicio
 
-                while start < end and not txt[0].isalpha() and not txt[0].isdigit():
-                    start += 1
-                    txt = txt[1:]
-                while end > start and not txt[-1].isalpha() and not txt[-1].isdigit():
-                    end -= 1
-                    txt = txt[:-1]
-
-                if start < end and len(txt.strip()) > 1:
-                    r.start = start
-                    r.end = end
-                    adjusted.append(r)
-
-            for r in adjusted:
+            for r in resultados:
                 if r.entity_type == "PERSON":
-                    self._extend_person(preprocessed, r)
+                    self._extend_person(vista, r)
 
-            results = self._apply_deny_list(preprocessed, adjusted)
+            for r in self._apply_deny_list(vista, resultados):
+                ajustado = self._aparar(vista, r.start, r.end)
+                if ajustado is None:
+                    continue
+                inicio_ap, fim_ap = ajustado
+                brutos.append((inicio_ap, fim_ap, r.entity_type, r.score))
 
-            for r in results:
-                all_entities.append({
-                    "type": r.entity_type,
-                    "text": paragraph[r.start:r.end],
-                    "start": r.start + offset,
-                    "end": r.end + offset,
-                    "score": round(r.score, 2),
-                })
+            if progresso:
+                progresso(i + 1, len(limites))
 
-            anonymized_paragraph = self._apply_masks_individually(
-                paragraph, results
-            )
-            anonymized_paragraphs.append(anonymized_paragraph)
-            offset += len(paragraph) + 1
+        propagados = self._propagar_nomes(text, brutos)
+
+        # Os nomes propagados também precisam ser estendidos e aparados: se o
+        # modelo só reconheceu "ELIONEUDO EVARISTO", a propagação repete esse
+        # pedaço pelo documento e o sobrenome continuaria exposto em toda
+        # ocorrência. A extensão por preposição alcança "DE ABREU".
+        estendidos: list[tuple[int, int, str, float]] = []
+        for ini, fim, tipo, score in propagados:
+            marcador = _SpanSimples(ini, fim)
+            self._extend_person(vista, marcador)
+            ajustado = self._aparar(vista, marcador.start, marcador.end)
+            if ajustado is None:
+                continue
+            estendidos.append((ajustado[0], ajustado[1], tipo, score))
+
+        brutos.extend(estendidos)
+        spans = self._fundir_spans(text, brutos)
+        mascarador = Mascarador(politica_mascara)
+
+        entidades = [
+            {
+                "type": tipo,
+                "text": text[ini:fim],
+                "start": ini,
+                "end": fim,
+                "score": round(score, 2),
+            }
+            for ini, fim, tipo, score in spans
+        ]
 
         return {
-            "anonymized_text": "\n".join(anonymized_paragraphs),
-            "entities_found": all_entities,
+            "anonymized_text": self._aplicar_mascaras(text, spans, mascarador),
+            "entities_found": entidades,
+            "politica_mascara": politica_mascara,
+            "valores_distintos": mascarador.resumo(),
         }
+
+    @staticmethod
+    def _propagar_nomes(
+        texto: str, brutos: list[tuple[int, int, str, float]]
+    ) -> list[tuple[int, int, str, float]]:
+        """
+        Segunda passada: reencontra, no documento inteiro, os nomes já
+        detectados em algum ponto.
+
+        O OCR desta base parte nomes entre linhas e colunas — "ELIONEUDO
+        EVARISTO" fica numa linha e "DE ABREU" na seguinte, com indentação
+        arbitrária no meio. O NER reconhece o nome onde ele está inteiro e
+        perde onde está partido. Aqui o nome reconhecido vira busca: cada parte
+        contígua de duas ou mais palavras é procurada com espaçamento flexível,
+        e `\\s+` casa também a quebra de linha.
+
+        Regra que evita catástrofe: nunca menos de duas palavras significativas.
+        Propagar um sobrenome isolado ("SILVA", "SANTOS") mascararia meio
+        documento, incluindo topônimos e expressões correntes.
+        """
+        nomes: set[str] = set()
+        for ini, fim, tipo, score in brutos:
+            if tipo != "PERSON" or score < 0.4:
+                continue
+            bruto = " ".join(texto[ini:fim].split())
+            tokens = bruto.split()
+            significativos = [
+                t for t in tokens if normalize(t) not in _PREPOSICOES and len(t) > 1
+            ]
+            if len(significativos) >= 2 and len(bruto) >= 6:
+                nomes.add(bruto)
+
+        # Blocos contíguos de 2+ palavras: cobre o caso em que só o pedaço
+        # final ("AFONSO DOS SANTOS") aparece numa dada ocorrência.
+        variantes: set[str] = set()
+        for nome in nomes:
+            tokens = nome.split()
+            for i in range(len(tokens)):
+                for j in range(i + 2, len(tokens) + 1):
+                    bloco = tokens[i:j]
+                    if bloco[0].lower() in _PREPOSICOES or bloco[-1].lower() in _PREPOSICOES:
+                        continue
+                    significativos = [
+                        t for t in bloco if normalize(t) not in _PREPOSICOES and len(t) > 1
+                    ]
+                    if len(significativos) >= 2:
+                        variantes.add(" ".join(bloco))
+
+        if not variantes:
+            return []
+
+        # Uma única alternância varre o documento uma vez só. Uma regex por
+        # variante custaria uma varredura de todo o texto por nome, o que num
+        # processo de 1 MB com dezenas de partes fica proibitivo.
+        #
+        # A ordenação por comprimento decrescente faz a alternância preferir o
+        # nome completo ao pedaço: em regex, o primeiro ramo que casa vence.
+        alternativas = []
+        for variante in sorted(variantes, key=lambda v: (-len(v), v)):
+            partes = [re.escape(t) for t in variante.split()]
+            # Teto no espaçamento: sem ele, o padrão poderia colar duas colunas
+            # distantes do PDF que só por acaso têm as palavras certas.
+            alternativas.append(r"\s{1,40}".join(partes))
+
+        try:
+            combinada = re.compile("|".join(alternativas), re.IGNORECASE)
+        except re.error:
+            return []
+
+        return [
+            (m.start(), m.end(), "PERSON", 0.6)
+            for m in combinada.finditer(texto)
+        ]
+
+    @staticmethod
+    def _aparar(texto: str, start: int, end: int) -> tuple[int, int] | None:
+        """Remove pontuação das bordas do span; devolve None se sobrar lixo."""
+        while start < end and not (texto[start].isalpha() or texto[start].isdigit()):
+            start += 1
+        while end > start and not (texto[end - 1].isalpha() or texto[end - 1].isdigit()):
+            end -= 1
+        if end - start < 2:
+            return None
+        return start, end
+
+    @staticmethod
+    def _fundir_spans(
+        texto: str, brutos: list[tuple[int, int, str, float]]
+    ) -> list[tuple[int, int, str, float]]:
+        """
+        Funde os spans de todas as janelas num conjunto sem sobreposição.
+
+        Usa um mapa de tipo por caractere: cada span pinta seu intervalo, e os
+        de maior prioridade pintam por cima. Isso resolve num passo só a
+        duplicação entre janelas sobrepostas, o conflito de tipos e as
+        sobreposições parciais — que, aplicadas como substituições sucessivas,
+        corromperiam o texto.
+
+        Os runs resultantes são quebrados em cada `\\n`: uma máscara não pode
+        atravessar a quebra de linha, senão destrói a estrutura do documento
+        (as funções de máscara normalizam espaço e comeriam o `\\n`).
+        """
+        if not brutos:
+            return []
+
+        tipos: dict[int, str] = {}
+        melhor_score: dict[str, float] = {}
+        mapa = bytearray(len(texto))
+
+        for ini, fim, tipo, score in sorted(
+            brutos, key=lambda b: _PRIORIDADE.get(b[2], 0)
+        ):
+            codigo = _PRIORIDADE.get(tipo, 0) or (len(_PRIORIDADE) + 1)
+            codigo = min(codigo, 255)
+            tipos[codigo] = tipo
+            melhor_score[tipo] = max(melhor_score.get(tipo, 0.0), score)
+            ini = max(0, ini)
+            fim = min(len(texto), fim)
+            if fim > ini:
+                mapa[ini:fim] = bytes([codigo]) * (fim - ini)
+
+        spans: list[tuple[int, int, str, float]] = []
+        pos = 0
+        while pos < len(mapa):
+            codigo = mapa[pos]
+            if codigo == 0:
+                pos += 1
+                continue
+            fim = pos
+            while fim < len(mapa) and mapa[fim] == codigo and texto[fim] != "\n":
+                fim += 1
+            tipo = tipos[codigo]
+            if fim > pos:
+                spans.append((pos, fim, tipo, melhor_score.get(tipo, 0.0)))
+            pos = max(fim, pos + 1)
+
+        return spans
+
+    @staticmethod
+    def _aplicar_mascaras(
+        texto: str,
+        spans: list[tuple[int, int, str, float]],
+        mascarador: Mascarador,
+    ) -> str:
+        """
+        Aplica as máscaras sobre spans já disjuntos.
+
+        A numeração dos placeholders precisa seguir a ordem de leitura, então a
+        atribuição dos números é feita da esquerda para a direita; a
+        substituição no texto é que vai de trás para frente, para não deslocar
+        as posições ainda não aplicadas.
+        """
+        ordenados = sorted(spans, key=lambda s: s[0])
+        mascaras = [
+            (ini, fim, mascarador.mascarar(tipo, texto[ini:fim]))
+            for ini, fim, tipo, _ in ordenados
+        ]
+
+        saida = texto
+        for ini, fim, mascara in reversed(mascaras):
+            saida = saida[:ini] + mascara + saida[fim:]
+        return saida
 
     def _apply_deny_list(self, text: str, results: list) -> list:
         """
@@ -257,13 +565,34 @@ class PresidioEngine:
             institucional (ex: 'Ministério Público Dr. FULANO' → 'FULANO').
           - detecção é prefixo de um termo da deny list → descarta.
         """
+        # A chave "*" vale para qualquer tipo. Sem ela, a lista precisaria
+        # repetir cada termo em todo tipo que o modelo possa atribuir — e o
+        # modelo muda de opinião: "VARA CRIMINAL" sai como LOCATION no modo
+        # leve e como ORGANIZATION no BERT, "Código de Processo Penal" sai como
+        # LAW. Um termo institucional não é dado pessoal em tipo nenhum.
+        globais = self._deny_list.get("*", set())
+
         out = []
         for r in results:
-            terms = self._deny_list.get(r.entity_type, set())
+            terms = self._deny_list.get(r.entity_type, set()) | globais
             detected = text[r.start:r.end]
             norm = normalize(detected)
 
             if norm in terms:
+                continue
+
+            # O modelo costuma marcar o bloco inteiro em volta do termo:
+            # "2ª VARA CRIMINAL DA COMARCA DE FORTALEZA", "Código de Processo
+            # Penal, artigo 41". Comparar por igualdade deixa tudo isso passar.
+            #
+            # Para tipos institucionais, conter um termo da lista basta para
+            # descartar — nenhum deles carrega nome de pessoa dentro. PERSON
+            # fica de fora desta regra de propósito: ali o span pode ser
+            # "Ministério Público Dr. FULANO", e descartar apagaria o nome em
+            # vez de revelá-lo (é o que o trim de prefixo abaixo resolve).
+            if r.entity_type in _TIPOS_INSTITUCIONAIS and any(
+                termo and termo in norm for termo in terms
+            ):
                 continue
 
             # Prefixo institucional: trimma e mantém só a cauda (ex.: nome real)

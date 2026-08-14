@@ -2,7 +2,27 @@ import { useCallback, useRef, useState } from "react";
 import type { FileItem } from "../types";
 
 const MAX_FILES = 10;
-const ACCEPTED_EXTENSIONS = [".txt", ".md", ".rtf"];
+
+// Texto puro: o próprio navegador lê e manda o conteúdo.
+const EXTENSOES_TEXTO = [".txt", ".md", ".rtf"];
+
+// Documentos que o backend abre a partir do caminho, fazendo OCR quando a
+// página é digitalizada — o caso normal em autos de processo.
+const EXTENSOES_DOCUMENTO = [
+  ".pdf",
+  ".docx",
+  ".xlsx",
+  ".pptx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".tif",
+  ".tiff",
+  ".bmp",
+  ".webp",
+];
+
+const ACCEPTED_EXTENSIONS = [...EXTENSOES_TEXTO, ...EXTENSOES_DOCUMENTO];
 
 interface FileSelectorProps {
   files: FileItem[];
@@ -13,38 +33,61 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [maxReached, setMaxReached] = useState(false);
+  const [rejeitados, setRejeitados] = useState<string[]>([]);
 
   const addFiles = useCallback(
     async (fileList: FileList) => {
       const newFiles: FileItem[] = [];
+      const recusados: string[] = [];
 
       for (const file of Array.from(fileList)) {
         const ext = file.name
           .substring(file.name.lastIndexOf("."))
           .toLowerCase();
-        if (!ACCEPTED_EXTENSIONS.includes(ext)) continue;
+        if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+          recusados.push(file.name);
+          continue;
+        }
         if (files.length + newFiles.length >= MAX_FILES) break;
         if (files.some((f) => f.name === file.name)) continue;
 
-        // Tenta UTF-8 estrito; se falhar, assume cp1252 (comum em RTF Windows)
-        const buffer = await file.arrayBuffer();
-        let content: string;
-        try {
-          content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-        } catch {
-          content = new TextDecoder("windows-1252").decode(buffer);
+        // File.path não existe mais no Electron; o caminho real vem do
+        // preload. Sem ele, o arquivo seria salvo no diretório errado — e um
+        // documento binário nem poderia ser aberto pelo backend.
+        const caminho = window.electronAPI?.getPathForFile?.(file) || file.name;
+        const precisaExtracao = EXTENSOES_DOCUMENTO.includes(ext);
+
+        if (precisaExtracao && !window.electronAPI?.getPathForFile) {
+          // Fora do Electron não há caminho de disco para entregar ao backend.
+          recusados.push(file.name);
+          continue;
         }
+
+        let content = "";
+        if (!precisaExtracao) {
+          // Tenta UTF-8 estrito; se falhar, assume cp1252 (comum em RTF Windows)
+          const buffer = await file.arrayBuffer();
+          try {
+            content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+          } catch {
+            content = new TextDecoder("windows-1252").decode(buffer);
+          }
+        }
+
         newFiles.push({
           name: file.name,
-          path: (file as File & { path?: string }).path || file.name,
+          path: caminho,
           content,
           size: file.size,
+          precisaExtracao,
         });
       }
 
       if (newFiles.length > 0) {
         onFilesChange([...files, ...newFiles]);
       }
+
+      setRejeitados(recusados);
 
       if (files.length + newFiles.length >= MAX_FILES) {
         setMaxReached(true);
@@ -79,13 +122,13 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
     <div className="animate-fade-in">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-[15px] font-semibold text-text">Arquivos</h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
-            Arraste ou selecione arquivos .txt, .md e .rtf
+          <h2 className="text-base font-semibold text-text">Arquivos</h2>
+          <p className="mt-0.5 text-xs text-text-tertiary">
+            PDF, Word, imagem digitalizada ou texto
           </p>
         </div>
         <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+          className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${
             maxReached
               ? "bg-warning/15 text-warning"
               : "bg-surface-raised text-text-secondary"
@@ -104,6 +147,15 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
         }}
         onDragLeave={() => setIsDragging(false)}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Escolher arquivos para anonimizar"
         className={`group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-all duration-200 ${
           isDragging
             ? "border-accent bg-accent/5 scale-[1.01]"
@@ -121,12 +173,12 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
           </svg>
         </div>
-        <p className="text-[13px] text-text-secondary">
+        <p className="text-sm text-text-secondary">
           Solte arquivos aqui ou{" "}
           <span className="font-medium text-accent">selecione</span>
         </p>
-        <p className="mt-1 text-[11px] text-text-tertiary">
-          .txt, .md e .rtf — max {MAX_FILES} arquivos
+        <p className="mt-1 text-2xs text-text-tertiary">
+          PDF · DOCX · imagem · TXT · MD · RTF — até {MAX_FILES} arquivos
         </p>
       </div>
 
@@ -134,13 +186,28 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
         ref={inputRef}
         type="file"
         multiple
-        accept=".txt,.md,.rtf"
+        accept={ACCEPTED_EXTENSIONS.join(",")}
         className="hidden"
         onChange={(e) => {
           if (e.target.files) addFiles(e.target.files);
           e.target.value = "";
         }}
       />
+
+      {rejeitados.length > 0 && (
+        <p role="status" className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-2xs text-warning">
+          Não dá para ler {rejeitados.join(", ")}. Os formatos aceitos são PDF,
+          DOCX, XLSX, PPTX, imagens digitalizadas, TXT, MD e RTF.
+        </p>
+      )}
+
+      {files.some((f) => f.precisaExtracao) && (
+        <p className="mt-3 rounded-lg bg-accent/10 px-3 py-2 text-2xs text-accent">
+          Documentos digitalizados passam por reconhecimento de texto antes da
+          anonimização. Isso leva alguns segundos por página, e roda inteiramente
+          nesta máquina.
+        </p>
+      )}
 
       {/* File list */}
       {files.length > 0 && (
@@ -157,17 +224,18 @@ export function FileSelector({ files, onFilesChange }: FileSelectorProps) {
                   </svg>
                 </div>
                 <div className="overflow-hidden">
-                  <p className="truncate text-[13px] font-medium text-text">
+                  <p className="truncate text-sm font-medium text-text">
                     {file.name}
                   </p>
-                  <p className="text-[11px] text-text-tertiary">
+                  <p className="text-2xs text-text-tertiary">
                     {formatSize(file.size)}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => handleRemove(i)}
-                className="shrink-0 rounded-md p-1 text-text-tertiary opacity-0 transition hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
+                aria-label={`Remover ${file.name}`}
+                className="shrink-0 rounded-md p-1.5 text-text-tertiary opacity-0 transition hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 18L18 6M6 6l12 12" />

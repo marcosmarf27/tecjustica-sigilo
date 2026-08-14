@@ -10,6 +10,8 @@ const execFileP = promisify(execFile);
 
 let mainWindow: BrowserWindow | null = null;
 let pythonProcess: ChildProcess | null = null;
+/** Credencial desta execução, lida da saída do backend. Nunca vai para disco. */
+let tokenSessao = "";
 const PYTHON_PORT = 8123;
 
 function getResourcePath(...segments: string[]): string {
@@ -63,7 +65,20 @@ async function startPythonBackend(port: number): Promise<void> {
   });
 
   pythonProcess.stdout?.on("data", (data: Buffer) => {
-    console.log(`[Python] ${data.toString().trim()}`);
+    const saida = data.toString();
+
+    // O backend anuncia o segredo desta sessão na primeira linha útil. Ele
+    // existe porque `/processar` abre arquivos do disco: sem credencial,
+    // qualquer página aberta no navegador poderia pedir a leitura de um
+    // documento à porta local. O token fica só em memória, dos dois lados.
+    const marcador = saida.match(/PRESIDIO_TOKEN=(\S+)/);
+    if (marcador) {
+      tokenSessao = marcador[1];
+      console.log("[Python] token da sessão recebido");
+      return;
+    }
+
+    console.log(`[Python] ${saida.trim()}`);
   });
 
   pythonProcess.stderr?.on("data", (data: Buffer) => {
@@ -101,7 +116,7 @@ function createWindow(): void {
       nodeIntegration: false,
     },
     titleBarStyle: "default",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#0c0f1a",
   });
 
   const isDev = !app.isPackaged;
@@ -132,7 +147,25 @@ ipcMain.handle("read-file", async (_event, filePath: string) => {
 ipcMain.handle(
   "save-file",
   async (_event, filePath: string, content: string) => {
+    // Gravar por cima de um resultado anterior sem avisar destrói trabalho já
+    // conferido — reprocessar o mesmo documento com outra configuração é
+    // rotina, e o nome de saída é sempre o mesmo.
+    if (fs.existsSync(filePath) && mainWindow) {
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        buttons: ["Substituir", "Cancelar"],
+        defaultId: 1,
+        cancelId: 1,
+        title: "Arquivo já existe",
+        message: `Já existe um arquivo chamado ${path.basename(filePath)} nessa pasta.`,
+        detail: "Substituir apaga o conteúdo anterior.",
+      });
+      if (response !== 0) {
+        return { salvo: false, motivo: "cancelado" };
+      }
+    }
     fs.writeFileSync(filePath, content, "utf-8");
+    return { salvo: true };
   }
 );
 
@@ -332,10 +365,16 @@ ipcMain.handle("select-files", async () => {
   }));
 });
 
+// Porta efetiva do backend, resolvida no boot e consultada pelo renderer.
+let backendPort = PYTHON_PORT;
+
+ipcMain.handle("get-backend-port", () => backendPort);
+ipcMain.handle("get-backend-token", () => tokenSessao);
+
 // App lifecycle
 app.whenReady().then(async () => {
-  const port = await findAvailablePort(PYTHON_PORT);
-  await startPythonBackend(port);
+  backendPort = await findAvailablePort(PYTHON_PORT);
+  await startPythonBackend(backendPort);
   createWindow();
 });
 
