@@ -6,6 +6,8 @@ import * as fs from "fs";
 import * as net from "net";
 import * as os from "os";
 
+import { criarLeitorDeSaida } from "./saidaBackend";
+
 const execFileP = promisify(execFile);
 
 let mainWindow: BrowserWindow | null = null;
@@ -64,22 +66,19 @@ async function startPythonBackend(port: number): Promise<void> {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  pythonProcess.stdout?.on("data", (data: Buffer) => {
-    const saida = data.toString();
-
-    // O backend anuncia o segredo desta sessão na primeira linha útil. Ele
-    // existe porque `/processar` abre arquivos do disco: sem credencial,
-    // qualquer página aberta no navegador poderia pedir a leitura de um
-    // documento à porta local. O token fica só em memória, dos dois lados.
-    const marcador = saida.match(/PRESIDIO_TOKEN=(\S+)/);
-    if (marcador) {
-      tokenSessao = marcador[1];
+  // O backend anuncia o segredo desta sessão numa linha da saída padrão. Ele
+  // existe porque `/processar` abre arquivos do disco: sem credencial, qualquer
+  // página aberta no navegador poderia pedir a leitura de um documento à porta
+  // local. O token fica só em memória, dos dois lados.
+  const leitor = criarLeitorDeSaida({
+    aoReceberToken: (token) => {
+      tokenSessao = token;
       console.log("[Python] token da sessão recebido");
-      return;
-    }
-
-    console.log(`[Python] ${saida.trim()}`);
+    },
+    aoRegistrar: (linha) => console.log(`[Python] ${linha}`),
   });
+
+  pythonProcess.stdout?.on("data", (data: Buffer) => leitor.consumir(data.toString()));
 
   pythonProcess.stderr?.on("data", (data: Buffer) => {
     console.error(`[Python ERR] ${data.toString().trim()}`);

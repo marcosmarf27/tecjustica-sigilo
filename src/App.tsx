@@ -80,7 +80,10 @@ export default function App() {
     await flush();
 
     const results: ProcessedFile[] = [];
-    const falhas: string[] = [];
+    // Nome e motivo: dizer só que falhou deixa quem opera sem nenhuma pista do
+    // que fazer a seguir — e a causa costuma ser acionável (arquivo enorme,
+    // backend fora do ar, formato recusado).
+    const falhas: { nome: string; motivo: string }[] = [];
     const controller = new AbortController();
     cancelamentoRef.current = controller;
 
@@ -138,7 +141,10 @@ export default function App() {
         } catch (err) {
           if (controller.signal.aborted) break;
           // Um arquivo problemático não pode levar o lote inteiro junto.
-          falhas.push(file.name);
+          falhas.push({
+            nome: file.name,
+            motivo: err instanceof Error ? err.message : "erro desconhecido",
+          });
           console.error(`Falha em ${file.name}:`, err);
         }
 
@@ -165,10 +171,18 @@ export default function App() {
       if (controller.signal.aborted) {
         showToast("Anonimização cancelada.", "error");
       } else if (falhas.length > 0) {
+        // Com um arquivo só, o motivo é a informação inteira: sem ele a pessoa
+        // fica olhando para "não deu" sem saber se tenta de novo, troca o
+        // arquivo ou reinicia o aplicativo.
+        const detalhe =
+          falhas.length === 1
+            ? falhas[0].motivo
+            : falhas.map((f) => `${f.nome}: ${f.motivo}`).join(" · ");
+
         showToast(
           falhas.length === files.length
-            ? `Nenhum arquivo pôde ser processado.`
-            : `${results.length} de ${files.length} processados. Falharam: ${falhas.join(", ")}`,
+            ? `Não foi possível processar. ${detalhe}`
+            : `${results.length} de ${files.length} processados. ${detalhe}`,
           "error"
         );
       }

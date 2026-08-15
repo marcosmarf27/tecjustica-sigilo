@@ -41,6 +41,26 @@ export interface Progresso {
  */
 let tokenSessao = "";
 
+/**
+ * Garante que temos a credencial, buscando-a do processo principal se preciso.
+ *
+ * O backend só anuncia o token quando termina de carregar o modelo, e o
+ * processo principal o captura da saída padrão — ou seja, ele aparece do outro
+ * lado do IPC num instante que a interface não controla. Buscar uma vez só,
+ * na montagem, é uma corrida: `/health` não exige credencial e responde
+ * "pronto" mesmo com o token ainda vazio aqui, e a partir daí toda chamada real
+ * levaria 403 sem nunca tentar de novo.
+ */
+async function garantirToken(): Promise<string> {
+  if (tokenSessao) return tokenSessao;
+  try {
+    tokenSessao = (await window.electronAPI?.getBackendToken?.()) ?? "";
+  } catch {
+    // Sem IPC (interface aberta fora do Electron): segue sem credencial.
+  }
+  return tokenSessao;
+}
+
 async function comTimeout(
   url: string,
   init: RequestInit,
@@ -52,12 +72,28 @@ async function comTimeout(
   const cancelar = () => controller.abort();
   externo?.addEventListener("abort", cancelar);
 
-  try {
-    return await fetch(url, {
+  const enviar = async (token: string) =>
+    fetch(url, {
       ...init,
-      headers: { ...(init.headers ?? {}), "X-Presidio-Token": tokenSessao },
+      headers: { ...(init.headers ?? {}), "X-Presidio-Token": token },
       signal: controller.signal,
     });
+
+  try {
+    const resposta = await enviar(await garantirToken());
+
+    // 403 com credencial ausente ou vencida: o backend pode ter reiniciado e
+    // sorteado outro segredo. Vale uma segunda tentativa com o token atual —
+    // sem isso, a interface fica inutilizável até o aplicativo ser reaberto.
+    if (resposta.status === 403) {
+      const anterior = tokenSessao;
+      tokenSessao = "";
+      const renovado = await garantirToken();
+      if (renovado && renovado !== anterior) return await enviar(renovado);
+      tokenSessao = anterior;
+    }
+
+    return resposta;
   } finally {
     clearTimeout(timer);
     externo?.removeEventListener("abort", cancelar);
@@ -86,12 +122,6 @@ export function usePythonBackend() {
 
     const verificar = async () => {
       try {
-        if (!tokenSessao) {
-          // O backend só anuncia o token depois de subir; até lá, tenta de novo
-          // a cada rodada do health check.
-          tokenSessao = (await window.electronAPI?.getBackendToken?.()) ?? "";
-        }
-
         const res = await comTimeout(
           `${baseRef.current}/health`,
           {},
@@ -212,10 +242,14 @@ export function usePythonBackend() {
 
       const cancelar = () => {
         // Sem timeout curto aqui: cancelar é o pedido mais importante do fluxo.
-        fetch(`${baseRef.current}/processar/${jobId}/cancelar`, {
-          method: "POST",
-          headers: { "X-Presidio-Token": tokenSessao },
-        }).catch(() => undefined);
+        garantirToken()
+          .then((token) =>
+            fetch(`${baseRef.current}/processar/${jobId}/cancelar`, {
+              method: "POST",
+              headers: { "X-Presidio-Token": token },
+            })
+          )
+          .catch(() => undefined);
       };
       signal?.addEventListener("abort", cancelar);
 
