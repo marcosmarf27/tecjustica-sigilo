@@ -603,6 +603,44 @@ ler um documento do disco e receber o texto de volta.
 Travado por oito testes em `tests/test_seguranca_api.py`, incluindo a tentativa
 de ler `/etc/passwd`, que é recusada duas vezes.
 
+### 8.6 A credencial chegava pela metade — e derrubava todo processamento
+
+Encontrado em uso, depois de publicado: o aplicativo recusava **qualquer**
+documento com "Nenhum arquivo pôde ser processado". No console, `403` em toda
+chamada a `/processar`.
+
+A causa está em como a credencial da seção 8.4 era lida. O backend a anuncia
+imprimindo `PRESIDIO_TOKEN=…` na saída padrão, e o Electron a capturava casando
+uma expressão regular contra cada pedaço recebido. **A saída de um processo
+filho chega em pedaços que não respeitam limite de linha**: com o token de 43
+caracteres partido entre dois eventos, o que ficava guardado era a primeira
+metade. Meio token é rejeitado exatamente como token nenhum.
+
+O que tornou o defeito difícil de ver foi a distância entre causa e sintoma: a
+abertura parecia perfeita, porque `/health` é rota pública e não exige
+credencial. O aplicativo dizia estar pronto, exibia o modo do motor, aceitava o
+arquivo — e só quebrava no momento de trabalhar.
+
+Corrigido em três frentes:
+
+- **Leitura por linha completa.** A saída é acumulada e só linhas fechadas são
+  interpretadas. Extraída para `electron/saidaBackend.ts` para ser testável.
+- **Testes** (`npm run test:electron`): sete de unidade — token partido em dois,
+  partido caractere a caractere, com `\r\n` do Windows, marcador citado no meio
+  de uma frase, e a garantia de que o segredo não vai para o log — e um de
+  integração que sobe o backend de verdade, lê o token como o Electron lê e
+  confirma que a rota protegida aceita, enquanto meio token e token vazio
+  recebem 403.
+- **Interface resiliente a timing.** A credencial passa a ser buscada sob
+  demanda, com uma segunda tentativa diante de 403. Antes era buscada uma única
+  vez na montagem: se `/health` respondesse "pronto" antes de o token chegar
+  pelo IPC, o laço encerrava e nada mais funcionava até reabrir o aplicativo.
+
+**Lição de interface, não só de código:** a mensagem "Nenhum arquivo pôde ser
+processado" não dizia o motivo, e diagnosticar exigiu abrir o console do
+desenvolvedor. Agora ela mostra a causa — com o `403` à vista, o caminho até
+aqui teria sido curto.
+
 ### 8.5 O aviso de "lido por OCR" era sempre falso
 
 O aplicativo mostra a etapa "Documento lido por OCR" para sinalizar que o texto
