@@ -108,6 +108,192 @@ _TIPOS_INSTITUCIONAIS = {"ORGANIZATION", "LAW", "CASE_LAW", "LOCATION", "DATE_TI
 # Partículas que não contam como palavra significativa de um nome.
 _PREPOSICOES = {"de", "da", "do", "das", "dos", "e", "di", "del", "von", "san"}
 
+# --- Instituição não é pessoa -----------------------------------------------
+#
+# O modelo de linguagem devolve "MINISTÉRIO PÚBLICO DO ESTADO DO CEARÁ" e
+# "DELEGACIA MUNICIPAL DE OCARA" como PERSON — são maiúsculas com estrutura de
+# nome próprio, e o NER não distingue. Não é um erro pequeno: num processo, o
+# cabeçalho institucional se repete em toda página, e como esses spans entram no
+# gazetteer que espalha nomes pelo documento, cada acerto falso vira centenas de
+# trechos tarjados. O resultado é um documento ilegível — e um órgão público não
+# é dado pessoal de ninguém.
+#
+# A deny list já resolvia isso para os tipos institucionais, por contenção. Em
+# PERSON a contenção é proibida: "ADVOGADO João Silva" contém "advogado", e
+# descartar o span exporia o nome. Daí as duas regras abaixo, ambas conservadoras.
+
+# Palavras que nomeiam órgão e jamais aparecem em nome de pessoa. Ficam de fora
+# de propósito as que também são sobrenome brasileiro — "Câmara", "Vara",
+# "Campos", "Seção" —, porque aí o descarte apagaria gente de verdade.
+_NUCLEOS_INSTITUCIONAIS = {
+    "ministerio", "delegacia", "promotoria", "procuradoria", "defensoria",
+    "corregedoria", "ouvidoria", "judiciario", "tribunal", "secretaria",
+    "governo", "prefeitura", "penitenciaria", "presidio", "batalhao",
+    "juizado", "comarca", "superintendencia", "coordenadoria", "diretoria",
+    "departamento", "autarquia", "policia", "conselho",
+    "instituto", "fundacao", "universidade", "faculdade", "gabinete",
+    "cartorio", "forum", "nucleo", "destacamento",
+    "bombeiros", "cadeia", "republica", "assembleia", "senado",
+}
+
+# Vocabulário que aparece em rótulo de formulário, cabeçalho de tabela e
+# matéria processual. Um span composto **só** disto não é nome de ninguém.
+_PALAVRAS_SEM_NOME = {
+    # rótulos e cabeçalhos do sistema processual
+    "data", "hora", "movimentacao", "movimentacoes", "classe", "assunto",
+    "assuntos", "processo", "numero", "documento", "documentos", "tipo",
+    "descricao", "situacao", "status", "codigo", "nome", "parte", "partes",
+    "autor", "autora", "reu", "re", "vitima", "testemunha", "advogado",
+    "advogada", "informado", "informada", "nao", "sim", "assinado",
+    "assinada", "certidao", "certidoes", "protocolo", "anexo", "anexos",
+    "fls", "fl", "pagina", "paginas", "total", "valor", "observacao",
+    "observacoes", "endereco", "telefone", "email", "cpf", "rg", "oab",
+    "orgao", "julgador", "grau", "instancia", "competencia", "distribuicao",
+    # atores e atos processuais
+    "juiz", "juiza", "promotor", "promotora", "delegado", "delegada",
+    "escrivao", "escriva", "oficial", "servidor", "servidora", "diretor",
+    "diretora", "secretario", "secretaria", "autoridade", "defensor",
+    "defensora", "perito", "perita", "acusado", "acusada", "indiciado",
+    "indiciada", "denunciado", "denunciada", "requerente", "requerido",
+    "requerida", "declarante", "interrogatorio", "audiencia", "sentenca",
+    "decisao", "despacho", "peticao", "mandado", "oficio", "inquerito",
+    "flagrante", "prisao", "preventiva", "temporaria", "liberdade",
+    "provisoria", "custodia", "citacao", "intimacao", "publicacao",
+    # matéria penal e civil que o modelo lê como nome próprio
+    "trafico", "drogas", "entorpecentes", "condutas", "afins", "crime",
+    "crimes", "homicidio", "roubo", "furto", "receptacao", "lesao",
+    "corporal", "ameaca", "estelionato", "violencia", "domestica",
+    "familiar", "mulher", "porte", "arma", "fogo", "associacao",
+    "criminosa", "penal", "civel", "criminal", "execucao", "pena",
+    # adjetivos e substantivos de órgão que também podem ser sobrenome
+    # ("Vara", "Campos", "Guarda"): aqui não descartam sozinhos, só deixam de
+    # contar como nome — a recusa exige que nada mais reste no trecho.
+    "vara", "poder", "justica", "seguranca", "custodia", "regional",
+    "policial", "estado", "municipio", "municipal", "federal", "civil",
+    "militar", "publico", "publica", "social", "defesa", "geral", "nacional",
+    "unica", "uniao", "camara", "seccional", "comarca", "distrital",
+    # conectivos que sobram de frase mal segmentada
+    "bem", "como", "que", "em", "no", "na", "nos", "nas", "por", "para",
+    "com", "sem", "sob", "sobre", "ante", "apos", "ate", "desde", "entre",
+    "este", "esta", "esse", "essa", "aquele", "aquela", "seu", "sua",
+    "qual", "quais", "onde", "quando", "outros", "outras", "demais",
+}
+
+# Unidades da federação: aparecem sozinhas e o modelo as tipa como pessoa.
+_UNIDADES_FEDERACAO = {
+    "acre", "alagoas", "amapa", "amazonas", "bahia", "ceara", "distrito federal",
+    "espirito santo", "goias", "maranhao", "mato grosso", "mato grosso do sul",
+    "minas gerais", "para", "paraiba", "parana", "pernambuco", "piaui",
+    "rio de janeiro", "rio grande do norte", "rio grande do sul", "rondonia",
+    "roraima", "santa catarina", "sao paulo", "sergipe", "tocantins", "brasil",
+}
+
+
+def _recortar_nome(texto: str) -> tuple[int, int] | None:
+    """
+    Onde, dentro do trecho, começa e termina o que pode ser nome de pessoa.
+
+    Devolve `None` quando não há nome ali. Recortar em vez de recusar o trecho
+    inteiro é o ponto crítico desta função: o modelo costuma marcar órgão e
+    pessoa num span só — "MINISTÉRIO PÚBLICO DO ESTADO DO CEARÁ, por seu
+    promotor FULANO DE TAL". Descartar esse span limparia o cabeçalho e
+    **exporia o promotor**, trocando excesso de máscara por vazamento. A
+    primeira versão desta limpeza fazia exatamente isso, e o harness mediu: oito
+    nomes reais desprotegidos num único documento.
+
+    Então o trecho é varrido palavra a palavra, o vocabulário de órgão e de
+    formulário é descartado, e o que fica é o maior bloco contíguo de palavras
+    que ainda podem nomear alguém.
+    """
+    palavras = [(m.group(0), m.start(), m.end()) for m in re.finditer(r"[\wÀ-ÿ]+", texto)]
+    if not palavras:
+        return None
+
+    normalizadas = [normalize(p[0]) for p in palavras]
+    if " ".join(normalizadas) in _UNIDADES_FEDERACAO:
+        return None
+
+    tinha_orgao = any(n in _NUCLEOS_INSTITUCIONAIS for n in normalizadas)
+
+    def e_nome(indice: int) -> bool:
+        """A palavra sustenta um nome por si só."""
+        n = normalizadas[indice]
+        if n in _NUCLEOS_INSTITUCIONAIS or n in _UNIDADES_FEDERACAO:
+            return False
+        if n in _PALAVRAS_SEM_NOME or n in _PREPOSICOES:
+            return False
+        return len(n) > 1
+
+    def atravessa(indice: int) -> bool:
+        """
+        A palavra não sustenta um nome, mas também não o interrompe.
+
+        "Vara", "Câmara", "Campos" e "Guarda" nomeiam repartição *e* são
+        sobrenome corrente; "de", "da", "dos" ligam nome e sobrenome. Se
+        qualquer uma delas cortasse o bloco, "Pedro Vara Lima" viraria "Pedro"
+        e o resto do nome ficaria exposto — vazamento, não excesso. Só o núcleo
+        de órgão interrompe de fato.
+        """
+        n = normalizadas[indice]
+        return n not in _NUCLEOS_INSTITUCIONAIS and n not in _UNIDADES_FEDERACAO
+
+    # Maior bloco contíguo aproveitável. As bordas são aparadas até cair numa
+    # palavra que sustenta nome, então "ASSINADO POR FULANO" rende "FULANO".
+    melhor: tuple[int, int] | None = None
+    atual: list[int] = []
+
+    def fechar() -> None:
+        nonlocal melhor
+        bloco = list(atual)
+        while bloco and not e_nome(bloco[0]):
+            bloco.pop(0)
+        while bloco and not e_nome(bloco[-1]):
+            bloco.pop()
+        significativas = [i for i in bloco if e_nome(i)]
+        if not significativas:
+            return
+        # Num trecho que mistura órgão e pessoa, exigir nome e sobrenome evita
+        # que sobras como "Social" ou "Regional" virem nome. Onde não há órgão
+        # nenhum, uma palavra basta — nomes isolados existem no documento.
+        if tinha_orgao and len(significativas) < 2:
+            return
+        candidato = (palavras[bloco[0]][1], palavras[bloco[-1]][2])
+        if melhor is None or (candidato[1] - candidato[0]) > (melhor[1] - melhor[0]):
+            melhor = candidato
+
+    for i in range(len(palavras)):
+        if atravessa(i):
+            atual.append(i)
+        else:
+            fechar()
+            atual = []
+    fechar()
+
+    return melhor
+
+
+def _sem_instituicoes(
+    texto: str, brutos: list[tuple[int, int, str, float]]
+) -> list[tuple[int, int, str, float]]:
+    """
+    Reduz cada PERSON ao que nele nomeia gente; descarta o que não nomeia.
+
+    Roda **antes** da propagação de nomes, e a ordem é o ponto: o gazetteer usa
+    cada PERSON confirmado como semente para varrer o documento inteiro. Filtrar
+    só no fim corrigiria a ocorrência original e deixaria de pé as centenas que
+    ela gerou.
+    """
+    saida: list[tuple[int, int, str, float]] = []
+    for ini, fim, tipo, score in brutos:
+        if tipo != "PERSON":
+            saida.append((ini, fim, tipo, score))
+            continue
+        recorte = _recortar_nome(texto[ini:fim])
+        if recorte is None:
+            continue
+        saida.append((ini + recorte[0], ini + recorte[1], tipo, score))
+    return saida
+
 
 def _vista_linear(texto: str) -> str:
     """
@@ -358,6 +544,10 @@ class PresidioEngine:
             if progresso:
                 progresso(i + 1, len(limites))
 
+        # Instituição sai antes de propagar: um "MINISTÉRIO PÚBLICO" aceito
+        # aqui viraria semente do gazetteer e se multiplicaria pelo documento.
+        brutos = _sem_instituicoes(vista, brutos)
+
         propagados = self._propagar_nomes(text, brutos)
 
         # Os nomes propagados também precisam ser estendidos e aparados: se o
@@ -373,7 +563,10 @@ class PresidioEngine:
                 continue
             estendidos.append((ajustado[0], ajustado[1], tipo, score))
 
-        brutos.extend(estendidos)
+        # Segunda passagem do mesmo filtro: `_extend_person` avança por
+        # preposições e pode encostar o span numa palavra de órgão vizinha,
+        # remontando um trecho institucional a partir de semente legítima.
+        brutos.extend(_sem_instituicoes(vista, estendidos))
         spans = self._fundir_spans(text, brutos)
         mascarador = Mascarador(politica_mascara)
 

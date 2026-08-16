@@ -177,6 +177,49 @@ Isso levou nome de pessoa de 89,05% para 99,94% de recall — restou uma
   exceções: mascará-las só degrada a leitura sem ganho de privacidade.
 - Datas processuais deixaram de ser tratadas como data de nascimento.
 
+### 2.5 Instituição não é pessoa
+
+Achado em uso, no primeiro processo real anonimizado pelo aplicativo instalado:
+o resultado saía correto, mas **exagerado**. "MINISTÉRIO PÚBLICO DO ESTADO DO
+CEARÁ", "TRIBUNAL DE JUSTIÇA", "DELEGACIA MUNICIPAL DE OCARA" e até o rótulo
+"Data Movimentação" apareciam tarjados.
+
+A causa é conhecida do NER: em caixa alta, um nome de órgão tem exatamente a
+forma de um nome próprio, e o modelo o devolve como `PERSON`. A regra da seção
+2.4 não alcançava isso — ela descarta por contenção, e `PERSON` está fora dessa
+regra justamente para não apagar o nome em "Ministério Público Dr. FULANO".
+
+O que tornava o efeito grande não era a detecção isolada, e sim o que vem
+depois: **um `PERSON` falso vira semente do gazetteer** que reencontra o nome no
+documento inteiro. Um cabeçalho institucional aceito uma vez gerava centenas de
+tarjas.
+
+A limpeza tem duas recusas, ambas conservadoras, aplicadas **antes** da
+propagação (e de novo depois da extensão, que pode encostar num órgão vizinho):
+
+1. **O trecho contém núcleo de órgão** — "delegacia", "ministério",
+   "promotoria", "tribunal". Entram no léxico só palavras que não são sobrenome
+   brasileiro.
+2. **Não sobra nada que possa ser nome** — removido o vocabulário de rótulo, ato
+   processual, matéria penal, conectivo e unidade da federação, o trecho fica
+   vazio. É o que derruba "Data Movimentação", "Não Informado" e "bem como".
+
+O contrapeso está travado por teste: **"Vara", "Câmara", "Campos", "Guarda" e
+"Estado" ficaram fora da recusa direta**, porque são sobrenome de gente de
+verdade — "Pedro Vara Lima" e "João Câmara Neto" continuam mascarados, e
+"ADVOGADO JOÃO SILVA" não perde o nome junto com o rótulo.
+
+Efeito medido sobre um processo de 614 KB:
+
+| | antes | depois |
+|---|---|---|
+| Detecções | 6.634 | **4.781** |
+| `PERSON` | 4.955 | **2.971** |
+
+Todo o corte veio de órgão, rótulo e fragmento de frase. Ver a seção 4 para a
+confirmação de que o recall sobre o gabarito não se moveu — era a condição para
+a mudança entrar.
+
 ---
 
 ## 3. Como a acurácia foi medida
