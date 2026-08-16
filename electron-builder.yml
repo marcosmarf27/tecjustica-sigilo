@@ -1,5 +1,5 @@
-appId: com.presidio.anon
-productName: Presidio Anon
+appId: com.tecjustica.sigilo
+productName: TecJustiça Sigilo
 directories:
   output: release
   buildResources: build

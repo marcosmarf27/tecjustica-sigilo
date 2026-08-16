@@ -50,7 +50,7 @@ export function Sidebar({
         </div>
         <div>
           <h1 className="text-sm font-semibold tracking-tight text-text">
-            Presidio Anon
+            TecJustiça Sigilo
           </h1>
           <p className="text-2xs text-text-tertiary">Anonimizador de PII</p>
         </div>

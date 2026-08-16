@@ -21,7 +21,7 @@ from jobs import Job, registro
 from mask_config import POLITICA_PADRAO, POLITICAS
 from striprtf.striprtf import rtf_to_text
 
-app = FastAPI(title="Presidio Anon API")
+app = FastAPI(title="TecJustiça Sigilo API")
 
 # Segredo de sessão.
 #

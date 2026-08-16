@@ -74,7 +74,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
               Linha de comando
             </h1>
             <p className="mt-1 text-sm text-text-tertiary">
-              Habilita o comando <code className="rounded bg-surface-raised px-1 py-0.5 text-xs">presidio-anon</code> no terminal.
+              Habilita o comando <code className="rounded bg-surface-raised px-1 py-0.5 text-xs">tecjustica-sigilo</code> no terminal.
             </p>
           </div>
           <button onClick={onClose} className="text-sm text-text-tertiary hover:text-text">
@@ -103,8 +103,8 @@ export function CliInstaller({ onClose, showToast }: Props) {
           </div>
 
           <div className="mb-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-2xs text-text-secondary">
-            <div>presidio-anon arquivo.txt -o saida.txt</div>
-            <div className="mt-1 text-text-tertiary">type arquivo.txt | presidio-anon --format json</div>
+            <div>tecjustica-sigilo arquivo.txt -o saida.txt</div>
+            <div className="mt-1 text-text-tertiary">type arquivo.txt | tecjustica-sigilo --format json</div>
           </div>
 
           <div className="flex gap-2">
@@ -138,7 +138,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
             <div>
               <h2 className="text-base font-semibold text-text">WSL (bash / zsh)</h2>
               <p className="mt-0.5 text-xs text-text-tertiary">
-                Instala um shim em <code>~/.local/bin/presidio-anon</code> que chama o Python embutido via interop.
+                Instala um shim em <code>~/.local/bin/tecjustica-sigilo</code> que chama o Python embutido via interop.
               </p>
             </div>
             <span
@@ -155,8 +155,8 @@ export function CliInstaller({ onClose, showToast }: Props) {
           </div>
 
           <div className="mb-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-2xs text-text-secondary">
-            <div>presidio-anon arquivo.txt -o saida.txt</div>
-            <div className="mt-1 text-text-tertiary">cat arquivo.txt | presidio-anon --format json --entities PERSON,CPF_BR</div>
+            <div>tecjustica-sigilo arquivo.txt -o saida.txt</div>
+            <div className="mt-1 text-text-tertiary">cat arquivo.txt | tecjustica-sigilo --format json --entities PERSON,CPF_BR</div>
           </div>
 
           <div className="flex gap-2">
@@ -200,7 +200,7 @@ export function CliInstaller({ onClose, showToast }: Props) {
             Use a flag <code>--format json</code> e redirecione stderr para ignorar o banner de inicialização:
           </p>
           <div className="mt-3 rounded-lg bg-surface-raised/70 p-3 font-mono text-2xs text-text-secondary">
-            presidio-anon entrada.txt -q --format json
+            tecjustica-sigilo entrada.txt -q --format json
           </div>
           <p className="mt-3 text-2xs text-text-tertiary">
             Saída é um JSON com <code>anonymized_text</code> e <code>entities_found</code> (tipo, texto, posições, score).

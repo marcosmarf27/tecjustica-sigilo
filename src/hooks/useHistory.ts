@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { HistoryItem, ProcessedFile } from "../types";
 
-const STORAGE_KEY = "presidio-anon-history";
+const STORAGE_KEY = "tecjustica-sigilo-history";
+// Chave usada antes de o produto ganhar nome. Lida uma vez, na migração: sem
+// isso, quem já usava o aplicativo perderia o histórico ao atualizar.
+const STORAGE_KEY_ANTERIOR = "presidio-anon-history";
 const MAX_HISTORY = 50;
 
 /**
@@ -33,10 +36,17 @@ export function useHistory() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const atual = localStorage.getItem(STORAGE_KEY);
+      const anterior = atual ? null : localStorage.getItem(STORAGE_KEY_ANTERIOR);
+      const stored = atual ?? anterior;
       if (stored) {
         const persistidos: HistoryItemPersistido[] = JSON.parse(stored);
         setItems(persistidos.map((p) => ({ ...p, results: [] })));
+        if (anterior) {
+          // Migra na primeira abertura com o nome novo e limpa o rastro antigo.
+          localStorage.setItem(STORAGE_KEY, anterior);
+          localStorage.removeItem(STORAGE_KEY_ANTERIOR);
+        }
       }
     } catch {
       // localStorage vazio ou corrompido

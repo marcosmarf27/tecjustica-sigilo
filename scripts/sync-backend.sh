@@ -40,6 +40,10 @@ ARQUIVOS=(
   server.py
   cli.py
   requirements.txt
+  # Atalho de linha de comando do Windows. Vivia só em resources/, fora do
+  # git — o nome do arquivo é o próprio nome do comando, então ele precisa
+  # acompanhar o versionamento como qualquer outro fonte.
+  tecjustica-sigilo.cmd
 )
 CONFIGS=(
   config/deny_list.json

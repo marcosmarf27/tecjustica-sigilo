@@ -1,5 +1,5 @@
 {
-  "name": "presidio-anon-app",
+  "name": "tecjustica-sigilo",
   "version": "1.0.0",
   "description": "Anonimizador de PII para processos judiciais brasileiros",
   "main": "dist-electron/main.js",

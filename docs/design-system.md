@@ -1,4 +1,4 @@
-# Design system — Presidio Anon
+# Design system — TecJustiça Sigilo
 
 Referência única de estilo do aplicativo. Os valores vivem em
 `src/styles/tokens.css`; este documento explica **por que** cada escolha existe,

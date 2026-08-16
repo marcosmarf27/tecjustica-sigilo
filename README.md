@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/logo.jpg" alt="Presidio Anon" width="180" />
+  <img src="assets/logo.jpg" alt="TecJustiça Sigilo" width="180" />
 </p>
 
-<h1 align="center">Presidio Anon</h1>
+<h1 align="center">TecJustiça Sigilo</h1>
 
 <p align="center">
   <strong>Anonimizador desktop de PII para textos jurídicos brasileiros.</strong><br/>
@@ -39,7 +39,7 @@ nomes escritos em CAIXA ALTA, marcam "Ministério Público" como pessoa, não
 entendem número CNJ, não validam CPF. O resultado é vazamento de dados ou
 mascaramento excessivo que inutiliza o documento.
 
-O Presidio Anon foi montado com o **contexto certo para o tribunal brasileiro**:
+O TecJustiça Sigilo foi montado com o **contexto certo para o tribunal brasileiro**:
 modelo NER treinado em jurisprudência, regex dos documentos oficiais com
 **validação de dígito verificador**, e deny list de expressões jurídicas que
 nenhum servidor, advogado ou magistrado quer ver mascarada.
@@ -104,15 +104,15 @@ Três políticas, com o resultado à vista na hora de escolher:
 
 ### ⌨️ CLI nativa (Windows + WSL)
 Além da GUI, a tela **Linha de Comando** instala automaticamente o comando
-`presidio-anon` no `cmd` / `PowerShell` (via User PATH) e no **WSL bash**
+`tecjustica-sigilo` no `cmd` / `PowerShell` (via User PATH) e no **WSL bash**
 (shim em `~/.local/bin` via interop). Uma instalação, dois ambientes — perfeito
 para automação, scripts de lote e agentes como Claude Code:
 
 ```bash
-presidio-anon processo.txt -o processo_anon.txt
-cat peticao.txt | presidio-anon --entities PERSON,CPF_BR
-presidio-anon autos/*.txt --in-place
-presidio-anon termo.txt -q --format json   # para agentes/pipelines
+tecjustica-sigilo processo.txt -o processo_anon.txt
+cat peticao.txt | tecjustica-sigilo --entities PERSON,CPF_BR
+tecjustica-sigilo autos/*.txt --in-place
+tecjustica-sigilo termo.txt -q --format json   # para agentes/pipelines
 ```
 
 ### 🔒 Zero envio de dados — e nada de PII em disco
@@ -129,7 +129,7 @@ de um processo é exatamente o artefato que este app existe para evitar.
 ## 📥 Baixar
 
 **Windows (10/11 x64):**
-👉 **[Baixar `Presidio Anon Setup.exe` (último release)](https://github.com/marcosmarf27/presidio-anon-app/releases/latest)**
+👉 **[Baixar `TecJustiça Sigilo Setup.exe` (último release)](https://github.com/marcosmarf27/presidio-anon-app/releases/latest)**
 
 O instalador tem ~660 MB porque já traz Python embutido + `transformers` +
 `torch` CPU. Na primeira execução baixa o modelo BERT (~1.7 GB) — requer

@@ -3,14 +3,14 @@
 CLI standalone de anonimização.
 
 Uso humano:
-    presidio-anon arquivo.txt                 # imprime no stdout
-    presidio-anon arquivo.txt -o saida.txt    # grava em arquivo
-    cat x.txt | presidio-anon                 # stdin -> stdout
-    presidio-anon *.txt --in-place            # edita no lugar
+    tecjustica-sigilo arquivo.txt                 # imprime no stdout
+    tecjustica-sigilo arquivo.txt -o saida.txt    # grava em arquivo
+    cat x.txt | tecjustica-sigilo                 # stdin -> stdout
+    tecjustica-sigilo *.txt --in-place            # edita no lugar
 
 Uso por agentes (Claude Code etc.):
-    presidio-anon arquivo.txt --format json   # devolve texto + lista de entidades
-    echo "CPF 12345678909" | presidio-anon --format json --entities CPF_BR
+    tecjustica-sigilo arquivo.txt --format json   # devolve texto + lista de entidades
+    echo "CPF 12345678909" | tecjustica-sigilo --format json --entities CPF_BR
 
 Códigos de saída:
     0 = sucesso
@@ -111,7 +111,7 @@ def _cmd_batch(args, engine) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="presidio-anon",
+        prog="tecjustica-sigilo",
         description="Anonimiza PII (CPF, CNPJ, RG, nomes, processos CNJ etc.) em textos jurídicos brasileiros.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,

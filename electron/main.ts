@@ -224,7 +224,7 @@ function bashShimContent(wslRoot: string): string {
   // Script bash que chama o python.exe Windows via interop WSL.
   return [
     "#!/usr/bin/env bash",
-    "# Gerado pelo Presidio Anon — nao edite manualmente",
+    "# Gerado pelo TecJustiça Sigilo — nao edite manualmente",
     `PRESIDIO_ROOT='${wslRoot}'`,
     "exec \"${PRESIDIO_ROOT}/python-embed/python.exe\" \"${PRESIDIO_ROOT}/cli.py\" \"$@\"",
     "",
@@ -250,7 +250,7 @@ ipcMain.handle("cli-status", async () => {
       status.wsl.available = true;
       try {
         const home = await wslHomeBin();
-        status.wsl.shimPath = `${home}/presidio-anon`;
+        status.wsl.shimPath = `${home}/tecjustica-sigilo`;
         const { stdout } = await execFileP("wsl.exe", [
           "bash", "-c", `test -x '${status.wsl.shimPath}' && echo ok || echo no`,
         ]);
@@ -306,7 +306,7 @@ ipcMain.handle("cli-install-wsl", async () => {
   const shimContent = bashShimContent(backendWsl);
 
   const homeBin = await wslHomeBin();
-  const shim = `${homeBin}/presidio-anon`;
+  const shim = `${homeBin}/tecjustica-sigilo`;
 
   // Usa base64 para escapar qualquer caractere problemático no shell
   const b64 = Buffer.from(shimContent, "utf-8").toString("base64");
@@ -327,7 +327,7 @@ ipcMain.handle("cli-install-wsl", async () => {
     shimPath: shim,
     onPath,
     note: onPath
-      ? "Use 'presidio-anon' em qualquer terminal WSL."
+      ? "Use 'tecjustica-sigilo' em qualquer terminal WSL."
       : `Adicione '${homeBin}' ao PATH do seu shell (ex.: em ~/.bashrc).`,
   };
 });
@@ -337,7 +337,7 @@ ipcMain.handle("cli-uninstall-wsl", async () => {
     return { ok: false, error: "WSL indisponível." };
   }
   const homeBin = await wslHomeBin();
-  await execFileP("wsl.exe", ["bash", "-c", `rm -f '${homeBin}/presidio-anon'`]);
+  await execFileP("wsl.exe", ["bash", "-c", `rm -f '${homeBin}/tecjustica-sigilo'`]);
   return { ok: true };
 });
 

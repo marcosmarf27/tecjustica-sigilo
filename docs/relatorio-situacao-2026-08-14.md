@@ -1,4 +1,4 @@
-# Presidio Anon — relatório de situação
+# TecJustiça Sigilo — relatório de situação
 
 **14 de agosto de 2026** · revisão do projeto, medição de acurácia sobre
 processos reais, correções de motor e de interface.
@@ -753,7 +753,7 @@ digitalizada real.
 | | instalado antes | agora |
 |---|---|---|
 | presidio-analyzer | 2.2.362 | **2.2.364** |
-| presidio-anonymizer | 2.2.362 | **2.2.364** |
+| tecjustica-sigiloymizer | 2.2.362 | **2.2.364** |
 
 `requirements.txt` usava `>=` — pisos, não versões fixas. O efeito era real: uma
 instalação nova trazia 2.2.364 enquanto o instalador embarcava 2.2.362.
