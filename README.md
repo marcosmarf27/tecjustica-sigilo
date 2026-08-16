@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/marcosmarf27/presidio-anon-app/releases/latest"><img src="https://img.shields.io/badge/download-Windows%20x64-0066cc?style=for-the-badge&logo=windows" alt="Download" /></a>
+  <a href="https://github.com/marcosmarf27/tecjustica-sigilo/releases/latest"><img src="https://img.shields.io/badge/download-Windows%20x64-0066cc?style=for-the-badge&logo=windows" alt="Download" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge" alt="MIT" /></a>
   <img src="https://img.shields.io/badge/grátis-para%20sempre-ff4081?style=for-the-badge" alt="Grátis" />
   <img src="https://img.shields.io/badge/open%20source-%E2%9D%A4-red?style=for-the-badge" alt="Open Source" />
@@ -129,7 +129,7 @@ de um processo é exatamente o artefato que este app existe para evitar.
 ## 📥 Baixar
 
 **Windows (10/11 x64):**
-👉 **[Baixar `TecJustiça Sigilo Setup.exe` (último release)](https://github.com/marcosmarf27/presidio-anon-app/releases/latest)**
+👉 **[Baixar `TecJustiça Sigilo Setup.exe` (último release)](https://github.com/marcosmarf27/tecjustica-sigilo/releases/latest)**
 
 O instalador tem ~660 MB porque já traz Python embutido + `transformers` +
 `torch` CPU. Na primeira execução baixa o modelo BERT (~1.7 GB) — requer
