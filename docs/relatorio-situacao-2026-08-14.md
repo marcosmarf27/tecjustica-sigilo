@@ -216,9 +216,36 @@ Efeito medido sobre um processo de 614 KB:
 | Detecções | 6.634 | **4.781** |
 | `PERSON` | 4.955 | **2.971** |
 
-Todo o corte veio de órgão, rótulo e fragmento de frase. Ver a seção 4 para a
-confirmação de que o recall sobre o gabarito não se moveu — era a condição para
-a mudança entrar.
+Todo o corte veio de órgão, rótulo e fragmento de frase.
+
+**A primeira versão desta limpeza estava errada, e o harness pegou.** Ela
+*descartava* o trecho inteiro ao ver nome de órgão. Como o modelo marca órgão e
+pessoa num span só — "MINISTÉRIO PÚBLICO DO ESTADO DO CEARÁ, por seu promotor
+FULANO" —, recusar o span limpava o cabeçalho e **expunha o promotor**. Medido:
+`PERSON` caiu de 100% para 97,19% por ocorrência e 80,00% por valor único, com
+**oito nomes reais desprotegidos** num só documento. Trocar excesso de máscara
+por vazamento é o único desfecho inaceitável aqui, e foi por isso que a versão
+publicada recorta em vez de descartar.
+
+Confirmação sobre o gabarito, depois da correção (modo leve):
+
+| Documento | `PERSON` valor único | `PERSON` ocorrência | vazamentos |
+|---|---|---|---|
+| juri_19-08 | 100% (39/39) | 100% (1.127/1.127) | 0 |
+| expedientes_13-08 | 100% (15/15) | 100% (285/285) | 0 |
+| civel_0200161 | 93,33% (14/15) | 99,17% (357/360) | 3 |
+
+Todas as demais classes dos três documentos em 100%. Sobram dois vazamentos, e
+nenhum vem desta mudança:
+
+- **CPF truncado pelo OCR** (`004.811.253-`, sem os dígitos finais), já
+  registrado na seção 4.
+- **Nome colado a marcador de formatação**: o OCR do documento cível produz
+  `REQUERENTE: B1Antonia...UchôaB0`, onde `B1`/`B0` são marcas de negrito
+  grudadas ao nome. O NER não reconhece `B1Antonia` como nome — é falha de
+  detecção, não de filtragem: o recorte devolve esse trecho intacto quando
+  recebe. Fica registrado como caso a resolver na limpeza do texto de entrada,
+  antes da análise.
 
 ---
 
