@@ -1,6 +1,6 @@
 {
   "name": "tecjustica-sigilo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Anonimizador de PII para processos judiciais brasileiros",
   "main": "dist-electron/main.js",
   "scripts": {
