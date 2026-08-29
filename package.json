@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "sync:backend": "bash scripts/sync-backend.sh",
     "fetch:ocr-models": "bash scripts/fetch-ocr-models.sh",
-    "check:backend": "bash scripts/fetch-ocr-models.sh --check && bash scripts/sync-backend.sh --check"
+    "check:backend": "bash scripts/fetch-ocr-models.sh --check && bash scripts/sync-backend.sh --check && bash scripts/smoke-backend.sh",
+    "smoke:backend": "bash scripts/smoke-backend.sh"
   },
   "keywords": [],
   "author": "",

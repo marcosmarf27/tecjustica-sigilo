@@ -544,6 +544,9 @@ def modelos_disponiveis(perfil: str = PERFIL_PADRAO) -> bool:
     return _diretorio_modelos(perfil) is not None and not conferir_integridade(perfil)
 
 
+_integridade: dict[str, list[str]] = {}
+
+
 def conferir_integridade(perfil: str = PERFIL_PADRAO) -> list[str]:
     """Confere os arquivos contra o MANIFESTO.json. Devolve as divergências.
 
@@ -551,7 +554,22 @@ def conferir_integridade(perfil: str = PERFIL_PADRAO) -> list[str]:
     tabela, o que a anonimização deixa passar. O §13 do guia pede versão,
     tamanho e SHA-256 pinados, com o artefato divergente recusado antes de ser
     aberto.
+
+    **O resultado é memorizado por processo.** Conferir custa ler e resumir 31
+    MB (perfil small) ou 170 MB (com o medium), e o `/health` é chamado de
+    segundo em segundo pela interface enquanto o modelo de linguagem carrega —
+    refazer a conta a cada chamada roubava CPU e disco exatamente da parte mais
+    lenta da inicialização. Os arquivos não mudam com o processo em pé; se
+    mudarem, o app precisa ser reiniciado de qualquer jeito.
     """
+    memorizado = _integridade.get(perfil)
+    if memorizado is not None:
+        return memorizado
+    _integridade[perfil] = _conferir_integridade(perfil)
+    return _integridade[perfil]
+
+
+def _conferir_integridade(perfil: str) -> list[str]:
     import hashlib
     import json
 
