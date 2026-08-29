@@ -27,11 +27,22 @@ instalou e usou. Antes de dizer que está pronto: abrir o app.
 | `.venv/` | `pip install -r python-backend/requirements.txt` |
 | BERT (~2,5 GB) | baixa sozinho na primeira execução, em `~/.cache/huggingface` |
 | Corpus de OCR (22 PDFs reais, 125 MB) | não está em repositório nenhum — copiar entre máquinas à mão |
+| Corpus de acurácia (3 processos do TJCE em markdown, 1,6 MB) | idem — são os documentos do gate |
 
-O corpus de OCR é apontado por `PRESIDIO_CORPUS_OCR` (pasta com os PDFs) e é o
-que permite medir qualquer mudança de OCR com `eval/bench_ocr.py`. Sem ele o
-teste que depende dele é pulado e nenhuma alteração de motor pode ser
-verificada.
+Os dois corpora carregam dados pessoais reais, por isso ficam fora do git, e
+cada um é apontado por uma variável:
+
+| Variável | Aponta para | Sem ela |
+|---|---|---|
+| `PRESIDIO_CORPUS_OCR` | pasta com os PDFs escaneados | `eval/bench_ocr.py` não roda; nenhuma mudança de motor de OCR pode ser medida |
+| `PRESIDIO_EVAL_CORPUS` | pasta com os três `.md` | o gate de acurácia é **pulado**, não reprovado |
+
+Repare no modo de falha: ausência de corpus vira *skip*, e skip parece sucesso
+em log corrido. Antes era pior — havia um caminho padrão absoluto da máquina de
+origem, em formato WSL (`/mnt/c/...`), que no Windows não resolve para lugar
+nenhum: o gate era pulado até onde o corpus existia, só que noutro diretório.
+Agora não há padrão. Antes de confiar num "passou", confira que o corpus foi
+lido.
 
 O `MANIFESTO.json` **está** no git: é ele que pina versão e SHA-256 dos modelos.
 
@@ -51,6 +62,24 @@ tirar do build.** Dependência nova de runtime entra no `requirements.txt` *e* n
 resolvidos de fora, com `--platform win_amd64 --only-binary=:all: --no-deps` e
 versões explícitas. Sem `--no-deps` o resolvedor traz numpy 2.5 e quebra o
 presidio-analyzer, que exige `<2.5`.
+
+**`--no-deps` desliga o resolvedor, e a conta chega calada.** O que não estiver
+listado não entra, e ninguém reclama: o pip instala com sucesso, o script diz
+"pronto" e o embarcado sai montado e quebrado. A lista era mantida à mão dentro
+do `setup-python-embed.sh` e cobria cerca de um terço do fecho transitivo —
+faltavam `thinc` (sem ele o spaCy não importa), `click` (sem ele o uvicorn não
+importa) e mais de trinta pacotes. Por isso a lista virou lock versionado em
+`python-backend/requirements-embed.txt`, tirado de um venv que comprova
+funcionar. Mexeu no `requirements.txt`? Regere o lock — o cabeçalho dele diz
+como.
+
+**O `pt_core_news_lg` é pré-requisito dos dois modos, não só do leve.** No modo
+BERT ele entra como *tokenizador* (`engine.py`, `_transformer_config`, chave
+`"spacy"`), então sem ele nenhum dos dois motores sobe. Ele não vem por
+dependência — o caminho normal é `spacy download`, que não existe no embarcado —
+e por isso está fixado por URL no fim do lock. O `setup-python-embed.sh` e o
+`smoke-backend.sh` carregam o modelo de propósito: import limpo e rotas
+registradas não provam que o motor sobe.
 
 **A saída é texto, nunca o formato de entrada.** Gravar markdown num arquivo
 `.pdf` produz um arquivo que nenhum leitor abre — foi o comportamento anterior,

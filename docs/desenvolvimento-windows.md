@@ -133,6 +133,31 @@ cp -rn /tmp/libs/* resources/python-backend/python-embed/Lib/site-packages/
 Use sempre `--no-deps` com versões explícitas. O resolvedor livre traz
 `numpy 2.5`, que conflita com o `numpy<2.5` exigido pelo presidio-analyzer.
 
+### O lock do embarcado
+
+O que entra no `python-embed` está em **`python-backend/requirements-embed.txt`**
+— 89 pacotes, o fecho transitivo inteiro. Ele existe separado do
+`requirements.txt` porque `--no-deps` desliga o resolvedor: o que não estiver
+escrito ali não entra, e o pip não reclama. A lista já foi mantida à mão e
+chegou a cobrir só um terço do necessário; o embarcado saía sem `thinc` e sem
+`click`, montado e incapaz de importar spaCy ou uvicorn.
+
+Depois de mexer no `requirements.txt`, regere o lock a partir de um venv que
+funcione:
+
+```bash
+.venv/Scripts/pip.exe freeze | grep -vE '^(antlr4|pt_core_news_lg)' \
+  >> python-backend/requirements-embed.txt
+```
+
+As duas exclusões são deliberadas e estão explicadas no cabeçalho do arquivo:
+`antlr4-python3-runtime` só existe como sdist (o script o copia do venv) e
+`pt_core_news_lg` vem por URL, não do PyPI.
+
+Esse modelo do spaCy **não é opcional e não é só do modo leve**: no modo BERT
+ele é o tokenizador. O `setup-python-embed.sh` termina carregando-o justamente
+para não declarar sucesso sobre um embarcado que não sobe.
+
 ## Testes
 
 ```bash

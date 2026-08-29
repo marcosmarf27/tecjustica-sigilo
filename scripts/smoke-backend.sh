@@ -13,9 +13,15 @@
 # Nenhum teste unitário pega isso: o que falta não é lógica, é um arquivo dentro
 # do interpretador que vai no instalador. Só executá-lo pega.
 #
-# Importar basta — é onde as rotas são registradas. Não se sobe o servidor nem
-# se carrega o modelo de linguagem: seriam mais minutos para testar o que já foi
-# testado em outro lugar.
+# Importar cobre as rotas, que é onde o decorador falha. Mas não cobria tudo: o
+# tokenizador do spaCy só é tocado quando o motor é construído, e o embarcado
+# saiu uma vez sem `pt_core_news_lg` e sem `thinc`, com todas as rotas
+# registradas e o import limpo. Por isso o `pt_core_news_lg` é carregado aqui
+# também — custa segundos e é pré-requisito dos DOIS modos, não só do leve
+# (no modo BERT ele entra como tokenizador; ver `_transformer_config`).
+#
+# O que continua de fora, de propósito: subir o servidor e baixar o BERT. São
+# 2,5 GB que chegam na primeira execução do app, não no build.
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,6 +43,10 @@ if faltando:
     print("ROTAS AUSENTES: %s" % sorted(faltando), file=sys.stderr)
     raise SystemExit(1)
 print("ok: %d rotas registradas, inclusive /ocr" % len(rotas))
+
+import spacy
+spacy.load("pt_core_news_lg")
+print("ok: pt_core_news_lg carrega (tokenizador dos dois modos)")
 '
 
 echo "Importando o backend com o Python embarcado."

@@ -18,6 +18,14 @@
 # ser `--no-deps` com pins explícitos: o resolvedor livre puxa numpy 2.5, que
 # briga com o `numpy<2.5` que o presidio-analyzer exige.
 #
+# O que essa lista de pins tem de ser é COMPLETA, e é onde ela falhou. Ela era
+# mantida à mão aqui dentro e cobria cerca de um terço do fecho transitivo:
+# faltavam `thinc` (sem ele o spaCy nem importa), `click` (sem ele o uvicorn não
+# importa) e mais de trinta pacotes. Como `--no-deps` desliga o resolvedor, nada
+# disso é reclamado na instalação — o embarcado sai montado e quebrado. Agora a
+# lista mora em `python-backend/requirements-embed.txt`, versionada e tirada de
+# um venv que comprova funcionar.
+#
 # Uso:  scripts/setup-python-embed.sh [--forcar]
 set -euo pipefail
 
@@ -66,17 +74,15 @@ pth="$(find "$DESTINO" -maxdepth 1 -name 'python*._pth' | head -1)"
 } > "$pth"
 mkdir -p "$DESTINO/Lib/site-packages"
 
+LOCK="$RAIZ/python-backend/requirements-embed.txt"
+[[ -f "$LOCK" ]] || { echo "requirements-embed.txt não encontrado." >&2; exit 1; }
+
 echo "3/3  Instalando as dependências como wheels de Windows..."
-# Pins explícitos e --no-deps: ver o cabeçalho deste arquivo.
+echo "     ($(grep -cvE '^\s*(#|$)' "$LOCK") pacotes; o torch sozinho são ~800 MB)"
+# Fecho transitivo completo e --no-deps: ver o cabeçalho deste arquivo.
 "$PIP_CMD" install --quiet --target "$DESTINO/Lib/site-packages" \
   --platform win_amd64 --python-version 3.12 --only-binary=:all: --no-deps \
-  $(grep -vE '^\s*(#|$)' "$RAIZ/python-backend/requirements.txt" | tr '\n' ' ') \
-  "opencv-python==5.0.0.93" "pillow==12.3.0" "six==1.17.0" "colorlog==6.12.0" \
-  "omegaconf==2.3.1" "pyclipper==1.4.0" "shapely==2.1.2" \
-  "flatbuffers==25.12.19" "protobuf==7.35.1" "numpy==2.4.4" "pyyaml==6.0.3" \
-  "requests==2.33.0" "tqdm==4.67.3" "certifi==2026.2.25" "idna==3.11" \
-  "urllib3==2.6.3" "charset-normalizer==3.4.6" "packaging==26.0" \
-  "typing_extensions==4.15.0"
+  -r "$LOCK"
 
 # `antlr4-python3-runtime` (exigido pelo omegaconf) só existe como sdist na
 # versão que usamos, então não passa pelo --only-binary. É Python puro, então
@@ -94,8 +100,39 @@ done
 # instalador e criariam dúvida sobre quais pesos estão rodando.
 rm -f "$DESTINO/Lib/site-packages/rapidocr/models/"*.onnx 2>/dev/null || true
 
+# Confere aqui mesmo que o embarcado é capaz de carregar o motor de linguagem.
+# Antes o script terminava dizendo "pronto" sobre uma árvore que não importava
+# nem o spaCy, e a descoberta ficava para o usuário final. Importar é barato;
+# o modelo BERT não é tocado — esse baixa na primeira execução do app.
 echo
-echo "Pronto. Confira com:"
+echo "Conferindo o embarcado..."
+VERIFICACAO='
+from importlib.metadata import version
+
+import spacy
+nlp = spacy.load("pt_core_news_lg")
+print("  spaCy %s + pt_core_news_lg: %d tokens em teste"
+      % (spacy.__version__, len(nlp("Fulano de Tal, CPF 123.456.789-09."))))
+
+# Os módulos são importados de verdade, e não apenas consultados nos metadados:
+# o que quebra aqui é dependência ausente, e isso só aparece no import. A
+# VERSÃO, ao contrário, vem de `importlib.metadata` — `presidio_analyzer` não
+# expõe `__version__`, e ler o atributo direto derrubava esta conferência sobre
+# um embarcado perfeitamente bom.
+import torch, transformers, presidio_analyzer, rapidocr, multipart  # noqa: F401
+print("  torch %s, transformers %s, presidio-analyzer %s"
+      % (torch.__version__, transformers.__version__,
+         version("presidio-analyzer")))
+'
+if ! saida="$("$DESTINO/python.exe" -c "$VERIFICACAO" 2>&1)"; then
+  echo "O EMBARCADO NÃO CARREGA O MOTOR:" >&2
+  echo "$saida" | tail -15 | sed 's/^/  /' >&2
+  echo >&2
+  echo "Falta pacote em python-backend/requirements-embed.txt." >&2
+  exit 1
+fi
+echo "$saida"
+
+echo
+echo "Pronto. Confira o backend inteiro com:"
 echo "  scripts/smoke-backend.sh"
-echo
-echo "Falta ainda o modelo do spaCy dentro do embarcado, se for usar o modo leve."
