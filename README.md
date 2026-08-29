@@ -177,7 +177,11 @@ auditoria (ex: `CPF 123.***.***-09`, `nome J*** d* S****`) — configurável em
 
 ## Rodar em desenvolvimento
 
-Pré-requisitos: Node 20+, Python 3.12.
+Pré-requisitos: Node 20+, Python 3.12 ou 3.13 — **de 64 bits**. `torch`,
+`onnxruntime` e `spacy` não publicam wheel de 32 bits nem sdist nas versões
+pinadas, e num Python `win32` a instalação falha com uma mensagem que parece
+outra coisa. Confira com `python -c "import sysconfig;
+print(sysconfig.get_platform())"`: tem de dizer `win-amd64`.
 
 **No Windows, siga [`docs/desenvolvimento-windows.md`](docs/desenvolvimento-windows.md).**
 É um aplicativo Windows, e é lá que ele deve ser desenvolvido — pelo WSL o

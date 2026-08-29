@@ -61,6 +61,47 @@ e não tem exceção: a extensão descreve o que o arquivo **é**.
 portas locais, e `/processar` abre arquivo por caminho. Daí o token de sessão em
 todas as rotas menos `/health`. Qualquer rota nova nasce atrás do token.
 
+**O cabeçalho do token é o que exige CORS em dev.** `comTimeout` manda
+`X-Presidio-Token` em *toda* requisição, `/health` inclusive. Cabeçalho
+customizado torna a requisição não-simples: o navegador manda um `OPTIONS` de
+preflight antes, e o backend não tinha o que responder. Em dev a interface vem
+do Vite (`localhost:5173`) e o backend está em `127.0.0.1` — origem cruzada. O
+preflight era reprovado, o `catch` do hook engolia o erro e a tela ficava presa
+em "Carregando motor de anonimização" **com o backend perfeitamente no ar**, até
+estourar os 180 s. Ou seja: a defesa criou a condição da falha. O `server.py` só
+monta CORS quando o Electron declara `PRESIDIO_DEV_ORIGIN`; empacotado não há
+origem cruzada e nada é montado. A URL do Vite vive numa constante só
+(`URL_DEV`, em `main.ts`) porque origem declarada e URL carregada têm de
+coincidir — `localhost` de um lado e `127.0.0.1` do outro já reprova.
+
+**Sem navegador não existe CORS**, e é por isso que os 110 testes passam: eles
+falam HTTP direto com o backend. Só o renderer dentro do Chromium impõe a regra.
+
+## Portabilidade Windows
+
+Quatro bugs numa única instalação limpa em 29/08/2026, todos em código que
+nenhum teste exercita porque só roda no preparo ou no bootstrap.
+
+**O Python tem de ser x64.** `torch`, `onnxruntime` e `spacy` não publicam wheel
+`win32` nem sdist nas versões pinadas. Numa máquina com mais de um Python no
+PATH — comum: um de 32 bits, mais o atalho da Microsoft Store — o venv pode
+nascer errado. O erro engana: o pip recusa a versão pinada e lista as vizinhas
+como disponíveis, o que parece pin removido do PyPI, quando as vizinhas só
+aparecem porque publicam sdist. Sintoma real: `sysconfig.get_platform()`
+devolvendo `win32`.
+
+**O layout do venv difere por plataforma.** `Scripts/python.exe` no Windows,
+`bin/python` no resto. O `main.ts` procurava só o segundo e caía no fallback
+`python3`, que no Windows costuma ser o atalho da Store.
+
+**Caminho do Git Bash não serve para `python.exe` nativo.** `/c/Users/...` vira
+`C:\c\Users\...` e não existe. Converta com `cygpath -m`. Foi o que fazia o
+`fetch-ocr-models.sh` recusar todo download com a mensagem de pin ausente.
+
+**Gravação em modo texto reescreve fim de linha.** `Path.write_text` troca `\n`
+por `\r\n` no Windows: mesmo conteúdo, outros bytes, outro SHA-256. Para
+qualquer arquivo cujo hash é conferido, `newline="\n"` explícito.
+
 ## OCR
 
 **PP-OCRv6** (pesos oficiais da PaddlePaddle em ONNX, Apache-2.0) sobre ONNX

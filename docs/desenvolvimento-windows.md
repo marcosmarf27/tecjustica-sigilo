@@ -14,9 +14,34 @@ Este documento é o caminho para desenvolver direto no Windows.
 |---|---|
 | **Git for Windows** | Traz o Git Bash, que roda os `scripts/*.sh`. O PowerShell não os executa. |
 | **Node 20+** | Interface e Electron. |
-| **Python 3.12** | O backend. Tem de ser 3.12 — as bibliotecas são pinadas nessa versão. |
+| **Python 3.12 ou 3.13, obrigatoriamente de 64 bits** | O backend. O instalador embarca 3.12.3; o desenvolvimento roda também em 3.13. A arquitetura não é negociável — ver abaixo. |
 
 Na instalação do Python, marque **"Add python.exe to PATH"**.
+
+### O Python tem de ser de 64 bits
+
+`torch`, `onnxruntime` e `spacy` **não publicam wheel `win32`**, e nem sequer
+publicam sdist nas versões pinadas. Num Python de 32 bits não há de onde
+instalar, e o erro não diz isso: o pip recusa uma versão pinada e lista as
+vizinhas como disponíveis, o que faz parecer que o pin foi removido do PyPI. As
+vizinhas só aparecem porque publicam sdist, que é compatível com qualquer
+plataforma.
+
+Confira antes de criar o venv — `win-amd64` é o esperado, `win32` é o problema:
+
+```bash
+python -c "import sysconfig; print(sysconfig.get_platform())"
+```
+
+Uma máquina Windows costuma ter **mais de um Python no PATH**, e eles não são
+intercambiáveis: `python` pode ser uma instalação de 32 bits e `python3`, o
+atalho da Microsoft Store — que é uma terceira instalação, pelada. Se o
+`get_platform()` acusar `win32`, crie o venv apontando o interpretador certo
+pelo caminho completo em vez de confiar no PATH:
+
+```bash
+"/c/Users/$USER/AppData/Local/Programs/Python/Python312/python.exe" -m venv .venv
+```
 
 ## Clonar e preparar
 
@@ -35,6 +60,22 @@ python -m venv .venv
 # Modelos do OCR (~31 MB, com SHA-256 conferido contra o MANIFESTO.json)
 bash scripts/fetch-ocr-models.sh
 ```
+
+O `spacy download` puxa 570 MB do GitHub Releases e costuma ser a etapa mais
+demorada do preparo — bem mais que o `pip install`, torch incluído. Ele é
+necessário mesmo no modo BERT: o `pt_core_news_lg` entra como tokenizador, e o
+BERT só como reconhecedor de entidades.
+
+Conferindo que o preparo ficou de pé, antes de abrir o app:
+
+```bash
+bash scripts/fetch-ocr-models.sh --check   # deve dizer "Modelos em dia."
+curl -s http://127.0.0.1:8123/health       # com o app rodando
+```
+
+No `/health`, o campo que importa é `"nlp_mode":"transformer"` com
+`"motivo_fallback":null`. Se vier `"spacy"`, o modo BERT não subiu e a
+anonimização está rodando em qualidade inferior.
 
 Rodar:
 
