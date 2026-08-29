@@ -12,7 +12,7 @@
 # cache do modelo. Para atualizar as bibliotecas, use o pip do próprio
 # python-embed com requirements.txt.
 #
-# O tessdata (dados de idioma do Tesseract) é copiado junto: sem ele o OCR
+# Os modelos do OCR (PP-OCRv6 em ONNX) são copiados junto: sem eles o motor
 # buscaria os arquivos na rede na primeira execução, quebrando a promessa de
 # operação offline.
 #
@@ -36,6 +36,7 @@ ARQUIVOS=(
   mask_config.py
   config_loader.py
   documentos.py
+  ocr_engine.py
   jobs.py
   server.py
   cli.py
@@ -50,17 +51,22 @@ CONFIGS=(
   config/context_words.json
 )
 
-# Copiado de resources/tessdata/ (fora do backend), então tratado à parte.
-TESSDATA_ORIGEM="$RAIZ/resources/tessdata/por.traineddata"
-TESSDATA_DESTINO="$DESTINO/tessdata/por.traineddata"
+# Copiados de resources/ocr-models/ (fora do backend), então tratados à parte.
+# O MANIFESTO.json vai junto: é ele que o backend confere no startup.
+MODELOS_ORIGEM="$RAIZ/resources/ocr-models"
+MODELOS_DESTINO="$DESTINO/ocr-models"
 
 modo_verificacao=0
 [[ "${1:-}" == "--check" ]] && modo_verificacao=1
 
 if [[ ! -d "$DESTINO" ]]; then
   if (( modo_verificacao )); then
-    echo "resources/python-backend/ não existe — nada a verificar."
-    exit 0
+    # Isto costumava sair com 0 ("nada a verificar"). Mas num checkout limpo de
+    # CI é exatamente o caso em que NADA seria empacotado — a verificação
+    # declarava sucesso justamente no pior cenário. Falha fechado.
+    echo "resources/python-backend/ não existe: o instalador sairia sem backend." >&2
+    echo "Rode: scripts/sync-backend.sh" >&2
+    exit 1
   fi
   mkdir -p "$DESTINO/config"
 fi
@@ -91,20 +97,45 @@ for arquivo in "${ARQUIVOS[@]}" "${CONFIGS[@]}"; do
   verificar_ou_copiar "$arquivo"
 done
 
-# Dados de idioma do OCR.
-if [[ -f "$TESSDATA_ORIGEM" ]]; then
-  if (( modo_verificacao )); then
-    if [[ ! -f "$TESSDATA_DESTINO" ]] || ! cmp -s "$TESSDATA_ORIGEM" "$TESSDATA_DESTINO"; then
-      divergentes+=("tessdata/por.traineddata")
+# Modelos do OCR. O conjunto tem de estar completo: copiar "o que houver"
+# produziria um instalador que só descobre a falta na primeira página
+# escaneada, na máquina do usuário.
+MODELOS_EXIGIDOS=(
+  MANIFESTO.json
+  PP-OCRv6_det_small.onnx
+  PP-OCRv6_rec_small.onnx
+  PP-OCRv6_rec_dict.txt
+  ch_ppocr_mobile_v2.0_cls_mobile.onnx
+)
+faltando=()
+for nome in "${MODELOS_EXIGIDOS[@]}"; do
+  [[ -f "$MODELOS_ORIGEM/$nome" ]] || faltando+=("$nome")
+done
+if (( ${#faltando[@]} )); then
+  echo "Faltam modelos em resources/ocr-models/:" >&2
+  printf '  %s\n' "${faltando[@]}" >&2
+  echo "Rode: scripts/fetch-ocr-models.sh" >&2
+  exit 1
+fi
+
+if [[ -d "$MODELOS_ORIGEM" ]]; then
+  for origem in "$MODELOS_ORIGEM"/*; do
+    [[ -f "$origem" ]] || continue
+    nome="$(basename "$origem")"
+    destino="$MODELOS_DESTINO/$nome"
+    if (( modo_verificacao )); then
+      if [[ ! -f "$destino" ]] || ! cmp -s "$origem" "$destino"; then
+        divergentes+=("ocr-models/$nome")
+      fi
+    else
+      mkdir -p "$MODELOS_DESTINO"
+      cp "$origem" "$destino"
+      echo "  ocr-models/$nome"
     fi
-  else
-    mkdir -p "$(dirname "$TESSDATA_DESTINO")"
-    cp "$TESSDATA_ORIGEM" "$TESSDATA_DESTINO"
-    echo "  tessdata/por.traineddata"
-  fi
+  done
 elif (( ! modo_verificacao )); then
-  echo "  AVISO: resources/tessdata/por.traineddata não encontrado —" >&2
-  echo "  o OCR vai baixá-lo na primeira execução, o que exige internet." >&2
+  echo "  AVISO: resources/ocr-models/ não encontrado —" >&2
+  echo "  o OCR vai baixar os modelos na primeira execução, o que exige internet." >&2
 fi
 
 if (( modo_verificacao )); then
@@ -117,7 +148,20 @@ if (( modo_verificacao )); then
   echo "Backend do instalador em dia."
 else
   echo
-  echo "Pronto. Lembre de atualizar as bibliotecas do Python embarcado se"
-  echo "requirements.txt mudou:"
-  echo "  resources/python-backend/python-embed/python.exe -m pip install -r requirements.txt"
+  echo "Pronto."
+  echo
+  echo "Se requirements.txt mudou, as bibliotecas do Python embarcado precisam"
+  echo "ser atualizadas À PARTE. O python-embed do Windows NÃO tem pip — o"
+  echo "comando abaixo falha com 'No module named pip'. O jeito é resolver os"
+  echo "wheels de Windows a partir daqui e copiar:"
+  echo
+  echo "  pip install --target /tmp/winlibs \\"
+  echo "      --platform win_amd64 --python-version 3.12 --only-binary=:all: \\"
+  echo "      --no-deps <pacote>==<versao> ..."
+  echo "  cp -rn /tmp/winlibs/* resources/python-backend/python-embed/Lib/site-packages/"
+  echo
+  echo "Use --no-deps e pins explícitos: o resolvedor livre puxa versões que"
+  echo "brigam com o que já está lá (ele tenta numpy 2.5, e o Presidio exige"
+  echo "<2.5). Confira depois com:"
+  echo "  resources/python-backend/python-embed/python.exe -c \"import rapidocr\""
 fi

@@ -1,0 +1,283 @@
+{
+  "dpi": 300,
+  "resumo": {
+    "tesseract": {
+      "palavras_lexico": 5852,
+      "palavras": 6347,
+      "docs_validos": 45,
+      "segundos": 62.3,
+      "erros": 0,
+      "taxa_lexico": 0.922
+    },
+    "v6-small-padrao": {
+      "palavras_lexico": 5510,
+      "palavras": 6078,
+      "docs_validos": 53,
+      "segundos": 215.7,
+      "erros": 0,
+      "taxa_lexico": 0.9065
+    },
+    "v6-small-1536": {
+      "palavras_lexico": 5713,
+      "palavras": 6269,
+      "docs_validos": 47,
+      "segundos": 324.9,
+      "erros": 0,
+      "taxa_lexico": 0.9113
+    }
+  },
+  "medidas": [
+    {
+      "documento": "01-bom-ultima-pagina-ruim.pdf",
+      "motor": "tesseract",
+      "palavras": 1455,
+      "palavras_lexico": 1349,
+      "taxa_lexico": 0.9271,
+      "docs_validos": 9,
+      "caracteres": 38041,
+      "segundos": 7.9,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "01-bom-ultima-pagina-ruim.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 1478,
+      "palavras_lexico": 1329,
+      "taxa_lexico": 0.8992,
+      "docs_validos": 22,
+      "caracteres": 18335,
+      "segundos": 37.58,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "01-bom-ultima-pagina-ruim.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 1333,
+      "palavras_lexico": 1268,
+      "taxa_lexico": 0.9512,
+      "docs_validos": 21,
+      "caracteres": 17070,
+      "segundos": 68.73,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "02-cedula-credito-muito-bom.pdf",
+      "motor": "tesseract",
+      "palavras": 1665,
+      "palavras_lexico": 1555,
+      "taxa_lexico": 0.9339,
+      "docs_validos": 18,
+      "caracteres": 45020,
+      "segundos": 12.15,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "02-cedula-credito-muito-bom.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 1446,
+      "palavras_lexico": 1367,
+      "taxa_lexico": 0.9454,
+      "docs_validos": 16,
+      "caracteres": 17861,
+      "segundos": 65.13,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "02-cedula-credito-muito-bom.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 1431,
+      "palavras_lexico": 1358,
+      "taxa_lexico": 0.949,
+      "docs_validos": 6,
+      "caracteres": 17896,
+      "segundos": 84.25,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "03-matricula-nota8-bom.pdf",
+      "motor": "tesseract",
+      "palavras": 844,
+      "palavras_lexico": 768,
+      "taxa_lexico": 0.91,
+      "docs_validos": 3,
+      "caracteres": 17982,
+      "segundos": 13.83,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "03-matricula-nota8-bom.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 801,
+      "palavras_lexico": 677,
+      "taxa_lexico": 0.8452,
+      "docs_validos": 3,
+      "caracteres": 9727,
+      "segundos": 43.72,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "03-matricula-nota8-bom.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 962,
+      "palavras_lexico": 820,
+      "taxa_lexico": 0.8524,
+      "docs_validos": 2,
+      "caracteres": 11681,
+      "segundos": 49.17,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "04-matricula-pg1-razoavel-bom.pdf",
+      "motor": "tesseract",
+      "palavras": 199,
+      "palavras_lexico": 158,
+      "taxa_lexico": 0.794,
+      "docs_validos": 1,
+      "caracteres": 7865,
+      "segundos": 4.84,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "04-matricula-pg1-razoavel-bom.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 181,
+      "palavras_lexico": 150,
+      "taxa_lexico": 0.8287,
+      "docs_validos": 0,
+      "caracteres": 2281,
+      "segundos": 6.94,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "04-matricula-pg1-razoavel-bom.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 195,
+      "palavras_lexico": 150,
+      "taxa_lexico": 0.7692,
+      "docs_validos": 2,
+      "caracteres": 2698,
+      "segundos": 13.49,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "05-matricula-pg2-pessimo.pdf",
+      "motor": "tesseract",
+      "palavras": 117,
+      "palavras_lexico": 95,
+      "taxa_lexico": 0.812,
+      "docs_validos": 0,
+      "caracteres": 3836,
+      "segundos": 3.42,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "05-matricula-pg2-pessimo.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 146,
+      "palavras_lexico": 106,
+      "taxa_lexico": 0.726,
+      "docs_validos": 0,
+      "caracteres": 1976,
+      "segundos": 6.21,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "05-matricula-pg2-pessimo.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 163,
+      "palavras_lexico": 122,
+      "taxa_lexico": 0.7485,
+      "docs_validos": 0,
+      "caracteres": 2133,
+      "segundos": 9.78,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "06-matricula-pg4-ruim.pdf",
+      "motor": "tesseract",
+      "palavras": 48,
+      "palavras_lexico": 33,
+      "taxa_lexico": 0.6875,
+      "docs_validos": 0,
+      "caracteres": 1434,
+      "segundos": 4.08,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "06-matricula-pg4-ruim.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 180,
+      "palavras_lexico": 115,
+      "taxa_lexico": 0.6389,
+      "docs_validos": 0,
+      "caracteres": 2301,
+      "segundos": 6.2,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "06-matricula-pg4-ruim.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 283,
+      "palavras_lexico": 182,
+      "taxa_lexico": 0.6431,
+      "docs_validos": 0,
+      "caracteres": 3368,
+      "segundos": 12.93,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "07-peticao-ocr-mediano-apagado.pdf",
+      "motor": "tesseract",
+      "palavras": 2019,
+      "palavras_lexico": 1894,
+      "taxa_lexico": 0.9381,
+      "docs_validos": 14,
+      "caracteres": 44543,
+      "segundos": 16.08,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "07-peticao-ocr-mediano-apagado.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 1846,
+      "palavras_lexico": 1766,
+      "taxa_lexico": 0.9567,
+      "docs_validos": 12,
+      "caracteres": 22351,
+      "segundos": 49.96,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "07-peticao-ocr-mediano-apagado.pdf",
+      "motor": "v6-small-1536",
+      "palavras": 1902,
+      "palavras_lexico": 1813,
+      "taxa_lexico": 0.9532,
+      "docs_validos": 16,
+      "caracteres": 22881,
+      "segundos": 86.54,
+      "erro": null,
+      "detalhe": {}
+    }
+  ]
+}

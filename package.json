@@ -1,6 +1,6 @@
 {
   "name": "tecjustica-sigilo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Anonimizador de PII para processos judiciais brasileiros",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -9,8 +9,11 @@
     "dev:electron": "npm run build:electron-ts && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "test:electron": "npm run build:electron-ts && node --test electron/*.test.mjs",
     "build": "tsc -p tsconfig.electron.json && vite build",
-    "build:dist": "npm run build && electron-builder --win",
-    "preview": "vite preview"
+    "build:dist": "npm run fetch:ocr-models && npm run sync:backend && npm run check:backend && npm run build && electron-builder --win",
+    "preview": "vite preview",
+    "sync:backend": "bash scripts/sync-backend.sh",
+    "fetch:ocr-models": "bash scripts/fetch-ocr-models.sh",
+    "check:backend": "bash scripts/fetch-ocr-models.sh --check && bash scripts/sync-backend.sh --check"
   },
   "keywords": [],
   "author": "",

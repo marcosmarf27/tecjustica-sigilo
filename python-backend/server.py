@@ -9,12 +9,14 @@ import secrets
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 import documentos
 import jobs
+import ocr_engine
 from engine import get_engine
 from config_loader import get_raw_deny_list, save_deny_list
 from jobs import Job, registro
@@ -104,10 +106,70 @@ def health():
         "politicas_mascara": list(POLITICAS),
         "politica_padrao": POLITICA_PADRAO,
         "formatos_documento": sorted(documentos.EXTENSOES_DOCUMENTO),
-        # False significa que o OCR precisaria buscar os dados de idioma na
-        # rede — o que a interface deve avisar antes de prometer sigilo.
-        "ocr_offline": documentos.tessdata_disponivel(),
+        # False significa que o OCR precisaria baixar os modelos da rede — o
+        # que a interface deve avisar antes de prometer sigilo.
+        "ocr_offline": documentos.ocr_offline(),
+        "ocr_motor": f"PP-OCRv6 {ocr_engine.perfil_ativo()}",
     }
+
+
+@app.post("/ocr")
+async def ocr(
+    request: Request,
+    file: UploadFile = File(...),
+    language: str = Form(documentos.IDIOMA_OCR),
+):
+    """Reconhecimento de texto numa imagem de página.
+
+    Quem chama não é a interface: é o liteparse, de dentro do próprio job de
+    extração, porque ele não aceita motor de OCR injetado em processo (só
+    `ocr_server_url`). O contrato é o do liteparse — `multipart/form-data` com
+    `file` e `language`, resposta `{"results": [{text, bbox, confidence}]}`.
+
+    A rota fica **atrás do token** como qualquer outra: o liteparse manda o
+    cabeçalho porque o `documentos.configurar_ocr()` o entregou a ele. Deixá-la
+    pública seria dar a qualquer página aberta no navegador da máquina um
+    serviço de OCR gratuito rodando com a CPU do usuário.
+
+    Não há risco de travar o servidor chamando a si mesmo: o job roda em thread
+    própria (ver jobs.py), então o laço de eventos continua livre para atender
+    estas requisições no threadpool.
+    """
+    # Recusa pelo Content-Length ANTES de ler o corpo. Checar depois do
+    # `read()` já teria trazido o upload inteiro para a memória — o 413 sairia
+    # bonito e o dano já estaria feito.
+    declarado = request.headers.get("content-length")
+    if declarado and declarado.isdigit() and int(declarado) > ocr_engine.TAMANHO_MAXIMO:
+        return JSONResponse(
+            status_code=413,
+            content={"error": f"corpo acima de {ocr_engine.TAMANHO_MAXIMO} bytes"},
+        )
+
+    try:
+        conteudo = await file.read()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "arquivo ilegível"})
+    if not conteudo:
+        return JSONResponse(status_code=400, content={"error": "arquivo vazio"})
+
+    if len(conteudo) > ocr_engine.TAMANHO_MAXIMO:
+        return JSONResponse(
+            status_code=413,
+            content={"error": f"imagem acima de {ocr_engine.TAMANHO_MAXIMO} bytes"},
+        )
+
+    try:
+        resultados = await run_in_threadpool(ocr_engine.reconhecer, conteudo, language)
+        # Só conta depois de dar certo: é assim que a extração descobre quantas
+        # páginas realmente passaram pelo reconhecimento.
+        ocr_engine.registrar_atendimento(
+            request.headers.get("x-presidio-ocr-extracao"), conteudo
+        )
+    except ocr_engine.ArquivoGrandeDemais as exc:
+        return JSONResponse(status_code=413, content={"error": str(exc)})
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+    return {"results": resultados}
 
 
 @app.post("/anonymize", response_model=AnonymizeResponse)
@@ -170,6 +232,7 @@ def processar(req: ProcessarRequest):
 
     def tarefa(job: Job) -> dict:
         texto = req.texto or ""
+        info_ocr: dict | None = None
 
         if req.caminho:
             job.estado = jobs.EXTRAINDO
@@ -183,9 +246,28 @@ def processar(req: ProcessarRequest):
             documento = documentos.extrair(req.caminho, progresso=progresso_extracao)
             texto = documento.como_markdown()
 
+            # O aviso de OCR viaja no RESULTADO, não em `job.etapa`.
+            #
+            # Ele já morou em `job.etapa` e nunca chegou a ninguém: a linha
+            # seguinte o sobrescreve com "Procurando dados pessoais" em alguns
+            # microssegundos, e a interface faz polling em intervalo fixo — só
+            # veria a mensagem por coincidência. Um aviso que depende de sorte
+            # não é aviso.
+            #
+            # `paginas_com_erro` é o campo que não pode sumir: são páginas que
+            # o parser não conseguiu ler — inclusive falha de OCR, que
+            # `ocr_failure_fatal=False` deixa de ser fatal de propósito. O texto
+            # delas não está no documento de saída, e quem revisa precisa saber
+            # disso antes de assinar embaixo.
+            info_ocr = {
+                "houve_ocr": documento.houve_ocr,
+                "paginas_ocr": documento.paginas_ocr,
+                "paginas_com_erro": documento.paginas_com_erro,
+                "erros": list(documento.erros),
+                "total_paginas": documento.total_paginas,
+            }
+
             if documento.houve_ocr:
-                # A contagem importa: num auto misto, saber quantas páginas
-                # dependeram de reconhecimento diz onde a revisão é necessária.
                 if documento.paginas_ocr and documento.total_paginas:
                     job.etapa = (
                         f"{documento.paginas_ocr} de {documento.total_paginas} "
@@ -213,6 +295,8 @@ def processar(req: ProcessarRequest):
             cancelado=lambda: job.cancelado,
         )
         resultado["texto_original"] = texto
+        if info_ocr is not None:
+            resultado["ocr"] = info_ocr
         return resultado
 
     registro.executar(job, tarefa)
@@ -279,6 +363,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     import sys
+
+    # O OCR do liteparse aponta para a nossa própria rota, com o token desta
+    # sessão. Precisa ser antes de qualquer job — um `ocr_server_url` vazio faz
+    # o liteparse cair no Tesseract embutido no wheel, em silêncio.
+    documentos.configurar_ocr(
+        f"http://127.0.0.1:{args.port}/ocr",
+        {"X-Presidio-Token": TOKEN_SESSAO},
+    )
+
     engine = get_engine()
     print(f"Carregando modelo NLP (modo={engine.nlp_mode})...", flush=True)
     engine.initialize()

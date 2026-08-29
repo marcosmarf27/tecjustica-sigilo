@@ -1,0 +1,71 @@
+{
+  "dpi": 300,
+  "resumo": {
+    "v6-small-padrao": {
+      "palavras_lexico": 219,
+      "palavras": 326,
+      "docs_validos": 0,
+      "segundos": 29.5,
+      "erros": 0,
+      "taxa_lexico": 0.6718
+    },
+    "v6-medium-1536": {
+      "palavras_lexico": 276,
+      "palavras": 426,
+      "docs_validos": 0,
+      "segundos": 62.4,
+      "erros": 0,
+      "taxa_lexico": 0.6479
+    }
+  },
+  "medidas": [
+    {
+      "documento": "05-matricula-pg2-pessimo.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 146,
+      "palavras_lexico": 105,
+      "taxa_lexico": 0.7192,
+      "docs_validos": 0,
+      "caracteres": 1961,
+      "segundos": 6.8,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "05-matricula-pg2-pessimo.pdf",
+      "motor": "v6-medium-1536",
+      "palavras": 160,
+      "palavras_lexico": 122,
+      "taxa_lexico": 0.7625,
+      "docs_validos": 0,
+      "caracteres": 2097,
+      "segundos": 30.01,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "06-matricula-pg4-ruim.pdf",
+      "motor": "v6-small-padrao",
+      "palavras": 180,
+      "palavras_lexico": 114,
+      "taxa_lexico": 0.6333,
+      "docs_validos": 0,
+      "caracteres": 2292,
+      "segundos": 22.72,
+      "erro": null,
+      "detalhe": {}
+    },
+    {
+      "documento": "06-matricula-pg4-ruim.pdf",
+      "motor": "v6-medium-1536",
+      "palavras": 266,
+      "palavras_lexico": 154,
+      "taxa_lexico": 0.5789,
+      "docs_validos": 0,
+      "caracteres": 3204,
+      "segundos": 32.39,
+      "erro": null,
+      "detalhe": {}
+    }
+  ]
+}

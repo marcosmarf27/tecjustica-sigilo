@@ -17,11 +17,34 @@ spacy==3.8.15
 striprtf==0.0.32
 
 # --- Leitura de PDF, DOCX e imagens ---
-# PDFium para o texto nativo e Tesseract para OCR, ambos embutidos no wheel.
-# Os dados de idioma do Tesseract NÃO vêm no pacote: sem eles o liteparse os
-# busca na rede na primeira execução, o que quebraria a operação offline. Por
-# isso o por.traineddata é empacotado em resources/tessdata/.
+# PDFium para o texto nativo. O Tesseract também vem embutido neste wheel, mas
+# não é mais usado: o OCR passou para o PP-OCRv6 (ver abaixo). Não dá para
+# removê-lo sem forkar a biblioteca — ele apenas deixa de ser chamado, porque
+# `documentos.py` aponta `ocr_server_url` para a rota /ocr do backend.
 liteparse==2.12.0
+
+# --- OCR: PP-OCRv6 em ONNX Runtime, CPU ---
+#
+# Por que trocar o Tesseract: em matrícula de cartório datilografada ele
+# recupera 17,7% das palavras (medição em docs/relatorio-situacao-2026-08-14.md
+# §5.1). Texto não transcrito não vaza, mas sai um documento mutilado parecendo
+# completo — e nenhum recognizer detecta o que o OCR não leu.
+#
+# `rapidocr` aqui é só o carregador: o pipeline de pré/pós-processamento do
+# PP-OCR sobre ONNX Runtime, sem arrastar o framework PaddlePaddle (wheel de
+# 104 MB) que o pacote oficial `paddleocr` exige. Os PESOS são os oficiais da
+# PaddlePaddle, empacotados em resources/ocr-models/ com SHA-256 no MANIFESTO —
+# conferido byte a byte contra a conversão que o rapidocr traria por padrão:
+# saída idêntica.
+#
+# `opencv-python` vem por dependência do rapidocr. A variante `-headless` é
+# ~20 MB menor, mas não satisfaz o pin declarado; trocar exige `--no-deps`.
+rapidocr==3.9.2
+onnxruntime==1.28.0
+
+# Rasterização de página para a tarja de redação (PDFium, BSD/Apache-2.0).
+# Não se usa PyMuPDF: é AGPL/comercial e este aplicativo é distribuído.
+pypdfium2==5.13.0
 
 # --- Modo BERT (PRESIDIO_NLP_MODE=transformer, o padrão) ---
 #

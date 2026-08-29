@@ -137,6 +137,7 @@ export default function App() {
             originalContent: result.texto_original,
             anonymizedContent: result.anonymized_text,
             entitiesFound: result.entities_found,
+            ocr: result.ocr,
           });
         } catch (err) {
           if (controller.signal.aborted) break;

@@ -32,9 +32,12 @@ fixtures-reais/
 # Artefatos de build pesados (Python embed, libs, modelos)
 # Toda a árvore de empacotamento fica fora (850MB+ com torch/transformers)
 resources/python-backend/
-# Dados de idioma do Tesseract (8 MB de binário). Obtidos automaticamente na
-# primeira execução do liteparse, ou copiados por scripts/sync-backend.sh.
-resources/tessdata/
+# Modelos do OCR (~31 MB de ONNX no perfil small, ~164 MB com o medium).
+# Binário não entra em git; o que entra é o MANIFESTO.json com URL de origem,
+# tamanho e SHA-256 — é ele que pina a versão. Para obter os arquivos:
+#   scripts/fetch-ocr-models.sh
+resources/ocr-models/*.onnx
+resources/ocr-models/*.txt
 
 # IDE / OS
 .vscode/

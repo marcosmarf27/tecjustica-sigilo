@@ -26,11 +26,18 @@ CORPUS_ESCANEADO = Path(
 )
 
 
-def _com_paginas(monkeypatch, *textos: str) -> None:
-    """Substitui a leitura pelo liteparse por páginas dadas."""
+def _com_paginas(monkeypatch, *textos: str, erros: tuple[str, ...] = ()) -> None:
+    """Substitui a leitura pelo liteparse por páginas dadas.
+
+    `erros` simula o que o parser reporta em `ParseResult.page_errors` — é por
+    ali que falha de OCR chega, já que `ocr_failure_fatal=False` faz o parse
+    seguir em frente em vez de levantar exceção.
+    """
     paginas = [PaginaExtraida(numero=i, texto=t) for i, t in enumerate(textos, start=1)]
     monkeypatch.setattr(
-        documentos, "_extrair_paginas", lambda *a, **k: (paginas, len(paginas))
+        documentos,
+        "_extrair_paginas",
+        lambda *a, **k: (paginas, len(paginas), erros),
     )
 
 
@@ -132,3 +139,96 @@ def test_pdf_escaneado_real_e_reconhecido_como_ocr():
     resultado = documentos.extrair(CORPUS_ESCANEADO)
     assert resultado.houve_ocr is True
     assert resultado.paginas_ocr == resultado.total_paginas
+
+
+def test_falha_de_ocr_nao_passa_em_silencio(tmp_path, monkeypatch):
+    """Página que o parser reportou como erro levanta o aviso.
+
+    `ocr_failure_fatal=False` é deliberado: perder o texto nativo já lido por
+    causa de um erro numa página escaneada seria pior do que entregar o
+    resultado parcial. Mas isso abre um jeito silencioso de errar — se toda
+    página escaneada falhar, nenhuma produz texto, `paginas_ocr` fica em zero e
+    o documento se declararia "não precisou de OCR". A anonimização rodaria
+    sobre um texto com buracos, sem ninguém saber.
+
+    Este é o modo de falha que a troca de motor existe para evitar: entregar um
+    documento mutilado achando que está completo.
+    """
+    pdf = tmp_path / "ocr-quebrado.pdf"
+    pdf.write_bytes(b"%PDF-1.7")
+    _com_paginas(
+        monkeypatch,
+        "petição nativa",
+        "",
+        erros=("página 2: OCR server request failed",),
+    )
+    monkeypatch.setattr(documentos, "_paginas_sem_texto_nativo", lambda *a, **k: {2})
+
+    resultado = documentos.extrair(pdf)
+    assert resultado.houve_ocr is True, "falha de OCR não pode se declarar 'sem OCR'"
+    assert resultado.paginas_ocr == 0
+    assert resultado.paginas_com_erro == 1
+    assert "OCR server request failed" in resultado.erros[0]
+
+
+def test_ocr_que_nao_rodou_nao_passa_por_ocr_que_rodou(tmp_path, monkeypatch):
+    """Motor de OCR fora do ar tem de virar aviso, não documento mutilado.
+
+    Este é o caso que `page_errors` NÃO cobre, e foi medido: com o motor numa
+    porta fechada, o liteparse termina o parse, devolve `page_errors` vazio, e
+    cada página escaneada sai com os poucos caracteres de texto nativo que
+    houvesse. `paginas_ocr` conta 1, e o documento se declara "1 de 1 página
+    lida por OCR" — a forma do aviso está certa e o conteúdo é falso, o que é
+    pior do que não avisar.
+
+    A defesa é contar do lado que nós controlamos: quantas páginas precisavam
+    de reconhecimento contra quantas o motor confirmou ter reconhecido.
+    """
+    pdf = tmp_path / "ocr-fora-do-ar.pdf"
+    pdf.write_bytes(b"%PDF-1.7")
+    # A página escaneada devolve o resto de texto nativo que sobrou — é assim
+    # que o caso engana: ela não vem vazia.
+    _com_paginas(monkeypatch, "petição nativa", "fls. 2")
+    monkeypatch.setattr(documentos, "_paginas_sem_texto_nativo", lambda *a, **k: {2})
+    monkeypatch.setattr(documentos, "_reconhecidas", lambda *a, **k: 0)
+    documentos.configurar_ocr("http://127.0.0.1:9/ocr", {"X-Presidio-Token": "x"})
+    try:
+        resultado = documentos.extrair(pdf)
+    finally:
+        documentos.configurar_ocr("", None)
+
+    assert resultado.paginas_com_erro == 1
+    assert "não chegaram ao motor de OCR" in resultado.erros[0]
+    assert resultado.houve_ocr is True
+
+
+def test_ocr_que_rodou_nao_gera_alarme_falso(tmp_path, monkeypatch):
+    """Aviso que dispara sempre deixa de ser lido."""
+    pdf = tmp_path / "ok.pdf"
+    pdf.write_bytes(b"%PDF-1.7")
+    _com_paginas(monkeypatch, "petição nativa", "anexo reconhecido")
+    monkeypatch.setattr(documentos, "_paginas_sem_texto_nativo", lambda *a, **k: {2})
+    monkeypatch.setattr(documentos, "_reconhecidas", lambda *a, **k: 1)
+    documentos.configurar_ocr("http://127.0.0.1:9/ocr", {"X-Presidio-Token": "x"})
+    try:
+        resultado = documentos.extrair(pdf)
+    finally:
+        documentos.configurar_ocr("", None)
+
+    assert resultado.paginas_com_erro == 0
+    assert resultado.erros == ()
+
+
+def test_cli_sem_servidor_nao_inventa_erro(tmp_path, monkeypatch):
+    """Sem servidor de OCR configurado não há contagem para comparar.
+
+    A CLI importa este módulo e não sobe servidor nenhum; afirmar falha ali
+    seria inventar.
+    """
+    pdf = tmp_path / "cli.pdf"
+    pdf.write_bytes(b"%PDF-1.7")
+    _com_paginas(monkeypatch, "petição nativa", "")
+    monkeypatch.setattr(documentos, "_paginas_sem_texto_nativo", lambda *a, **k: {2})
+    documentos.configurar_ocr("", None)
+
+    assert documentos.extrair(pdf).paginas_com_erro == 0

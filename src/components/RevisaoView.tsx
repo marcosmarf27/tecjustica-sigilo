@@ -197,6 +197,45 @@ export function RevisaoView({
           </div>
         </div>
 
+        {/* Como o documento foi lido.
+            Este aviso já existiu e nunca chegou a ninguém: ele vivia em
+            `job.etapa`, que a etapa seguinte sobrescrevia em microssegundos —
+            a interface só o veria por coincidência do intervalo de polling.
+            Agora viaja no resultado e fica na tela enquanto a revisão durar. */}
+        {arquivo.ocr?.houve_ocr && (
+          <div
+            className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-2xs ${
+              arquivo.ocr.paginas_com_erro > 0
+                ? "border-danger/40 bg-danger/10 text-danger"
+                : "border-warning/40 bg-warning/10 text-warning"
+            }`}
+            role={arquivo.ocr.paginas_com_erro > 0 ? "alert" : "status"}
+          >
+            <svg className="mt-px h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" />
+            </svg>
+            <div className="min-w-0">
+              {arquivo.ocr.paginas_com_erro > 0 ? (
+                <>
+                  <strong className="font-semibold">
+                    {arquivo.ocr.paginas_com_erro}{" "}
+                    {arquivo.ocr.paginas_com_erro === 1 ? "página não foi lida" : "páginas não foram lidas"}
+                  </strong>
+                  {" — o texto delas não está aqui, e o que não está aqui não foi anonimizado nem revisado."}
+                </>
+              ) : (
+                <>
+                  <strong className="font-semibold">
+                    {arquivo.ocr.paginas_ocr} de {arquivo.ocr.total_paginas}{" "}
+                    {arquivo.ocr.total_paginas === 1 ? "página lida" : "páginas lidas"} por reconhecimento de imagem
+                  </strong>
+                  {" — reconhecimento erra; confira o resultado antes de entregar."}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Filtro por tipo */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-2xs font-medium text-text-tertiary">

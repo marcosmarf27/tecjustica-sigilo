@@ -96,9 +96,26 @@ export interface EntityFound {
   score: number;
 }
 
+/**
+ * Como o documento foi lido. Só existe quando a entrada foi um arquivo — texto
+ * colado não passa por reconhecimento.
+ *
+ * `paginasComErro` é o campo que não pode ser escondido: são páginas que
+ * precisavam de OCR e não voltaram. O texto delas não está no resultado, e
+ * quem revisa precisa saber disso antes de assinar embaixo.
+ */
+export interface InfoOcr {
+  houve_ocr: boolean;
+  paginas_ocr: number;
+  paginas_com_erro: number;
+  erros: string[];
+  total_paginas: number;
+}
+
 export interface AnonymizeResponse {
   anonymized_text: string;
   entities_found: EntityFound[];
+  ocr?: InfoOcr;
 }
 
 export interface ProcessedFile {
@@ -107,6 +124,7 @@ export interface ProcessedFile {
   originalContent: string;
   anonymizedContent: string;
   entitiesFound: EntityFound[];
+  ocr?: InfoOcr;
 }
 
 export interface HistoryItem {

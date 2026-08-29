@@ -77,8 +77,8 @@ próximo processamento, sem reiniciar o app.
 ### 📄 Lê PDF, Word e imagem digitalizada
 Arraste os autos como eles saem do PJe. Páginas digitalizadas passam por
 reconhecimento de texto **na sua máquina** — PDFium para o texto nativo e
-Tesseract para o resto, com os dados de idioma empacotados junto para não
-depender de internet nem na primeira execução.
+**PP-OCRv6** para o resto, rodando em CPU comum, com os modelos empacotados
+junto para não depender de internet nem na primeira execução.
 
 Formatos: `.pdf`, `.docx`, `.xlsx`, `.pptx`, imagens (`.png`, `.jpg`, `.tif`…),
 além de `.txt`, `.md` e `.rtf`.
@@ -164,7 +164,11 @@ auditoria (ex: `CPF 123.***.***-09`, `nome J*** d* S****`) — configurável em
 
 - **Desktop**: Electron 41 + React 19 + TypeScript + Tailwind 4.
 - **Leitura de documentos**: [liteparse](https://github.com/run-llama/liteparse)
-  (Apache 2.0) — PDFium + Tesseract, tudo local.
+  (Apache 2.0) para o texto nativo, via PDFium.
+- **OCR**: [PP-OCRv6](https://github.com/PaddlePaddle/PaddleOCR) da PaddlePaddle
+  (Apache 2.0), pesos oficiais em ONNX, executados por
+  [RapidOCR](https://github.com/RapidAI/RapidOCR) sobre ONNX Runtime em CPU.
+  Sem GPU e sem rede.
 - **Design system**: tokens em `src/styles/tokens.css`, documentados em
   [`docs/design-system.md`](docs/design-system.md). Fontes auto-hospedadas.
 - **Backend**: FastAPI + [Microsoft Presidio](https://microsoft.github.io/presidio/).
