@@ -168,6 +168,30 @@ ipcMain.handle(
   }
 );
 
+// DOCX é um zip: não sobrevive a uma viagem como string UTF-8 pelo IPC. Vem em
+// base64 e é decodificado aqui, na única camada que fala com o disco.
+ipcMain.handle(
+  "save-file-binary",
+  async (_event, filePath: string, base64: string) => {
+    if (fs.existsSync(filePath) && mainWindow) {
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        buttons: ["Substituir", "Cancelar"],
+        defaultId: 1,
+        cancelId: 1,
+        title: "Arquivo já existe",
+        message: `Já existe um arquivo chamado ${path.basename(filePath)} nessa pasta.`,
+        detail: "Substituir apaga o conteúdo anterior.",
+      });
+      if (response !== 0) {
+        return { salvo: false, motivo: "cancelado" };
+      }
+    }
+    fs.writeFileSync(filePath, Buffer.from(base64, "base64"));
+    return { salvo: true };
+  }
+);
+
 // ---------- CLI installer (Windows PATH + WSL shim) ----------
 
 function backendResourcePath(): string {

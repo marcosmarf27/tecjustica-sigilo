@@ -1,11 +1,15 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import type { EntityFound, ProcessedFile } from "../types";
 import { ALL_ENTITIES } from "../types";
+import { nomeDeSaida } from "../lib/nomeDeSaida";
+import type { FormatoSaida } from "../lib/nomeDeSaida";
 
 interface RevisaoViewProps {
   files: ProcessedFile[];
   onSaveAll: () => void;
   onDownloadFile: (file: ProcessedFile) => void;
+  formato: FormatoSaida;
+  onFormatoChange: (formato: FormatoSaida) => void;
   onBack: () => void;
   /** Marca um trecho como "não é dado pessoal" e o remove da anonimização. */
   onRejeitarDeteccao: (entidade: EntityFound) => void;
@@ -60,6 +64,8 @@ export function RevisaoView({
   files,
   onSaveAll,
   onDownloadFile,
+  formato,
+  onFormatoChange,
   onBack,
   onRejeitarDeteccao,
 }: RevisaoViewProps) {
@@ -115,16 +121,7 @@ export function RevisaoView({
   }
 
   const total = arquivo.entitiesFound.length;
-  const nomeSaida = (() => {
-    const ponto = arquivo.originalName.lastIndexOf(".");
-    const base = ponto > 0 ? arquivo.originalName.slice(0, ponto) : arquivo.originalName;
-    const ext = arquivo.originalName.toLowerCase().endsWith(".rtf")
-      ? ".txt"
-      : ponto > 0
-        ? arquivo.originalName.slice(ponto)
-        : ".txt";
-    return `${base}_anonimizado${ext}`;
-  })();
+  const nomeSaida = nomeDeSaida(arquivo.originalName, formato);
 
   return (
     <div className="flex h-full animate-fade-in flex-col">
@@ -178,6 +175,32 @@ export function RevisaoView({
                   }`}
                 >
                   {m === "revisar" ? "Revisar" : "Resultado"}
+                </button>
+              ))}
+            </div>
+
+            {/* Formato de saída.
+                O resultado é texto — nunca o formato de entrada. Salvar
+                markdown dentro de um arquivo `.pdf` produzia um arquivo que
+                nenhum leitor abria, e era o comportamento anterior. */}
+            <div className="flex shrink-0 items-center rounded-lg border border-border p-0.5">
+              {(["md", "docx"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => onFormatoChange(f)}
+                  aria-pressed={formato === f}
+                  title={
+                    f === "md"
+                      ? "Markdown — texto puro, abre em qualquer editor"
+                      : "Word — abre no Word, LibreOffice ou Google Docs"
+                  }
+                  className={`rounded-md px-2.5 py-1.5 text-2xs font-semibold uppercase transition ${
+                    formato === f
+                      ? "bg-accent text-on-accent"
+                      : "text-text-tertiary hover:text-text-secondary"
+                  }`}
+                >
+                  {f}
                 </button>
               ))}
             </div>

@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readFile: (path: string) => ipcRenderer.invoke("read-file", path),
   saveFile: (path: string, content: string) =>
     ipcRenderer.invoke("save-file", path, content),
+  saveFileBinary: (path: string, base64: string) =>
+    ipcRenderer.invoke("save-file-binary", path, base64),
   selectFiles: () => ipcRenderer.invoke("select-files"),
   cli: {
     status: () => ipcRenderer.invoke("cli-status"),

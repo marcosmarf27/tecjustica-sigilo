@@ -35,6 +35,11 @@ interface ElectronAPI {
     path: string,
     content: string
   ) => Promise<{ salvo: boolean; motivo?: string }>;
+  /** DOCX é um zip — vai em base64 para não se corromper no caminho. */
+  saveFileBinary: (
+    path: string,
+    base64: string
+  ) => Promise<{ salvo: boolean; motivo?: string }>;
   selectFiles: () => Promise<{ name: string; path: string }[]>;
   cli: CliAPI;
 }

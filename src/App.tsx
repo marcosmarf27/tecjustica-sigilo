@@ -8,6 +8,9 @@ import { ProcessingView } from "./components/ProcessingView";
 import { RevisaoView } from "./components/RevisaoView";
 import { CliInstaller } from "./components/CliInstaller";
 import { Toast } from "./components/Toast";
+import { caminhoDeSaida, nomeDeSaida } from "./lib/nomeDeSaida";
+import type { FormatoSaida } from "./lib/nomeDeSaida";
+import { gerarDocx } from "./lib/gerarDocx";
 import type {
   FileItem,
   ProcessedFile,
@@ -200,24 +203,30 @@ export default function App() {
     }
   };
 
-  const buildSavePath = (file: ProcessedFile) => {
-    const ext = file.originalName.lastIndexOf(".");
-    const baseName =
-      ext > 0 ? file.originalName.slice(0, ext) : file.originalName;
-    const origExt = ext > 0 ? file.originalName.slice(ext) : ".txt";
-    // RTF perde formatação na conversão, salva como .txt
-    const extension = origExt.toLowerCase() === ".rtf" ? ".txt" : origExt;
-    const newName = `${baseName}_anonimizado${extension}`;
+  const [formatoSaida, setFormatoSaida] = useState<FormatoSaida>("md");
 
-    if (window.electronAPI) {
-      const sep = file.originalPath.includes("\\") ? "\\" : "/";
-      const dir = file.originalPath.substring(
-        0,
-        file.originalPath.lastIndexOf(sep)
-      );
-      return dir ? `${dir}${sep}${newName}` : newName;
+  const buildSavePath = (file: ProcessedFile, formato: FormatoSaida) =>
+    window.electronAPI
+      ? caminhoDeSaida(file.originalPath, file.originalName, formato)
+      : nomeDeSaida(file.originalName, formato);
+
+  /** O conteúdo a gravar, no formato escolhido. DOCX vira base64. */
+  const conteudoDeSaida = async (file: ProcessedFile, formato: FormatoSaida) => {
+    if (formato !== "docx") {
+      return { texto: file.anonymizedContent, binario: false as const };
     }
-    return newName;
+    const blob = await gerarDocx(file.anonymizedContent, {
+      nomeOriginal: file.originalName,
+      ocorrencias: file.entitiesFound.length,
+      paginasOcr: file.ocr?.paginas_ocr,
+      paginasComErro: file.ocr?.paginas_com_erro,
+    });
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bruto = "";
+    for (let i = 0; i < bytes.length; i += 8192) {
+      bruto += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    return { texto: btoa(bruto), binario: true as const, blob };
   };
 
   const handleSaveAll = async () => {
@@ -226,10 +235,15 @@ export default function App() {
 
     try {
       for (const file of processedFiles) {
-        const savePath = buildSavePath(file);
+        const savePath = buildSavePath(file, formatoSaida);
+        const saida = await conteudoDeSaida(file, formatoSaida);
 
         if (window.electronAPI) {
-          await window.electronAPI.saveFile(savePath, file.anonymizedContent);
+          if (saida.binario) {
+            await window.electronAPI.saveFileBinary(savePath, saida.texto);
+          } else {
+            await window.electronAPI.saveFile(savePath, saida.texto);
+          }
           savedPaths.push(savePath);
         } else {
           const blob = new Blob([file.anonymizedContent], {
@@ -268,15 +282,15 @@ export default function App() {
     }
   };
 
-  const handleDownloadSingle = (file: ProcessedFile) => {
-    const ext = file.originalName.lastIndexOf(".");
-    const baseName =
-      ext > 0 ? file.originalName.slice(0, ext) : file.originalName;
-    const origExt = ext > 0 ? file.originalName.slice(ext) : ".txt";
-    const extension = origExt.toLowerCase() === ".rtf" ? ".txt" : origExt;
-    const newName = `${baseName}_anonimizado${extension}`;
+  const handleDownloadSingle = async (file: ProcessedFile) => {
+    const newName = nomeDeSaida(file.originalName, formatoSaida);
+    const saida = await conteudoDeSaida(file, formatoSaida);
 
-    const blob = new Blob([file.anonymizedContent], { type: "text/plain" });
+    const blob =
+      saida.blob ??
+      new Blob([saida.texto], {
+        type: newName.endsWith(".md") ? "text/markdown" : "text/plain",
+      });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -502,6 +516,8 @@ export default function App() {
             files={processedFiles}
             onSaveAll={handleSaveAll}
             onDownloadFile={handleDownloadSingle}
+            formato={formatoSaida}
+            onFormatoChange={setFormatoSaida}
             onBack={handleBack}
             onRejeitarDeteccao={handleRejeitarDeteccao}
           />
