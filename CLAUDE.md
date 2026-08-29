@@ -26,6 +26,12 @@ instalou e usou. Antes de dizer que está pronto: abrir o app.
 | `resources/python-backend/python-embed/` (1,8 GB) | `scripts/setup-python-embed.sh` |
 | `.venv/` | `pip install -r python-backend/requirements.txt` |
 | BERT (~2,5 GB) | baixa sozinho na primeira execução, em `~/.cache/huggingface` |
+| Corpus de OCR (22 PDFs reais, 125 MB) | não está em repositório nenhum — copiar entre máquinas à mão |
+
+O corpus de OCR é apontado por `PRESIDIO_CORPUS_OCR` (pasta com os PDFs) e é o
+que permite medir qualquer mudança de OCR com `eval/bench_ocr.py`. Sem ele o
+teste que depende dele é pulado e nenhuma alteração de motor pode ser
+verificada.
 
 O `MANIFESTO.json` **está** no git: é ele que pina versão e SHA-256 dos modelos.
 

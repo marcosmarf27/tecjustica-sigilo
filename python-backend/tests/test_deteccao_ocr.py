@@ -13,6 +13,8 @@ e cada página de PDF é sondada sem OCR para ver se traz camada de texto própr
 
 from pathlib import Path
 
+import os
+
 import pytest
 
 import documentos
@@ -21,8 +23,16 @@ from documentos import PaginaExtraida
 # PDFs escaneados de verdade vivem fora deste repositório (documentos reais).
 # Quando não estiverem à mão, os testes que dependem deles são pulados em vez
 # de sumirem em silêncio.
-CORPUS_ESCANEADO = Path(
-    "/home/marcos/projetos/liteparser/test-area/ocr-ruins/06-matricula-pg4-ruim.pdf"
+#
+# O caminho vem de `PRESIDIO_CORPUS_OCR`, apontando para a pasta com os PDFs.
+# Antes era um caminho absoluto da máquina onde o teste foi escrito — que não
+# existe em nenhuma outra, então o teste era pulado sempre, inclusive onde o
+# corpus estava presente, só que noutro lugar.
+_PASTA_CORPUS = os.environ.get("PRESIDIO_CORPUS_OCR")
+CORPUS_ESCANEADO = (
+    Path(_PASTA_CORPUS) / "06-matricula-pg4-ruim.pdf"
+    if _PASTA_CORPUS
+    else Path("corpus-nao-configurado")
 )
 
 
