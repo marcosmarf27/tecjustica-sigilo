@@ -19,11 +19,31 @@ set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# No Git Bash do Windows o executável se chama `python`, não `python3`. Sem
-# isto o script morre com "command not found" na primeira máquina Windows.
-PY_CMD="$(command -v python3 || command -v python || true)"
+# O interpretador do projeto é o do venv, e é ele que se procura primeiro: é o
+# único que se garante ter as dependências. A extração do dicionário precisa de
+# PyYAML, que chega junto com o rapidocr — não é razoável exigi-lo de um Python
+# qualquer do sistema.
+#
+# Numa máquina Windows há tipicamente mais de um Python no PATH, e eles não são
+# intercambiáveis: `python3` costuma ser o atalho da Microsoft Store, uma
+# instalação separada e pelada. Escolhê-lo fazia o script baixar os 31 MB de
+# modelo e só então morrer com "No module named 'yaml'".
+#
+# Sem venv, cai para o PATH. Aí `python` entra como segundo candidato porque no
+# Git Bash é esse o nome do executável — sem ele o script morria com
+# "command not found" na primeira máquina Windows.
+PY_CMD=""
+for candidato in "$RAIZ/.venv/Scripts/python.exe" "$RAIZ/.venv/bin/python"; do
+  if [[ -x "$candidato" ]]; then
+    PY_CMD="$candidato"
+    break
+  fi
+done
 if [[ -z "$PY_CMD" ]]; then
-  echo "Python não encontrado no PATH (procurei python3 e python)." >&2
+  PY_CMD="$(command -v python3 || command -v python || true)"
+fi
+if [[ -z "$PY_CMD" ]]; then
+  echo "Python não encontrado (procurei .venv, python3 e python)." >&2
   exit 1
 fi
 DESTINO="$RAIZ/resources/ocr-models"
@@ -43,17 +63,30 @@ CLS_URL="https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/P
 
 mkdir -p "$DESTINO"
 
+# O python.exe nativo do Windows não entende o caminho estilo Git Bash
+# (`/c/Users/...`): ele tenta abrir `C:\c\Users\...`, não encontra, e o
+# manifesto passa por inexistente. O efeito era o script recusar TODO download
+# com "não há entrada no MANIFESTO.json" — a mensagem de um pin faltando, não a
+# de um arquivo ilegível. `cygpath` existe no Git Bash e não no Linux, então a
+# conversão só acontece onde faz falta.
+para_python() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
+}
+
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 
 esperado() {
-  "$PY_CMD" -c "
-import json,sys
+  # O nome vai por argv, não interpolado no fonte: caminho do Windows tem
+  # barra invertida, que dentro de literal Python vira escape.
+  "$PY_CMD" - "$(para_python "$MANIFESTO")" "$1" <<'FIM'
+import json, sys
 try:
-    m = json.load(open('$MANIFESTO', encoding='utf-8'))
+    m = json.load(open(sys.argv[1], encoding="utf-8"))
 except FileNotFoundError:
+    print(f"  MANIFESTO.json ilegível em {sys.argv[1]}", file=sys.stderr)
     sys.exit(0)
-print(m.get('$1', {}).get('sha256', ''))
-"
+print(m.get(sys.argv[2], {}).get("sha256", ""))
+FIM
 }
 
 conferir() {
@@ -130,13 +163,19 @@ done
 DICT="$DESTINO/PP-OCRv6_rec_dict.txt"
 if [[ ! -f "$DICT" ]]; then
   echo "  extraindo PP-OCRv6_rec_dict.txt ..."
-  "$PY_CMD" - "$PERFIL" "$DICT" <<'PY'
+  "$PY_CMD" - "$PERFIL" "$(para_python "$DICT")" <<'PY'
 import sys, urllib.request, yaml, pathlib
 perfil, destino = sys.argv[1], sys.argv[2]
 url = f"https://huggingface.co/PaddlePaddle/PP-OCRv6_{perfil}_rec_onnx/raw/main/inference.yml"
 cfg = yaml.safe_load(urllib.request.urlopen(url).read().decode("utf-8"))
 chars = cfg["PostProcess"]["character_dict"]
-pathlib.Path(destino).write_text("\n".join(chars) + "\n", encoding="utf-8")
+# O newline explícito não é detalhe: em modo texto o Windows reescreve cada \n
+# como \r\n, e o arquivo sai com o dobro de quebras — mesmo conteúdo, outros
+# bytes, outro SHA-256. O MANIFESTO.json pina bytes, então o --check recusava o
+# dicionário recém-extraído na própria máquina que acabara de gerá-lo.
+pathlib.Path(destino).write_text(
+    "\n".join(chars) + "\n", encoding="utf-8", newline="\n"
+)
 print(f"  {len(chars)} caracteres")
 PY
 else

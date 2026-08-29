@@ -15,6 +15,16 @@ let pythonProcess: ChildProcess | null = null;
 /** Credencial desta execução, lida da saída do backend. Nunca vai para disco. */
 let tokenSessao = "";
 const PYTHON_PORT = 8123;
+/**
+ * Onde o Vite serve a interface em desenvolvimento.
+ *
+ * Vive numa constante porque este valor é usado em dois lugares que precisam
+ * concordar: a janela carrega esta URL e o backend recebe a mesma string como
+ * origem permitida no CORS. Se os dois divergirem — `localhost` de um lado,
+ * `127.0.0.1` do outro, ou uma porta diferente — o navegador reprova o
+ * preflight e o app trava carregando, com o backend no ar e sem erro visível.
+ */
+const URL_DEV = "http://localhost:5173";
 
 function getResourcePath(...segments: string[]): string {
   const isProd = app.isPackaged;
@@ -43,11 +53,22 @@ async function startPythonBackend(port: number): Promise<void> {
   let serverPath: string;
 
   if (isDev) {
-    // Em dev, usa o Python do venv local
-    pythonPath = path.join(__dirname, "..", ".venv", "bin", "python");
-    if (!fs.existsSync(pythonPath)) {
-      pythonPath = "python3"; // fallback para python do sistema
-    }
+    // Em dev, usa o Python do venv local. O venv não tem o mesmo layout nas
+    // duas plataformas: `Scripts/python.exe` no Windows, `bin/python` no
+    // resto. Procurar só por `bin/python` fazia o caminho nunca existir
+    // justamente no Windows, que é onde se desenvolve — e a execução caía no
+    // fallback sem que nada avisasse.
+    const raizVenv = path.join(__dirname, "..", ".venv");
+    const candidatos = [
+      path.join(raizVenv, "Scripts", "python.exe"),
+      path.join(raizVenv, "bin", "python"),
+    ];
+    // O fallback no Windows é `python`, não `python3`: o `python3.exe` que
+    // aparece no PATH costuma ser o atalho da Microsoft Store, que abre a loja
+    // em vez de executar. Sem venv o backend falha de qualquer jeito, mas
+    // falha com erro de importação em vez de silêncio.
+    const fallback = process.platform === "win32" ? "python" : "python3";
+    pythonPath = candidatos.find((caminho) => fs.existsSync(caminho)) ?? fallback;
     serverPath = path.join(__dirname, "..", "python-backend", "server.py");
   } else {
     // Em produção, usa o Python embutido (dentro de python-embed/)
@@ -61,8 +82,18 @@ async function startPythonBackend(port: number): Promise<void> {
 
   console.log(`Iniciando Python: ${pythonPath} ${serverPath} --port ${port}`);
 
+  // Em dev a interface é servida pelo Vite, numa origem diferente da do
+  // backend, e o navegador exige CORS para deixar o renderer ler a resposta.
+  // Quem declara a origem é aqui, não o backend: empacotado, a variável não é
+  // passada, o backend não monta CORS nenhum e nada muda em produção.
+  //
+  // Sem isto o app ficava preso em "Carregando motor de anonimização" com o
+  // backend perfeitamente no ar — o detalhe está comentado no `server.py`.
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONUNBUFFERED: "1" };
+  if (isDev) env.PRESIDIO_DEV_ORIGIN = URL_DEV;
+
   pythonProcess = spawn(pythonPath, [serverPath, "--port", String(port)], {
-    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -121,7 +152,7 @@ function createWindow(): void {
   const isDev = !app.isPackaged;
 
   if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL(URL_DEV);
     mainWindow.webContents.openDevTools({ mode: "bottom" });
   } else {
     mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));

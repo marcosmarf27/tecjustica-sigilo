@@ -11,6 +11,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -53,6 +54,40 @@ async def exigir_token(request: Request, call_next):
             content={"detail": "requisição sem credencial desta sessão"},
         )
     return await call_next(request)
+
+
+# CORS, e só em desenvolvimento.
+#
+# Empacotado, a interface é servida pelo próprio Electron e não há origem
+# cruzada: nenhum cabeçalho de CORS é montado, e o comportamento continua o de
+# sempre. Em dev a interface vem do Vite, em `http://localhost:5173`, e falar
+# com o backend em `127.0.0.1` passa a ser origem cruzada.
+#
+# O que quebrava era sutil e vale registrar, porque os dois mecanismos de
+# segurança se atropelaram: `comTimeout` manda `X-Presidio-Token` em TODA
+# requisição, `/health` inclusive. Cabeçalho customizado torna a requisição
+# não-simples, o navegador manda um OPTIONS de preflight antes, e o backend —
+# que nunca precisou responder preflight — devolvia 405 sem
+# `Access-Control-Allow-Origin`. O navegador então abortava a requisição de
+# verdade, o `catch` do hook engolia o erro em silêncio e a tela ficava presa em
+# "Carregando motor de anonimização" até estourar os 180 s. Ou seja: foi o
+# cabeçalho que protege o backend que criou a condição da falha.
+#
+# Nenhum teste pega isso — sem navegador não existe CORS, e a suíte fala HTTP
+# direto com o backend.
+#
+# A origem é declarada pelo Electron, não adivinhada aqui: assim o backend
+# empacotado nunca aceita origem nenhuma, mesmo que alguém suba um servidor na
+# 5173. E CORS não é o que protege este backend de qualquer forma — o token é.
+# CORS só decide quem pode LER a resposta; não impede a requisição de chegar.
+ORIGEM_DEV = os.environ.get("PRESIDIO_DEV_ORIGIN", "").strip()
+if ORIGEM_DEV:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[o for o in ORIGEM_DEV.split(",") if o],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Presidio-Token"],
+    )
 
 
 class AnonymizeRequest(BaseModel):
