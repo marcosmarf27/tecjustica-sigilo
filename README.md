@@ -213,9 +213,13 @@ PRESIDIO_NLP_MODE=spacy npm run dev:electron
 
 ## Testes e medição de acurácia
 
+O interpretador do venv está em `../.venv/Scripts/python.exe` no Windows e em
+`../.venv/bin/python` no resto — os exemplos abaixo usam o primeiro, já que o
+desenvolvimento acontece no Windows.
+
 ```bash
 cd python-backend
-PRESIDIO_NLP_MODE=spacy ../.venv/bin/python -m pytest tests -q
+PRESIDIO_NLP_MODE=spacy ../.venv/Scripts/python.exe -m pytest tests -q
 ```
 
 A suíte tem casos de regressão vindos de **OCR real de processo**: entidade
@@ -225,13 +229,18 @@ letra parecida. São esses os casos que separam 86% de 99% de recall.
 Para medir acurácia sobre um corpus seu:
 
 ```bash
-PRESIDIO_NLP_MODE=spacy ../.venv/bin/python -m eval.run_eval
-../.venv/bin/python -m eval.agregar eval/depois_spacy.json
+PRESIDIO_EVAL_CORPUS=/caminho/para/o/corpus \
+  ../.venv/Scripts/python.exe -m eval.run_eval
+../.venv/Scripts/python.exe -m eval.agregar eval/depois_bert.json
 ```
 
 O harness constrói o gabarito de forma independente do detector e reporta
 recall por ocorrência **e** proteção por valor único, com o inventário dos
-vazamentos. Aponte o corpus com `PRESIDIO_EVAL_CORPUS`.
+vazamentos.
+
+`PRESIDIO_EVAL_CORPUS` não tem valor padrão, e é de propósito: sem ela o gate
+não reprova, ele é **pulado** — e teste pulado passa por teste aprovado em log
+corrido. Confira no cabeçalho da saída que os documentos foram lidos.
 
 Resultados da última medição em [`docs/relatorio-situacao-2026-08-14.md`](docs/relatorio-situacao-2026-08-14.md).
 

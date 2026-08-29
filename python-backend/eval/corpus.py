@@ -5,7 +5,12 @@ Os arquivos NÃO ficam no repositório — contêm dados pessoais reais. Este m�
 apenas aponta para eles e registra o hash de cada um, para que um resultado de
 avaliação possa ser conferido contra a versão exata do documento que o produziu.
 
-O caminho pode ser sobrescrito com a variável de ambiente PRESIDIO_EVAL_CORPUS.
+A pasta que os contém vem de `PRESIDIO_EVAL_CORPUS`. Não há caminho padrão: o
+que havia era um absoluto da máquina onde isto foi escrito, e ainda por cima no
+formato do WSL (`/mnt/c/...`), que no Windows nativo não resolve para lugar
+nenhum. O efeito era o pior possível para uma medição — `disponivel()` dava
+falso e o gate de acurácia era pulado em silêncio, inclusive nas máquinas onde
+o corpus estava ali, só que noutro diretório.
 """
 
 from __future__ import annotations
@@ -16,7 +21,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_CORPUS_DIR = Path("/mnt/c/Users/marco/Downloads")
+# Sem corpus configurado, aponta para um nome que não existe de propósito: as
+# funções abaixo seguem operáveis e `disponivel()` responde False, que é o que
+# faz os testes pularem com motivo em vez de estourarem.
+_SEM_CORPUS = Path("corpus-nao-configurado")
 
 # nome curto → nome do arquivo no diretório do corpus
 CORPUS_FILES = {
@@ -75,7 +83,8 @@ class Documento:
 
 
 def corpus_dir() -> Path:
-    return Path(os.environ.get("PRESIDIO_EVAL_CORPUS", str(DEFAULT_CORPUS_DIR)))
+    pasta = os.environ.get("PRESIDIO_EVAL_CORPUS", "").strip()
+    return Path(pasta) if pasta else _SEM_CORPUS
 
 
 def carregar(nome: str) -> Documento:
