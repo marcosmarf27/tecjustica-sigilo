@@ -179,6 +179,11 @@ auditoria (ex: `CPF 123.***.***-09`, `nome J*** d* S****`) — configurável em
 
 Pré-requisitos: Node 20+, Python 3.12.
 
+**No Windows, siga [`docs/desenvolvimento-windows.md`](docs/desenvolvimento-windows.md).**
+É um aplicativo Windows, e é lá que ele deve ser desenvolvido — pelo WSL o
+`python.exe` embarcado é lido pela ponte de rede e cada carregamento de modelo
+leva dezenas de segundos que não existem no produto real.
+
 ```bash
 npm install
 
@@ -186,8 +191,16 @@ python3 -m venv .venv
 .venv/bin/pip install -r python-backend/requirements.txt
 .venv/bin/python -m spacy download pt_core_news_lg
 
+# Modelos do OCR (~31 MB), com SHA-256 conferido contra o MANIFESTO.json.
+# Sem eles o backend recusa a primeira página escaneada em vez de baixar
+# modelo da rede em silêncio.
+scripts/fetch-ocr-models.sh
+
 npm run dev:electron
 ```
+
+Para gerar o instalador é preciso montar antes o Python embarcado, que não está
+no git: `scripts/setup-python-embed.sh`, depois `npm run build:dist`.
 
 Para usar o modo leve (sem baixar BERT):
 ```bash

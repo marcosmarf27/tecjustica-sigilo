@@ -18,6 +18,14 @@
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# No Git Bash do Windows o executável se chama `python`, não `python3`. Sem
+# isto o script morre com "command not found" na primeira máquina Windows.
+PY_CMD="$(command -v python3 || command -v python || true)"
+if [[ -z "$PY_CMD" ]]; then
+  echo "Python não encontrado no PATH (procurei python3 e python)." >&2
+  exit 1
+fi
 DESTINO="$RAIZ/resources/ocr-models"
 MANIFESTO="$DESTINO/MANIFESTO.json"
 
@@ -38,7 +46,7 @@ mkdir -p "$DESTINO"
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 
 esperado() {
-  python3 -c "
+  "$PY_CMD" -c "
 import json,sys
 try:
     m = json.load(open('$MANIFESTO', encoding='utf-8'))
@@ -122,7 +130,7 @@ done
 DICT="$DESTINO/PP-OCRv6_rec_dict.txt"
 if [[ ! -f "$DICT" ]]; then
   echo "  extraindo PP-OCRv6_rec_dict.txt ..."
-  python3 - "$PERFIL" "$DICT" <<'PY'
+  "$PY_CMD" - "$PERFIL" "$DICT" <<'PY'
 import sys, urllib.request, yaml, pathlib
 perfil, destino = sys.argv[1], sys.argv[2]
 url = f"https://huggingface.co/PaddlePaddle/PP-OCRv6_{perfil}_rec_onnx/raw/main/inference.yml"
