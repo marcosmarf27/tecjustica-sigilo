@@ -50,16 +50,37 @@ type Segmento =
 /**
  * Divide o texto original nos pontos onde há detecção, para que cada ocorrência
  * possa ser tarjada, focada e auditada individualmente.
+ *
+ * ## O índice é o da lista original, e isso não é detalhe
+ *
+ * `indice` tem de ser a posição da ocorrência em `entitiesFound`, **não** a
+ * posição no array ordenado e filtrado daqui. A lista lateral identifica cada
+ * ocorrência por `entitiesFound.indexOf(entidade)`, e o texto marca cada tarja
+ * com `data-ocorrencia={indice}`: se os dois numerarem diferente, clicar numa
+ * ocorrência da lista leva a **outra** tarja no texto.
+ *
+ * Era o que acontecia. Este `forEach` numerava pela ordem de saída, que difere
+ * da original em dois momentos: quando o motor não devolve as ocorrências
+ * ordenadas por `start`, e sempre que alguma é descartada — a faixa inválida no
+ * `filter`, ou a sobreposta no `return` abaixo. Num documento de OCR, com
+ * centenas de ocorrências e sobreposição frequente, os dois acontecem.
+ *
+ * Num revisor de tarjas isso é grave e silencioso: quem confere clica na
+ * ocorrência 12, o texto rola até outra, e a pessoa acredita ter auditado a
+ * que pediu. O erro não aparece em lugar nenhum — os dois números existem, são
+ * válidos, e apontam para coisas diferentes.
  */
 function segmentar(texto: string, entidades: EntityFound[]): Segmento[] {
-  const ordenadas = [...entidades]
-    .filter((e) => e.start < e.end && e.end <= texto.length)
-    .sort((a, b) => a.start - b.start);
+  const ordenadas = entidades
+    // O índice original viaja junto, antes de qualquer filtro ou ordenação.
+    .map((entidade, indice) => ({ entidade, indice }))
+    .filter(({ entidade: e }) => e.start < e.end && e.end <= texto.length)
+    .sort((a, b) => a.entidade.start - b.entidade.start);
 
   const segmentos: Segmento[] = [];
   let cursor = 0;
 
-  ordenadas.forEach((entidade, indice) => {
+  ordenadas.forEach(({ entidade, indice }) => {
     if (entidade.start < cursor) return; // sobreposta com a anterior
     if (entidade.start > cursor) {
       segmentos.push({ tipo: "texto", conteudo: texto.slice(cursor, entidade.start) });
