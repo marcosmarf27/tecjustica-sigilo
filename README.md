@@ -83,6 +83,18 @@ junto para não depender de internet nem na primeira execução.
 Formatos: `.pdf`, `.docx`, `.xlsx`, `.pptx`, imagens (`.png`, `.jpg`, `.tif`…),
 além de `.txt`, `.md` e `.rtf`.
 
+**Quanto demora.** Página com texto nativo é instantânea — só as digitalizadas
+passam pelo reconhecimento, e essas custam **alguns segundos cada** num notebook
+comum. Uma procuração de 12 páginas escaneadas leva minutos, não segundos, e a
+tela informa em que página está (“página 3 de 12”) justamente para você
+distinguir lento de travado. Um processo inteiro é trabalho de café.
+
+Se quiser ajustar ao seu processador, `PRESIDIO_OCR_THREADS` define quantas
+threads o reconhecedor usa. **Mais não é mais rápido**: o padrão é 4 porque
+medir mostrou que subir disso chega a piorar cinco vezes em CPU com núcleos de
+eficiência (os E-cores dos Intel recentes). O porquê está no cabeçalho de
+`THREADS_PADRAO`, em `python-backend/ocr_engine.py`.
+
 ### 🎚️ Você escolhe como substituir
 Três políticas, com o resultado à vista na hora de escolher:
 

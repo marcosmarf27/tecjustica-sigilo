@@ -170,6 +170,43 @@ Alguns testes de OCR são pulados: dependem de um corpus de processos reais que
 não está no repositório (são documentos de verdade). Os caminhos apontam para a
 máquina onde foram escritos.
 
+## Medir desempenho de OCR neste notebook
+
+Se você for tocar em qualquer parâmetro do OCR, leia isto antes — foi uma tarde
+inteira de números que não faziam sentido.
+
+**Uma medição isolada não vale nada aqui.** Repetindo *a mesma* configuração em
+estados térmicos diferentes, a mesma página deu de 4,7 s a 20,7 s. O notebook
+sobe e desce de clock conforme a temperatura, e uma bancada que roda as
+configurações em sequência mede a temperatura, não a configuração: a última
+sempre parece pior.
+
+Como medir para valer:
+
+1. **Máquina ociosa.** Feche o app, o `npm run dev`, o Docker. Confira com
+   `Get-Process | Sort-Object CPU -Descending | Select-Object -First 5` — o
+   `com.docker.backend` sozinho já chegou a 9.000 s de CPU acumulada aqui.
+2. **Ordem direta e inversa.** Rode a lista de configurações, depois a lista
+   invertida, e compare **medianas**. A deriva térmica atinge as duas passadas,
+   e a inversão a cancela.
+3. **Aqueça antes de cronometrar.** A primeira chamada carrega as três sessões
+   ONNX (~13 s) e não é o que você quer medir.
+4. **Confira que a saída não mudou.** Parâmetro de desempenho que altera o texto
+   reconhecido não é ganho, é troca — e troca em OCR mexe em recall.
+
+**Cuidado com o CPU híbrido.** Os Intel de 12ª geração em diante misturam
+P-cores e E-cores, e o `cpu_count` conta os dois como iguais. Foi assim que o
+`intra_op_num_threads` acabou em 11 numa máquina de 12 threads e ficou entre 2x
+e 5x mais lento que 4 — o ONNX fatia cada operação em partes iguais e sincroniza
+a cada camada, então a fatia que caiu num E-core segura todas as outras.
+
+Para isolar o efeito, prenda o processo a um conjunto de núcleos com
+`SetProcessAffinityMask` antes de criar a sessão (as threads herdam a afinidade
+na criação do pool). Na numeração do Windows os P-cores vêm primeiro:
+`0x0FF` = só P-cores, `0xF00` = só E-cores neste i5-12450HX. Declare o
+`argtypes` no `ctypes` — em x64 o HANDLE tem 64 bits e sem isso a chamada falha
+calada.
+
 ## O que muda em relação ao WSL
 
 | | WSL | Windows |
