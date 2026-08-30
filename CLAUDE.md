@@ -158,9 +158,15 @@ compensaria outra perdida).
 
 ## Acurácia
 
-Gate: `cd python-backend && python -m eval.run_eval`. Baseline a bater: **99,92%
-por ocorrência, 99,10% por valor único**, no modo BERT. Confira `modo_nlp` dentro
-do JSON — se o motor cair para spaCy, o arquivo sai com números de spaCy.
+Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
+`python-backend`. Baseline a bater: **99,92% por ocorrência, 99,10% por valor
+único**, no modo BERT. Confira `modo_nlp` dentro do JSON — se o motor cair para
+spaCy, o arquivo sai com números de spaCy.
+
+Última execução, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
+da interface, 819 páginas): **99,94% por ocorrência** (3.613/3.615) e **99,40%
+por valor único** (331/333). Acima da baseline. Custa ~62 min de CPU — não é
+gate de cada commit, é gate de release.
 
 Termos novos vão em `python-backend/config/deny_list.json`, não hardcoded;
 palavras de contexto em `config/context_words.json`. Documentos brasileiros usam
@@ -174,5 +180,10 @@ positivo.
 - Tarja de redação em PDF (queimar pixels, sanear metadados, verificar resíduo).
 - Extensão de navegador para o PJe — desenho ainda não escolhido entre Native
   Messaging (sem porta aberta) e HTTP local com pareamento.
-- Reconferir os dois vazamentos residuais da auditoria de 14/08 (CPF truncado no
-  fim da linha, sobrenome perdido na virada de página) com o motor de OCR novo.
+- Os dois vazamentos residuais da auditoria de 14/08 **continuam**, reconferidos
+  com o motor de OCR novo em 29/08/2026. Ambos em `expedientes_13-08`: o CPF
+  `004.811.253-` cortado no fim da linha, com o dígito verificador na linha
+  seguinte, e `ELIONEUDO EVARISTO DE`, nome partido na quebra. São entidades
+  interrompidas no meio do texto — a janela com sobreposição resolve o caso de
+  linha adjacente, não o de token truncado. Nenhum outro tipo vaza: CEP, CNJ,
+  CNPJ, e-mail, OAB, RG e telefone deram 100% nos três documentos.
