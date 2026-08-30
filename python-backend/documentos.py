@@ -235,6 +235,72 @@ def _extrair_paginas(
     return paginas, resultado.total_pages, erros
 
 
+def _contar_paginas(caminho: str) -> int:
+    """
+    Quantas páginas o documento tem, o mais barato possível.
+
+    Serve só para o denominador do progresso, então erra para zero em silêncio:
+    um total desconhecido faz a tela mostrar "lendo…" sem número, que é o que ela
+    já fazia. Derrubar a extração porque a contagem falhou seria trocar o
+    documento pelo indicador.
+
+    PDF é uma abertura do índice (~0,2 s em 12 páginas), sem rasterizar nada.
+    Imagem é sempre uma. Documento de escritório não tem página conhecida antes
+    do parse — ali o progresso fica sem denominador mesmo.
+    """
+    extensao = Path(caminho).suffix.lower()
+    if extensao == ".pdf":
+        try:
+            import pypdfium2 as pdfium
+
+            documento = pdfium.PdfDocument(caminho)
+            try:
+                return len(documento)
+            finally:
+                documento.close()
+        except Exception:
+            return 0
+    if extensao in _FORMATOS_COM_TEXTO:
+        return 0
+    return 1
+
+
+def _vigiar_progresso(
+    progresso: Callable[[int, int], None] | None, extracao: str, total: int
+) -> Callable[[], None]:
+    """
+    Reporta o avanço enquanto o liteparse trabalha. Devolve como parar.
+
+    O contador de páginas atendidas é alimentado pela rota `/ocr` conforme cada
+    página é reconhecida; aqui ele é apenas **lido**, a cada meio segundo, por
+    uma thread que não segura nada. Meio segundo é curto para a tela parecer
+    viva e longo para o custo ser irrelevante ao lado de uma página de OCR.
+
+    A thread é `daemon` e o `parar` é sempre chamado num `finally`: uma falha no
+    parse não pode deixar vigília rodando sobre uma extração que acabou.
+    """
+    if progresso is None:
+        return lambda: None
+
+    import threading
+
+    fim = threading.Event()
+
+    def vigiar() -> None:
+        import ocr_engine
+
+        while not fim.wait(0.5):
+            try:
+                progresso(ocr_engine.paginas_atendidas(extracao), total)
+            except Exception:
+                # Indicador não derruba extração. Se o relato falhar, a leitura
+                # continua e o usuário perde o número, não o documento.
+                return
+
+    threading.Thread(target=vigiar, name="progresso-ocr", daemon=True).start()
+    return fim.set
+
+
 def extrair(
     caminho: str | Path,
     progresso: Callable[[int, int], None] | None = None,
@@ -243,25 +309,43 @@ def extrair(
     """
     Extrai o texto de um documento, página a página.
 
-    `progresso` recebe (páginas prontas, total) — o liteparse processa o
-    documento inteiro numa chamada, então o retorno é em dois passos: o total
-    assim que ele é conhecido e a conclusão ao final. Para acompanhar página a
-    página de verdade seria preciso fatiar o documento, o que custa mais do que
-    informa.
+    `progresso` recebe (páginas prontas, total).
+
+    ## Por que havia dois passos, e por que não bastam
+
+    O liteparse processa o documento inteiro numa chamada só, então parecia que
+    o máximo possível era avisar no começo e no fim — e era isso que acontecia:
+    `progresso(0, 0)` na entrada e `progresso(n, n)` na saída. Entre os dois, a
+    tela mostrava "Lendo o documento" e um giro, **sem número nenhum**, pelo
+    tempo que a leitura levasse. Numa procuração digitalizada de 12 páginas isso
+    são minutos parado numa tela que não muda: quem está olhando conclui, com
+    razão, que travou.
+
+    O sinal por página existia o tempo todo. Toda página digitalizada passa pela
+    rota `/ocr` deste mesmo backend, que já registra o atendimento indexado por
+    hash da imagem — é como o `_reconhecidas` sabe, no fim, quais páginas não
+    chegaram ao OCR. Faltava **ler esse contador durante a corrida**, e não só
+    no fim. Uma thread de vigília faz isso, sem fatiar documento nenhum.
+
+    O total vem de uma contagem barata de páginas (~0,2 s num PDF de 12), feita
+    antes de começar.
     """
     caminho = str(caminho)
     if not Path(caminho).exists():
         raise FileNotFoundError(caminho)
 
-    if progresso:
-        progresso(0, 0)
-
     import uuid
 
     extracao = uuid.uuid4().hex
+    total_previsto = _contar_paginas(caminho) if progresso else 0
+    if progresso:
+        progresso(0, total_previsto)
+
+    parar_vigia = _vigiar_progresso(progresso, extracao, total_previsto)
     try:
         paginas, total_paginas, erros = _extrair_paginas(caminho, max_paginas, extracao)
     finally:
+        parar_vigia()
         # Sempre: se o parse explodir depois de reconhecer algumas páginas, a
         # entrada tem de sair do contador do mesmo jeito.
         atendidas = _reconhecidas(extracao)

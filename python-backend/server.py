@@ -313,8 +313,15 @@ def processar(req: ProcessarRequest):
             job.etapa = "Lendo o documento"
 
             def progresso_extracao(prontas: int, total: int) -> None:
+                # `prontas` são as páginas que já voltaram do OCR, contadas pela
+                # rota `/ocr`. A etapa nomeia a página em curso porque é a
+                # informação que responde "travou?": numa procuração de 12
+                # páginas digitalizadas a leitura leva minutos, e a tela dizia
+                # apenas "Lendo o documento" o tempo todo.
                 job.atual, job.total = prontas, total
-                if total:
+                if total and prontas:
+                    job.etapa = f"Lendo o documento — página {prontas} de {total}"
+                elif total:
                     job.etapa = f"Lendo o documento — {total} páginas"
 
             documento = documentos.extrair(req.caminho, progresso=progresso_extracao)

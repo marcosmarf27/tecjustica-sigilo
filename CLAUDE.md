@@ -172,11 +172,58 @@ O liteparse **não aceita motor de OCR injetado em processo**. O único ponto de
 extensão é `ocr_server_url` apontando para um `POST /ocr`, então a rota mora no
 próprio backend, atrás do token, que o liteparse repassa em `ocr_server_headers`.
 
+**Progresso página a página existe — o sinal sempre esteve lá.** O callback de
+`documentos.extrair` disparava exatamente duas vezes, `(0,0)` e `(n,n)`, porque
+o liteparse processa o documento inteiro numa chamada. Entre as duas, minutos de
+tela imóvel dizendo "Lendo o documento": quem olha conclui que travou, com
+razão. Mas toda página digitalizada passa pela rota `/ocr`, que já conta por
+hash da imagem — bastava **ler o contador durante a corrida**, não só no fim.
+Uma thread de vigília faz isso sem fatiar documento nenhum.
+
 **Resolução alta parece melhor e não é.** O detector parte a linha em mais
 caixas e um CPF atravessa duas; ponta a ponta, 16 ocorrências íntegras contra 6.
 Ocorrência quebrada não casa com o recognizer e não é mascarada. Os valores
 medidos estão comentados em `ocr_engine.py` — mexer neles exige rodar
 `eval/bench_ocr.py` de novo.
+
+**`cpu_count - 1` é a resposta errada duas vezes.** O `intra_op_num_threads` do
+ONNX era 11 numa máquina de 12 threads, e isso é a **pior** configuração
+possível — entre 2x e 5x mais lento que 4. O ONNX não distribui páginas entre
+threads: ele fatia cada operação e **sincroniza numa barreira a cada camada**, e
+numa barreira o grupo anda na velocidade da fatia mais lenta. O i5-12450HX tem 4
+P-cores (8 threads lógicas) e 4 E-cores; com até 8 threads o escalonador mantém
+tudo em P-core, com 11 ele é obrigado a derramar. Provado com afinidade de
+núcleo: 4 threads só em E-core dão 13,78 s/página contra 5,89 s só em P-core, e
+as mesmas 11 threads vão de 10,08 s para 6,83 s só por não encostarem nos
+E-cores. Presas aos P-cores, 4/8/11 threads empatam — **subir de 4 nunca deu
+ganho**. O texto reconhecido é idêntico; isto é só tempo.
+
+Corolário: `THREADS_PADRAO = 4` é mitigação estatística, não a correção da
+causa. A correção seria prender o OCR aos P-cores, e não cabe onde ele está — o
+OCR roda no mesmo processo que o BERT e `SetProcessAffinityMask` no Windows
+atinge todas as threads do processo. Sairia num processo separado.
+
+O `_workers_padrao()` em `documentos.py` **continua** `cpu_count - 1`: são 11
+threads rasterizando A4 a 300 dpi (~26 MB cada) para enfileirar num motor
+serializado por lock. Mesmo cheiro, ainda não medido.
+
+Não confie nos números absolutos de OCR deste notebook fora do ranking: a mesma
+medição deu de 4,7 s a 20,7 s conforme o estado térmico. Meça sempre em ordem
+direta **e** inversa, e compare medianas.
+
+**A rota `/ocr` do modo offline respondeu 500 em toda chamada, sem ninguém
+notar.** `ocr_engine.py` tem `from __future__ import annotations`, então as
+anotações da rota chegam ao FastAPI como strings, e o Pydantic resolve string de
+anotação nos **globais do módulo** — nunca nos locais da função onde a rota foi
+definida. Com o `import` do FastAPI dentro da função, `UploadFile` virava um
+ForwardRef que não resolvia, e o erro estourava na validação do corpo, antes do
+`try` do handler. O `server.py` escapa por dois motivos que se somam: não tem o
+`from __future__` e importa o FastAPI no topo.
+
+O estrago era invisível pelo motivo abaixo: com o OCR morto o liteparse não
+falha. O mesmo documento saía com 3.800 caracteres em vez de 55.453. Importar o
+módulo não pega — as rotas registram normalmente. Só chamar pega, e é por isso
+que existe `tests/test_servidor_ocr_offline.py`.
 
 **`ParseResult.page_errors` NÃO cobre falha de OCR.** Com o motor fora do ar o
 liteparse termina sem erro e a página sai com o resto de texto nativo: o app

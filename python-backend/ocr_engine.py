@@ -185,23 +185,87 @@ def normalizar_idioma(idioma: str | None) -> str:
     return _ALIASES_IDIOMA.get(idioma.strip().lower().replace(" ", ""), IDIOMA_PADRAO)
 
 
+# Threads por sessão ONNX.
+#
+# ## Por que "quase a máquina inteira" era a pior escolha
+#
+# Este valor já foi `cpu_count - 1` — 11 numa máquina de 12 threads lógicas. O
+# raciocínio parecia sólido: a inferência é serializada por perfil
+# (`_locks_inferencia`), então há uma página por vez no motor, sem
+# oversubscription entre requisições; logo, dá para entregar quase tudo a ela.
+#
+# O raciocínio erra em **como** o ONNX Runtime paraleliza. Ele não distribui
+# páginas entre threads: ele fatia *cada operação* da rede em partes iguais e
+# **sincroniza numa barreira a cada camada**. É fork-join. Numa barreira o grupo
+# anda na velocidade da fatia mais lenta, não na soma das rápidas — e o custo do
+# retardatário é pago centenas de vezes por página.
+#
+# Num Intel híbrido isso é fatal. O 12450HX tem 4 P-cores (8 threads lógicas com
+# hyperthreading) e 4 E-cores (4 threads). O ONNX divide o trabalho em partes
+# **iguais**, sem saber que alguns núcleos são mais lentos. Daí o degrau:
+#
+#   - com **até 8** threads o escalonador consegue manter tudo em P-core;
+#   - com **11** ele é obrigado a pôr pelo menos 3 threads em E-core.
+#
+# ## O que a afinidade de núcleo provou
+#
+# Medido em 30/08/2026, i5-12450HX, máquina ociosa, uma página da procuração
+# digitalizada, prendendo o processo a conjuntos específicos de núcleos:
+#
+# | threads | núcleos permitidos      | s/página |
+# |---------|-------------------------|----------|
+# |   11    | todos                   |  10,08   |
+# |    4    | todos                   |   8,26   |
+# |    8    | só P-cores (0-7)        |   5,56   |
+# |    4    | só P-cores físicos      |   5,89   |
+# |    4    | **só E-cores (8-11)**   |  13,78   |
+# |   11    | só P-cores (0-7)        |   6,83   |
+#
+# Duas leituras, e a segunda é a que importa:
+#
+# 1. **O E-core é 2,3x mais lento** — 13,78 s contra 5,89 s com o mesmo número
+#    de threads. O retardatário existe e é medível.
+# 2. **O número de threads quase não importa; onde elas rodam, sim.** Presas aos
+#    P-cores, 4/8/11 threads dão 5,89 / 5,56 / 6,83 — tudo na mesma faixa. Ou
+#    seja, subir de 4 para 11 nunca deu ganho nenhum: só aumentou a chance de
+#    encostar num E-core. As mesmas 11 threads vão de 10,08 s para 6,83 s só por
+#    não encostarem.
+#
+# Então **este número é uma mitigação estatística, não a correção da causa**. A
+# correção seria prender o OCR aos P-cores — e ela não cabe aqui: o OCR roda no
+# mesmo processo que o BERT, `SetProcessAffinityMask` no Windows atinge todas as
+# threads do processo, e prender tudo aos P-cores prejudicaria o modelo de
+# linguagem. Sairia num processo separado, que é decisão de arquitetura.
+#
+# ## Sobre os números absolutos
+#
+# Não confie neles fora do ranking. Este é um notebook: repetindo a mesma
+# medição em estados térmicos diferentes, 4 threads deu de 4,7 s a 20,7 s. O que
+# se repetiu em **toda** medição, em qualquer ordem e temperatura, foi 11
+# threads ser a pior configuração — por algo entre 2x e 5x. É esse fato que
+# sustenta a mudança, não uma cifra exata.
+#
+# O texto reconhecido é **idêntico** entre 4 e 11 threads, conferido linha a
+# linha. Este número não afeta acurácia, só tempo.
+#
+# Por que 4 e não "os P-cores desta máquina": descobrir a classe de eficiência de
+# cada núcleo exige API específica de sistema operacional, e errar para mais é o
+# lado caro. Errar para menos custa pouco — estes modelos são pequenos e a escala
+# intra-op satura cedo, como a tabela mostra. Quem quiser ajustar à própria
+# máquina tem o `PRESIDIO_OCR_THREADS`, e o `eval/bench_ocr.py` para medir antes.
+#
+# Não pode ser `-1` (o padrão do RapidOCR): num servidor esse valor vira "todos
+# os núcleos" para cada sessão, e as sessões de detecção, classificação e
+# reconhecimento coexistem.
+THREADS_PADRAO = 4
+
+
 def _threads() -> int:
-    """Threads por sessão ONNX.
-
-    A inferência é serializada por `_lock_inferencia` (ver `reconhecer`), então
-    há sempre uma página por vez no motor e não existe oversubscription entre
-    requisições — dá para entregar a máquina quase inteira a ela. Deixa-se um
-    núcleo livre para a interface e para o parse do liteparse, que continua
-    rodando em paralelo nas páginas de texto nativo.
-
-    Não pode ser `-1` (o padrão do RapidOCR): num servidor esse valor vira
-    "todos os núcleos" para cada sessão, e as sessões de detecção,
-    classificação e reconhecimento coexistem.
-    """
+    """Threads por sessão ONNX. Ver o bloco de `THREADS_PADRAO`."""
     bruto = os.environ.get("PRESIDIO_OCR_THREADS")
     if bruto and bruto.isdigit() and int(bruto) > 0:
         return int(bruto)
-    return max(1, (os.cpu_count() or 2) - 1)
+    return max(1, min(THREADS_PADRAO, os.cpu_count() or THREADS_PADRAO))
 
 
 # Arquivos que compõem um perfil. O `cls` é o classificador de orientação de
@@ -521,6 +585,17 @@ def registrar_atendimento(extracao: str | None, conteudo: bytes) -> None:
         _atendidas.setdefault(extracao, set()).add(chave)
 
 
+def paginas_atendidas(extracao: str) -> int:
+    """Quantas páginas esta extração já reconheceu — **sem** encerrar a conta.
+
+    Existe para o progresso. O `encerrar_contagem` esvazia o registro, então
+    chamá-lo no meio da extração zeraria o que o `documentos.extrair` precisa
+    ler no fim para saber quais páginas não chegaram ao OCR.
+    """
+    with _lock_contador:
+        return len(_atendidas.get(extracao, ()))
+
+
 def encerrar_contagem(extracao: str) -> int:
     """Quantas páginas DISTINTAS esta extração reconheceu. Esquece a conta.
 
@@ -596,18 +671,77 @@ def _conferir_integridade(perfil: str) -> list[str]:
     return problemas
 
 
-def _servidor_autonomo() -> None:
-    """Servidor mínimo do contrato `POST /ocr`, para o bench.
-
-    Em produção quem expõe a rota é o `server.py`, atrás do token de sessão.
-    Aqui não há token porque o bench sobe, mede e derruba — mas o bind é
-    explicitamente em 127.0.0.1.
+def montar_app_ocr(perfil: str = PERFIL_PADRAO):
     """
+    Monta o app do contrato `POST /ocr` — o servidor do **modo offline**.
+
+    Separado de `_servidor_autonomo` para poder ser testado sem subir uvicorn.
+    Não é detalhe: a rota daqui já respondeu 500 em **toda** chamada, e o modo
+    offline inteiro (CLI e MCP com o aplicativo fechado, mais o
+    `eval/bench_ocr.py`) ficou quebrado sem que nada acusasse. O liteparse não
+    falha quando o OCR morre — ele segue com o texto nativo que houver, e um
+    documento digitalizado sai quase vazio com cara de completo. Um teste que
+    apenas importe o módulo não pega isso; só chamar a rota pega.
+
+    Em produção quem expõe `/ocr` é o `server.py`, atrás do token de sessão.
+    Aqui não há token — o processo sobe, atende, e morre com quem o levantou —
+    mas o bind é sempre 127.0.0.1.
+    """
+    from fastapi import FastAPI, File, Form, Request, UploadFile
+    from fastapi.responses import JSONResponse
+
+    # Sem esta linha, TODA chamada a `/ocr` aqui responde 500.
+    #
+    # Este módulo tem `from __future__ import annotations`, então as anotações
+    # da rota chegam ao FastAPI como **strings**. Quem as resolve é o Pydantic,
+    # e ele procura os nomes nos **globais do módulo** — nunca nos locais da
+    # função onde a rota foi definida. Com o `import` acima sendo local,
+    # `UploadFile` fica um ForwardRef que não resolve, e o erro estoura na
+    # validação do corpo, **antes** do `try` do handler: o `except` que
+    # devolveria um 500 com mensagem nem chega a ser alcançado, e sai um
+    # "Internal Server Error" seco, sem pista nenhuma.
+    #
+    # O `server.py` não sofre disso por dois motivos que se somam: não tem o
+    # `from __future__`, e importa o FastAPI no topo do módulo.
+    globals().update(
+        {"UploadFile": UploadFile, "File": File, "Form": Form, "Request": Request}
+    )
+
+    app = FastAPI()
+
+    @app.post("/ocr")
+    async def ocr(
+        request: Request,
+        file: UploadFile = File(...),
+        language: str = Form(IDIOMA_PADRAO),
+    ):
+        try:
+            conteudo = await file.read()
+            # Mesma contabilidade do `server.py`: a página fica registrada na
+            # conta desta extração, indexada por hash da imagem. É o que alimenta
+            # o progresso página a página e o aviso de página que não chegou ao
+            # OCR. Sem isto — como estava — o modo offline terminava dizendo que
+            # TODAS as páginas digitalizadas tinham falhado, sobre um documento
+            # que ele acabara de ler inteiro.
+            registrar_atendimento(
+                request.headers.get("x-presidio-ocr-extracao"), conteudo
+            )
+            return {"results": reconhecer(conteudo, language, perfil)}
+        except Exception as erro:  # noqa: BLE001 - o contrato pede 500 com corpo
+            return JSONResponse(status_code=500, content={"error": str(erro)})
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok", "perfil": perfil}
+
+    return app
+
+
+def _servidor_autonomo() -> None:
+    """Sobe o `montar_app_ocr` em uvicorn. Ponto de entrada de `ocr_engine.py`."""
     import argparse
 
     import uvicorn
-    from fastapi import FastAPI, File, Form, UploadFile
-    from fastapi.responses import JSONResponse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8829)
@@ -615,19 +749,7 @@ def _servidor_autonomo() -> None:
     args = parser.parse_args()
 
     os.environ.setdefault("PRESIDIO_OCR_PERFIL", args.perfil)
-    app = FastAPI()
-
-    @app.post("/ocr")
-    async def ocr(file: UploadFile = File(...), language: str = Form(IDIOMA_PADRAO)):
-        try:
-            conteudo = await file.read()
-            return {"results": reconhecer(conteudo, language, args.perfil)}
-        except Exception as erro:  # noqa: BLE001 - o contrato pede 500 com corpo
-            return JSONResponse(status_code=500, content={"error": str(erro)})
-
-    @app.get("/health")
-    async def health():
-        return {"status": "ok", "perfil": args.perfil}
+    app = montar_app_ocr(args.perfil)
 
     motor(args.perfil)  # aquece antes de aceitar tráfego
     print(f"OCR_PRONTO port={args.port} perfil={args.perfil}", flush=True)

@@ -245,22 +245,109 @@ function backendResourcePath(): string {
     : path.join(__dirname, "..", "resources", "python-backend");
 }
 
-async function getUserPath(): Promise<string> {
-  if (process.platform !== "win32") return "";
-  const ps =
-    `[Environment]::GetEnvironmentVariable('PATH','User')`;
-  const { stdout } = await execFileP("powershell.exe", [
-    "-NoProfile", "-Command", ps,
-  ]);
-  return (stdout || "").trim();
+/*
+ * O PATH do usuário, lido e gravado **cru**.
+ *
+ * ## Duas armadilhas, e as duas estavam aqui
+ *
+ * **1. `-Args` não existe em `-Command`.** A gravação era
+ * `powershell -Command "…$args[0]…" -Args valor`, e o PowerShell não trata o
+ * que vem depois de `-Command` como argumento: ele **concatena no texto do
+ * script**. O comando executado virava `… -Args C:\…`, que é erro de sintaxe.
+ * O botão "Ativar linha de comando" nunca funcionou — falhava com um erro de
+ * parse que ninguém via. (`$args` só é populado com `-File`.)
+ *
+ * Aqui o valor vai por **variável de ambiente do processo filho**: não passa
+ * pela linha de comando, então não há aspa, espaço, acento ou `;` que possa
+ * quebrar a análise.
+ *
+ * **2. `[Environment]::GetEnvironmentVariable('PATH','User')` expande.** Um
+ * PATH guardado como `REG_EXPAND_SZ` com `%USERPROFILE%in` dentro volta já
+ * resolvido; gravar isso de volta **congela a expansão para sempre**, e o PATH
+ * do usuário deixa de acompanhar o perfil. O conserto de uma coisa estragaria
+ * outra, em silêncio. Por isso a leitura usa `DoNotExpandEnvironmentNames` e a
+ * gravação preserva o tipo original do valor.
+ *
+ * Como isto mexe no registro direto, e não pela API do .NET, o
+ * `WM_SETTINGCHANGE` precisa ser disparado à mão — sem ele, nenhum programa já
+ * aberto (o Explorer inclusive) enxerga o PATH novo. É o mesmo aviso que o
+ * `build/installer.nsh` dispara depois de instalar.
+ */
+const PS_LER_PATH = `
+$chave = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment')
+if ($null -eq $chave) { '' ; exit 0 }
+$valor = $chave.GetValue(
+  'Path', '',
+  [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
+)
+$tipo = try { $chave.GetValueKind('Path').ToString() } catch { 'ExpandString' }
+[Console]::Out.Write($tipo + "\`n" + $valor)
+`;
+
+const PS_GRAVAR_PATH = `
+$novo = $env:SIGILO_PATH_NOVO
+$tipo = if ($env:SIGILO_PATH_TIPO -eq 'String') {
+  [Microsoft.Win32.RegistryValueKind]::String
+} else {
+  [Microsoft.Win32.RegistryValueKind]::ExpandString
+}
+$chave = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+$chave.SetValue('Path', $novo, $tipo)
+$chave.Close()
+
+# Sem este aviso, nada que já esteja aberto enxerga o PATH novo.
+Add-Type -Namespace Win32 -Name Aviso -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(
+    IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+    uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+$res = [UIntPtr]::Zero
+# HWND_BROADCAST = 0xffff, WM_SETTINGCHANGE = 0x1A, SMTO_ABORTIFHUNG = 0x2
+[void][Win32.Aviso]::SendMessageTimeout(
+  [IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 0x2, 5000, [ref]$res
+)
+`;
+
+interface PathDoUsuario {
+  valor: string;
+  /** `String` ou `ExpandString` — preservado na gravação. */
+  tipo: string;
 }
 
-async function setUserPath(newValue: string): Promise<void> {
-  const ps =
-    `[Environment]::SetEnvironmentVariable('PATH', $args[0], 'User')`;
-  await execFileP("powershell.exe", [
-    "-NoProfile", "-Command", ps, "-Args", newValue,
+async function getUserPath(): Promise<PathDoUsuario> {
+  if (process.platform !== "win32") return { valor: "", tipo: "ExpandString" };
+  const { stdout } = await execFileP("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command", PS_LER_PATH,
   ]);
+  const [tipo, ...resto] = (stdout || "").split("\n");
+  return { valor: resto.join("\n"), tipo: (tipo || "ExpandString").trim() };
+}
+
+async function setUserPath(novoValor: string, tipo: string): Promise<void> {
+  await execFileP(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", PS_GRAVAR_PATH],
+    { env: { ...process.env, SIGILO_PATH_NOVO: novoValor, SIGILO_PATH_TIPO: tipo } }
+  );
+}
+
+/** As entradas do PATH, sem as vazias. */
+function entradasDoPath(bruto: string): string[] {
+  return bruto.split(";").filter(Boolean);
+}
+
+/**
+ * Duas entradas de PATH apontam para a mesma pasta?
+ *
+ * Tira aspas (o Windows aceita entrada citada), normaliza separadores e ignora
+ * barra final e caixa. Comparar as strings cruas faria a checagem de "já está
+ * instalado" errar com `...{BS}python-backend{BS}` e acrescentar a pasta duas vezes.
+ */
+function mesmaPasta(a: string, b: string): boolean {
+  const limpar = (valor: string) =>
+    path.normalize(valor.trim().replace(/^"|"$/g, "")).replace(/[\\/]+$/, "").toLowerCase();
+  return limpar(a) === limpar(b);
 }
 
 async function wslAvailable(): Promise<boolean> {
@@ -308,10 +395,10 @@ ipcMain.handle("cli-status", async () => {
   };
 
   if (process.platform === "win32") {
-    const userPath = await getUserPath().catch(() => "");
-    status.windows.onPath = userPath
-      .split(";")
-      .some((p) => path.normalize(p).toLowerCase() === path.normalize(backendDir).toLowerCase());
+    const userPath = await getUserPath().catch(() => ({ valor: "", tipo: "ExpandString" }));
+    status.windows.onPath = entradasDoPath(userPath.valor).some((entrada) =>
+      mesmaPasta(entrada, backendDir)
+    );
     status.windows.installed = status.windows.onPath;
 
     if (await wslAvailable()) {
@@ -337,15 +424,13 @@ ipcMain.handle("cli-install-windows", async () => {
     return { ok: false, error: "Disponível apenas no Windows." };
   }
   const dir = backendResourcePath();
-  const current = await getUserPath();
-  const parts = current.split(";").filter(Boolean);
-  const already = parts.some(
-    (p) => path.normalize(p).toLowerCase() === path.normalize(dir).toLowerCase()
-  );
-  if (already) return { ok: true, alreadyInstalled: true };
+  const atual = await getUserPath();
+  const partes = entradasDoPath(atual.valor);
+  if (partes.some((entrada) => mesmaPasta(entrada, dir))) {
+    return { ok: true, alreadyInstalled: true };
+  }
 
-  const newValue = [...parts, dir].join(";");
-  await setUserPath(newValue);
+  await setUserPath([...partes, dir].join(";"), atual.tipo);
   return { ok: true, note: "PATH atualizado. Reabra o terminal para aplicar." };
 });
 
@@ -354,11 +439,11 @@ ipcMain.handle("cli-uninstall-windows", async () => {
     return { ok: false, error: "Disponível apenas no Windows." };
   }
   const dir = backendResourcePath();
-  const current = await getUserPath();
-  const filtered = current
-    .split(";")
-    .filter((p) => p && path.normalize(p).toLowerCase() !== path.normalize(dir).toLowerCase());
-  await setUserPath(filtered.join(";"));
+  const atual = await getUserPath();
+  const restantes = entradasDoPath(atual.valor).filter(
+    (entrada) => !mesmaPasta(entrada, dir)
+  );
+  await setUserPath(restantes.join(";"), atual.tipo);
   return { ok: true };
 });
 
