@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from "electron";
 import { spawn, ChildProcess, execFile } from "child_process";
 import { promisify } from "util";
 import * as path from "path";
@@ -7,6 +7,8 @@ import * as net from "net";
 import * as os from "os";
 
 import { criarLeitorDeSaida } from "./saidaBackend";
+import * as cofre from "./cofre";
+import * as sessao from "./sessao";
 
 const execFileP = promisify(execFile);
 
@@ -92,6 +94,12 @@ async function startPythonBackend(port: number): Promise<void> {
   const env: NodeJS.ProcessEnv = { ...process.env, PYTHONUNBUFFERED: "1" };
   if (isDev) env.PRESIDIO_DEV_ORIGIN = URL_DEV;
 
+  // Onde o backend guarda o registro de clientes pareados. Sem esta variável
+  // ele grava ao lado do próprio módulo, o que serve a um processo efêmero
+  // (CLI offline, teste) mas não ao aplicativo: um cliente pareado precisa
+  // continuar pareado depois de fechar e abrir.
+  env.PRESIDIO_DADOS = app.getPath("userData");
+
   pythonProcess = spawn(pythonPath, [serverPath, "--port", String(port)], {
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -146,7 +154,12 @@ function createWindow(): void {
       nodeIntegration: false,
     },
     titleBarStyle: "default",
-    backgroundColor: "#0c0f1a",
+    /* Cor pintada antes de o CSS carregar. Ficou para trás na troca de paleta
+       (era o grafite `#0c0f1a`), e o efeito é um flash escuro na abertura de
+       quem usa o tema papel. Segue `nativeTheme` porque a preferência padrão é
+       "seguir o sistema": `--papel` no claro, `--papel` do tema noite no
+       escuro. Quem fixou um tema vê o flash certo assim que o CSS entra. */
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#14161a" : "#f2f1ec",
   });
 
   const isDev = !app.isPackaged;
@@ -404,10 +417,30 @@ void os;
 ipcMain.handle("select-files", async () => {
   if (!mainWindow) return [];
 
+  /* O filtro oferecia só `txt/md/rtf`, embora o backend leia PDF, DOCX, XLSX,
+     PPTX e imagens digitalizadas — o caso normal em autos de processo. Quem
+     abria por este diálogo simplesmente não enxergava os próprios PDFs na
+     pasta, e o único caminho que funcionava para eles era arrastar e soltar.
+     O primeiro filtro é o que o diálogo mostra pré-selecionado. */
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile", "multiSelections"],
     filters: [
-      { name: "Documentos de texto", extensions: ["txt", "md", "rtf"] },
+      {
+        name: "Documentos aceitos",
+        extensions: [
+          "pdf", "docx", "xlsx", "pptx",
+          "png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp",
+          "txt", "md", "rtf",
+        ],
+      },
+      { name: "PDF", extensions: ["pdf"] },
+      { name: "Office", extensions: ["docx", "xlsx", "pptx"] },
+      {
+        name: "Imagem digitalizada",
+        extensions: ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"],
+      },
+      { name: "Texto", extensions: ["txt", "md", "rtf"] },
+      { name: "Todos os arquivos", extensions: ["*"] },
     ],
   });
 
@@ -419,16 +452,88 @@ ipcMain.handle("select-files", async () => {
   }));
 });
 
+/**
+ * Escolhe a pasta de destino da anonimização.
+ *
+ * `createDirectory` deixa criar uma pasta ali mesmo no macOS; no Windows o
+ * diálogo já traz esse botão. Devolve `null` no cancelamento, que o chamador
+ * interpreta como "manter o que estava" — e não como "voltar para o padrão".
+ */
+ipcMain.handle("select-directory", async () => {
+  if (!mainWindow) return null;
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory", "createDirectory"],
+    title: "Onde salvar os arquivos anonimizados",
+  });
+
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 // Porta efetiva do backend, resolvida no boot e consultada pelo renderer.
 let backendPort = PYTHON_PORT;
 
 ipcMain.handle("get-backend-port", () => backendPort);
 ipcMain.handle("get-backend-token", () => tokenSessao);
 
+/* ==========================================================================
+   Cofre
+   ==========================================================================
+   `safeStorage` só existe no processo principal, então é aqui que se grava. A
+   chave nunca atravessa o IPC — o renderer manda o conteúdo e recebe o
+   conteúdo, nunca a credencial que o protege.
+
+   Os handlers deixam a exceção subir em vez de devolver um objeto de erro. Uma
+   gravação que falhou **precisa** falhar do lado de lá: engolir o erro aqui
+   faria a interface anunciar "documento guardado" sobre um cofre que recusou
+   gravar, e a pessoa só descobriria ao tentar reabrir. */
+ipcMain.handle("cofre-disponivel", () => cofre.disponivel());
+ipcMain.handle("cofre-listar", () => cofre.listar());
+ipcMain.handle(
+  "cofre-gravar",
+  (_e, entrada: Parameters<typeof cofre.gravar>[0], conteudo: cofre.ConteudoDoCofre) =>
+    cofre.gravar(entrada, conteudo)
+);
+ipcMain.handle("cofre-ler", (_e, id: string) => cofre.ler(id));
+ipcMain.handle("cofre-apagar", (_e, id: string) => cofre.apagar(id));
+ipcMain.handle("cofre-esvaziar", () => cofre.esvaziar());
+ipcMain.handle("cofre-expurgar", (_e, dias: number) => cofre.expurgar(dias));
+
 // App lifecycle
 app.whenReady().then(async () => {
   backendPort = await findAvailablePort(PYTHON_PORT);
   await startPythonBackend(backendPort);
+
+  // Descoberta para programas locais: a porta é dinâmica e sem isto ninguém
+  // de fora tem como achar o motor. Sem token dentro — ver `sessao.ts`.
+  sessao.escrever(backendPort);
+
+  /* O expurgo do cofre roda no **renderer**, não aqui.
+     Havia um `cofre.expurgar(30)` neste ponto, com o prazo padrão cravado. Só
+     que o prazo é escolha do usuário e vive nas preferências, que o processo
+     principal não lê: quem tivesse configurado 90 dias teria documentos
+     apagados 60 dias antes da hora, sem aviso e sem desfazer. Um expurgo que
+     não conhece o prazo configurado é pior do que nenhum.
+     Quem chama é o `useBiblioteca`, que tem o valor certo em mãos. */
+
+  /* A fila de remoções pendentes, essa sim, roda aqui — e a diferença em
+     relação ao expurgo é exatamente o que motivou tirá-lo daqui. Expurgo
+     depende do prazo escolhido pelo usuário; terminar uma remoção que ele já
+     mandou fazer não depende de preferência nenhuma.
+     O motivo é privacidade, não disco: um conteúdo que o usuário mandou apagar
+     e não saiu (antivírus segurando o arquivo, tipicamente) é texto de processo
+     com dado pessoal seguindo no perfil. */
+  try {
+    const removidos = cofre.limparPendentes();
+    if (removidos > 0) {
+      console.log(`[cofre] ${removidos} arquivo(s) pendente(s) removido(s).`);
+    }
+  } catch (erro) {
+    // Nunca impede o aplicativo de abrir: é faxina, não pré-requisito.
+    console.error("[cofre] limpeza de pendentes falhou:", erro);
+  }
+
   createWindow();
 });
 
@@ -439,4 +544,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   stopPythonBackend();
+  // Um `sessao.json` órfão aponta para uma porta que não responde mais — ou,
+  // pior, para uma porta que outro programa pegou nesse meio-tempo.
+  sessao.apagar();
 });

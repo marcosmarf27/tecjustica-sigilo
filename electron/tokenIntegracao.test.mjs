@@ -24,12 +24,25 @@ import { fileURLToPath } from "node:url";
 import { criarLeitorDeSaida } from "../dist-electron/saidaBackend.js";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PYTHON = path.join(RAIZ, ".venv", "bin", "python");
+
+/* O layout do venv muda por plataforma: `Scripts/python.exe` no Windows,
+   `bin/python` no resto. Este arquivo olhava só para o segundo — a mesma
+   armadilha que já tinha custado uma instalação inteira pelo `main.ts`, que
+   foi consertado enquanto o teste ficou para trás.
+   O efeito era pior que uma falha: `temAmbiente` dava falso em toda máquina
+   Windows, o teste se pulava sozinho e a suíte fechava verde. A cobertura do
+   token nas rotas protegidas nunca rodou justamente na plataforma em que o
+   aplicativo é desenvolvido e distribuído. */
+const PYTHON = [
+  path.join(RAIZ, ".venv", "Scripts", "python.exe"),
+  path.join(RAIZ, ".venv", "bin", "python"),
+].find((caminho) => existsSync(caminho));
+
 const SERVIDOR = path.join(RAIZ, "python-backend", "server.py");
 const PORTA = 8247;
 const BASE = `http://127.0.0.1:${PORTA}`;
 
-const temAmbiente = existsSync(PYTHON) && existsSync(SERVIDOR);
+const temAmbiente = Boolean(PYTHON) && existsSync(SERVIDOR);
 
 test(
   "o token lido da saída é aceito nas rotas protegidas",

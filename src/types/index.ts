@@ -19,25 +19,52 @@ export type EntityType = EntityTypeId;
 export interface EntityInfo {
   id: EntityTypeId;
   label: string;
-  color: string;
+  /**
+   * Sufixo do token CSS `--color-entity-*`. É um **nome**, não um valor: a cor
+   * mora só em `src/styles/tokens.css`, onde muda com o tema.
+   *
+   * Este campo substitui um `color: "#f59e0b"` que existia aqui. Havia duas
+   * paletas de entidade em desacordo — os 14 tokens `--color-entity-*` no CSS,
+   * documentados e sem nenhum uso, e 14 cores default do Tailwind 3 cravadas
+   * neste arquivo, que eram as que o usuário via de verdade. Cor em constante
+   * de TypeScript não sabe que existe modo noturno.
+   */
+  token: string;
 }
 
 export const ALL_ENTITIES: EntityInfo[] = [
-  { id: "PERSON", label: "Nome", color: "#f59e0b" },
-  { id: "CPF_BR", label: "CPF", color: "#ef4444" },
-  { id: "CNPJ_BR", label: "CNPJ", color: "#f97316" },
-  { id: "RG_BR", label: "RG", color: "#e11d48" },
-  { id: "PHONE_NUMBER_BR", label: "Telefone", color: "#8b5cf6" },
-  { id: "EMAIL_ADDRESS", label: "E-mail", color: "#06b6d4" },
-  { id: "ENDERECO_BR", label: "Endereço", color: "#10b981" },
-  { id: "CEP_BR", label: "CEP", color: "#059669" },
-  { id: "LOCATION", label: "Cidade/Local", color: "#0ea5e9" },
-  { id: "OAB_BR", label: "OAB", color: "#6366f1" },
-  { id: "DATE_OF_BIRTH", label: "Data Nasc.", color: "#ec4899" },
-  { id: "NIT_PIS_PASEP", label: "NIT/PIS", color: "#14b8a6" },
-  { id: "NUMERO_PROCESSO_CNJ", label: "Nº Processo", color: "#a855f7" },
-  { id: "CONTA_BANCARIA", label: "Conta Bancária", color: "#f43f5e" },
+  { id: "PERSON", label: "Nome", token: "person" },
+  { id: "CPF_BR", label: "CPF", token: "cpf" },
+  { id: "CNPJ_BR", label: "CNPJ", token: "cnpj" },
+  { id: "RG_BR", label: "RG", token: "rg" },
+  { id: "PHONE_NUMBER_BR", label: "Telefone", token: "phone" },
+  { id: "EMAIL_ADDRESS", label: "E-mail", token: "email" },
+  { id: "ENDERECO_BR", label: "Endereço", token: "address" },
+  { id: "CEP_BR", label: "CEP", token: "cep" },
+  { id: "LOCATION", label: "Cidade/Local", token: "location" },
+  { id: "OAB_BR", label: "OAB", token: "oab" },
+  { id: "DATE_OF_BIRTH", label: "Data Nasc.", token: "birthdate" },
+  { id: "NIT_PIS_PASEP", label: "NIT/PIS", token: "nit" },
+  { id: "NUMERO_PROCESSO_CNJ", label: "Nº Processo", token: "process" },
+  { id: "CONTA_BANCARIA", label: "Conta Bancária", token: "bank" },
 ];
+
+/**
+ * Referência CSS para a cor de um tipo de entidade, pronta para entrar em
+ * `style` ou numa custom property.
+ *
+ * Aceita `string` porque o backend devolve o tipo como texto livre em
+ * `EntityFound.type` — um recognizer novo pode chegar antes de o front
+ * conhecê-lo, e nesse caso a cor cai no cinza de metadado em vez de sumir.
+ */
+export const corDaEntidade = (tipo: string): string => {
+  const info = ALL_ENTITIES.find((e) => e.id === tipo);
+  return info ? `var(--color-entity-${info.token})` : "var(--toner-3)";
+};
+
+/** Rótulo em português de um tipo, com o próprio tipo como reserva. */
+export const rotuloDaEntidade = (tipo: string): string =>
+  ALL_ENTITIES.find((e) => e.id === tipo)?.label ?? tipo;
 
 export interface FileItem {
   name: string;
@@ -127,11 +154,9 @@ export interface ProcessedFile {
   ocr?: InfoOcr;
 }
 
-export interface HistoryItem {
-  id: string;
-  date: string;
-  fileNames: string[];
-  totalEntities: number;
-  entityBreakdown: Record<string, number>;
-  results: ProcessedFile[];
-}
+/* `HistoryItem` foi removido junto com o `useHistory` e a `Sidebar`.
+   O histórico guardava até 50 entradas de metadados em `localStorage`, enquanto
+   os `results` viviam num `useRef` de sessão — então o item continuava clicável
+   depois de reiniciar e respondia com um toast pedindo para processar o arquivo
+   de novo. Quem faz esse papel agora é `EntradaDoCofre` (em `vite-env.d.ts`),
+   sobre o cofre cifrado: ou o documento reabre inteiro, ou não é listado. */

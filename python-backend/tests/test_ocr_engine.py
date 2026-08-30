@@ -20,7 +20,11 @@ import os
 
 import pytest
 
-TOKEN = "token-de-teste"
+# O conftest define `PRESIDIO_TOKEN` antes de qualquer import de `server`, que
+# lê o token na carga do módulo. Ler daqui, em vez de repetir o literal, evita
+# que dois arquivos discordem — foi o que fez o primeiro a importar ganhar e os
+# outros levarem 403.
+TOKEN = os.environ["PRESIDIO_TOKEN"]
 
 
 @pytest.fixture(scope="module")

@@ -1,13 +1,14 @@
 /* Fontes auto-hospedadas: nada é buscado na rede em tempo de execução.
    O aplicativo promete não fazer nenhuma chamada externa, e um @import do
    Google Fonts quebraria isso a cada abertura — além de deixar a interface
-   sem sua tipografia em máquina offline. */
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-sans/700.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
+   sem sua tipografia numa máquina de vara sem internet, caindo em silêncio
+   para system-ui.
+
+   São fontes **variáveis**: um arquivo por família cobre todo o intervalo de
+   peso 100–900, contra os seis arquivos estáticos que estavam aqui antes.
+   A itálica não é importada porque o sistema não a usa em lugar nenhum. */
+@import "@fontsource-variable/petrona/wght.css";
+@import "@fontsource-variable/azeret-mono/wght.css";
 
 @import "tailwindcss";
 @import "./styles/tokens.css";
@@ -28,10 +29,21 @@ body,
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-sans);
+  /* Serifa é o padrão do documento: a prosa do app e o texto do processo são
+     a mesma voz. O que a máquina diz — rótulo, botão, número, estado — pede
+     `font-mono` explicitamente. */
+  font-family: var(--font-serif);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Texto do documento: 16px numa entrelinha larga, porque a tarefa aqui é ler
+   páginas inteiras de autos e conferir cada ocorrência mascarada. */
+.texto-documento {
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  line-height: var(--leading-document);
 }
 
 /* Scrollbar refinada */

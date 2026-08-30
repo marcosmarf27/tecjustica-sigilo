@@ -459,6 +459,26 @@ class PresidioEngine:
     def is_ready(self) -> bool:
         return self._ready
 
+    def entidades_suportadas(self) -> list[str]:
+        """
+        Os tipos que este motor sabe detectar, perguntados ao próprio analyzer.
+
+        Existe para `GET /v1/info`: um cliente externo precisa saber o que pedir
+        em `entidades` sem ter de adivinhar nem manter uma cópia da lista. Vem
+        do registro de recognizers, e não de uma constante escrita à mão, porque
+        uma cópia à mão envelhece em silêncio — foi exatamente o que aconteceu
+        com as cores de entidade, que existiam em dois lugares e divergiram.
+
+        Devolve vazio com o motor ainda subindo, e não levanta: `/v1/info` é a
+        rota que o cliente chama justamente para descobrir se dá para trabalhar.
+        """
+        if not self._ready or self._analyzer is None:
+            return []
+        try:
+            return sorted(set(self._analyzer.get_supported_entities(language="pt")))
+        except Exception:
+            return []
+
     def anonymize(
         self,
         text: str,

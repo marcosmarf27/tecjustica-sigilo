@@ -124,6 +124,29 @@ weasel==1.0.0
 websockets==17.1
 wrapt==2.3.0
 
+# Servidor MCP (`tecjustica-sigilo mcp`) e o fecho transitivo dele.
+#
+# Entram aqui porque `--no-deps` desliga o resolvedor: o que não estiver
+# listado não é instalado, o pip diz "pronto" e o embarcado sai montado e
+# quebrado. Foi assim que faltaram thinc e click antes.
+#
+# `pywin32` é específico de Windows, o que aqui é exatamente o alvo
+# (--platform win_amd64).
+attrs==26.1.0
+httpcore2==2.12.0
+httpx2==2.12.0
+jsonschema-specifications==2025.9.1
+jsonschema==4.26.0
+mcp-types==2.1.1
+mcp==2.1.1
+opentelemetry-api==1.44.0
+pyjwt==2.13.0
+pywin32==312
+referencing==0.37.0
+rpds-py==2026.6.3
+sse-starlette==3.4.8
+truststore==0.10.4
+
 # O modelo do spaCy. NÃO é opcional e NÃO é só do "modo leve": no modo BERT ele
 # entra como tokenizador (engine.py, `_transformer_config`, chave "spacy"), de
 # modo que sem ele nenhum dos dois modos sobe. É wheel py3-none-any, então o

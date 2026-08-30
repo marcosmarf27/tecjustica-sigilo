@@ -37,12 +37,39 @@ fi
 VERIFICACAO='
 import sys
 import server
-rotas = {getattr(r, "path", "") for r in server.app.routes}
-faltando = {"/health", "/ocr", "/processar", "/anonymize"} - rotas
+
+# `app.openapi()`, e não `app.routes`.
+#
+# O FastAPI atual não achata as rotas de um router incluído em `app.routes`:
+# elas aparecem como um único `_IncludedRouter` sem `path`, e as rotas `/v1`
+# ficariam invisíveis para uma checagem ingênua — reprovando um build correto.
+# O `openapi()` resolve os routers e é a visão que um cliente de verdade teria.
+caminhos = set(server.app.openapi()["paths"])
+
+exigidas = {
+    # As que a interface usa. Quebrar qualquer uma trava o aplicativo.
+    "/health", "/ocr", "/processar", "/anonymize",
+    # A API local. Sem elas, a CLI, uma extensão e o MCP levam 404 no aplicativo
+    # instalado, enquanto em desenvolvimento tudo funciona — porque ali se roda
+    # do diretório de origem, e não da cópia empacotada.
+    "/v1/info", "/v1/parear", "/v1/anonimizar", "/v1/documento", "/v1/clientes",
+}
+faltando = exigidas - caminhos
 if faltando:
     print("ROTAS AUSENTES: %s" % sorted(faltando), file=sys.stderr)
     raise SystemExit(1)
-print("ok: %d rotas registradas, inclusive /ocr" % len(rotas))
+print("ok: %d rotas registradas, inclusive /ocr e a API /v1" % len(caminhos))
+
+# O servidor MCP importa? É dependência de RUNTIME nova, e o embarcado é
+# montado com `--no-deps`: o que não estiver no requirements-embed.txt não
+# entra, o pip diz "pronto" e a falta só aparece quando alguém roda o comando.
+# Foi assim com o `python-multipart` — 110 testes verdes, instalador entregue,
+# backend morrendo na largada.
+import mcp_server
+if len(mcp_server.FERRAMENTAS) != 4:
+    print("MCP: esperava 4 ferramentas", file=sys.stderr)
+    raise SystemExit(1)
+print("ok: mcp_server importa e declara as 4 ferramentas")
 
 import spacy
 spacy.load("pt_core_news_lg")

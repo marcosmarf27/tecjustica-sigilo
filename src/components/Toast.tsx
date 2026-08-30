@@ -30,7 +30,10 @@ export function Toast({
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl border px-5 py-3 shadow-2xl transition-all duration-200 ${
+      /* z-200: o aviso fica acima de popover (z-100) e de qualquer painel. Era
+         z-50, que o deixaria por baixo de um popover aberto — e um aviso que
+         some atrás de outra coisa não é aviso. */
+      className={`fixed bottom-6 right-6 z-200 flex items-center gap-3 rounded-xl border px-5 py-3 shadow-2xl transition-all duration-200 ${
         visible
           ? "translate-y-0 opacity-100"
           : "translate-y-4 opacity-0"

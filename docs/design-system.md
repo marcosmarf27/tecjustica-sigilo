@@ -1,154 +1,213 @@
-# Design system — TecJustiça Sigilo
+# Design system — papel de processo
 
-Referência única de estilo do aplicativo. Os valores vivem em
-`src/styles/tokens.css`; este documento explica **por que** cada escolha existe,
-para que uma tela nova nasça coerente sem precisar adivinhar.
+A interface se comporta como a mesa em que autos judiciais são lidos: sulfite
+claro, tinta preta, caneta azul para o que é ação, carimbo vermelho para o que é
+grave.
 
-## Direção: tinta de cartório
+Tudo o que é valor vive em [`src/styles/tokens.css`](../src/styles/tokens.css).
+Este documento explica as decisões; o arquivo é a fonte da verdade.
 
-O produto vive dentro do vocabulário do processo judicial brasileiro, e é de lá
-que vem a identidade — não do cinza-ardósia com acento índigo que qualquer
-aplicativo usa hoje.
+---
 
-| Escolha | Motivo |
-|---|---|
-| **Violeta-anilina** como cor de ação | É a tinta do carimbo de cartório. Quem lida com autos reconhece na hora; um índigo genérico não diz nada sobre o domínio. |
-| **Grafite quente** no fundo, não azulado | O azul-ardósia é o default de interface. O grafite levemente terroso lembra papel impresso sob luz fraca e deixa o violeta brilhar sem competir. |
-| **Tarja de redação** como elemento de assinatura | O retângulo sólido sobre o dado sigiloso é o gesto que define o produto. É o único lugar onde a interface se permite ser enfática. |
-| **IBM Plex Sans + Mono** | Seriedade institucional sem parecer software genérico. A mono é irmã da sans, então o texto do documento e a interface ficam visivelmente da mesma casa. |
+## A regra das duas vozes
 
-### Fontes auto-hospedadas — requisito, não preferência
+**Mono é o que a máquina diz.** Rótulo, botão, número, estado, código, CLI.
+**Serifa é o que se lê.** O texto do processo e a prosa do próprio aplicativo.
 
-As fontes vêm de `@fontsource/*` e são empacotadas no build. Um `@import` do
-Google Fonts faria o aplicativo telefonar para fora a cada abertura,
-contradizendo a promessa de operação 100% local — e, em máquina de vara sem
-internet, a identidade visual cairia silenciosamente para `system-ui`.
+Não há sans no sistema, de propósito.
 
-## Cor
+Num revisor de tarjas, confundir o texto do aplicativo com o texto do documento
+é o erro mais caro que existe — é a diferença entre conferir uma anonimização e
+conferir uma legenda. A distinção de fonte torna isso impossível de relance, sem
+depender de cor nem de borda.
 
-### Superfícies e texto
-
-| Token | Valor | Uso |
+| Papel | Fonte | Por quê |
 |---|---|---|
-| `--color-bg` | `#17151a` | Fundo da janela |
-| `--color-surface` | `#201d24` | Cartões, barras |
-| `--color-surface-raised` | `#2a262f` | Painel lateral, chips |
-| `--color-surface-hover` | `#34303a` | Estado de passagem |
-| `--color-border` | `#413c48` | Borda visível |
-| `--color-border-subtle` | `#2e2a34` | Divisória |
-| `--color-text` | `#f2eff5` | Corpo |
-| `--color-text-secondary` | `#b9b2c2` | Apoio |
-| `--color-text-tertiary` | `#918a9b` | Metadado |
+| Leitura | **Petrona Variable** | Serifa da Omnibus-Type, fundição latino-americana, desenhada para texto em português |
+| Máquina | **Azeret Mono Variable** | Mono quadrada que aguenta caixa-alta com entreletra em 12px; o documento que o app lê é datilografado — a mono é o material |
 
-`--color-text-secondary` e `--color-text-tertiary` foram clareados em relação à
-paleta anterior (`#8892a8` e `#5c6478`). O motivo é objetivo: o terciário
-antigo tinha **3,23:1** de contraste e reprovava em WCAG AA, apesar de ser
-usado na maior parte do texto de apoio, em tamanhos de 11 a 13px.
+Auto-hospedadas via `@fontsource-variable`, e isso é requisito e não preferência:
+um `@import` do Google Fonts faria o aplicativo telefonar para fora a cada
+abertura, e numa máquina de vara sem internet a identidade cairia em silêncio
+para `system-ui`. São fontes variáveis — um arquivo por família cobre o
+intervalo de peso inteiro.
 
-### Ação
+### Escala
 
-| Token | Valor |
-|---|---|
-| `--color-accent` | `#a680ff` |
-| `--color-accent-hover` | `#bda0ff` |
-| `--color-accent-strong` | `#6d3aa8` |
-| `--color-on-accent` | `#14101c` |
-
-Texto sobre a cor de ação usa `--color-on-accent` (escuro), não branco: branco
-sobre o violeta claro reprovaria em contraste.
-
-### Entidades
-
-Uma cor por tipo de PII, todas legíveis sobre `--color-surface-raised`. Antes
-essas cores viviam soltas em `src/types/index.ts`, fora do sistema, com
-fallbacks divergentes entre componentes.
-
-`person` · `cpf` · `cnpj` · `rg` · `phone` · `email` · `address` · `cep` ·
-`location` · `oab` · `birthdate` · `nit` · `process` · `bank`
-
-## Tipografia
-
-| Token | Tamanho | Uso |
+| Token | | Uso |
 |---|---|---|
-| `--text-2xs` | 11px | Metadado, contagem |
-| `--text-xs` | 12px | Rótulo, chip |
-| `--text-sm` | 13px | Corpo da interface |
-| `--text-base` | 15px | Corpo do documento |
-| `--text-lg` | 18px | Título de seção |
-| `--text-xl` | 24px | Título de tela |
-| `--text-2xl` | 32px | Número de destaque |
+| `--text-2xs` | 11px | numeral em tabela densa |
+| `--text-xs` | 12px | metadado, rótulo de campo |
+| `--text-sm` | 14px | corpo da interface |
+| `--text-base` | 16px | **texto do documento**, entrelinha 1,75 |
+| `--text-lg` | 18px | título de seção |
+| `--text-xl` | 24px | título de tela |
 
-Altura de linha: `--leading-tight` (1.25) para títulos, `--leading-normal`
-(1.5) para interface, `--leading-document` (1.75) para o texto do processo —
-que é lido com atenção e merece respiro.
+O piso subiu em relação à versão anterior: o corpo era 13px e o texto do
+documento 15px, ambos abaixo do confortável para ler páginas de autos.
 
-Antes disso a interface usava valores avulsos (`text-[10px]` a `text-[15px]`)
-sem regra nenhuma.
+---
 
-## Espaçamento e forma
+## Duas camadas de token
 
-Espaçamento: `--space-1` (4px) a `--space-7` (48px).
-Raio: `--radius-sm` (4px), `--radius-md` (8px), `--radius-lg` (12px),
-`--radius-full`.
-Sombra: `--shadow-sm`, `--shadow-md`, `--shadow-lg`.
+As **primitivas** (`--papel`, `--folha`, `--toner`, `--esferografica`…) carregam
+os valores e são a única coisa que a troca de tema mexe. Os **semânticos**
+(`--color-*`) apenas apontam para elas, e existem porque é deles que o Tailwind
+gera as utilities (`bg-surface`, `text-text`…).
 
-## Componentes de assinatura
+O bloco é `@theme inline`, **não** `@theme`, e a diferença decide se o alternador
+de tema funciona: com `@theme`, a utility referenciaria `var(--color-surface)` e
+o valor poderia ser resolvido em build, congelando o tema em que o CSS foi
+compilado. Com `inline`, a utility emite a referência à primitiva, e redefinir
+`--folha` repinta a interface na hora.
 
-### `.tarja`
+**Regra que decorre disso: toda cor tem seu valor no `:root`.** Nenhuma cor pode
+ter sua única definição dentro de um `@media` ou de um `[data-tema]` — esses
+blocos só redefinem o que já existe. Um token que só nasce no modo escuro fica
+indefinido para quem está no claro, e o navegador não avisa: a cor não pinta.
 
-O trecho mascarado aparece como retângulo sólido na cor do tipo de entidade.
-Passar o cursor ou focar pelo teclado revela o valor original por baixo — é o
-que permite conferir se a anonimização acertou, que é a tarefa central de quem
-responde pelo sigilo do documento.
+### Paleta papel (padrão)
 
-```html
-<span class="tarja" style="--cor-entidade: var(--color-entity-cpf)">123.456.789-09</span>
+```css
+--papel:            #F2F1EC;  /* fundo — sulfite de cast frio */
+--papel-fundo:      #E8E6DF;  /* área rebaixada, trilho */
+--folha:            #FBFAF8;  /* cartão — MAIS claro que o fundo */
+--pauta:            #D8D5CB;  /* fio de divisão */
+--toner:            #16181D;  /* texto e preenchimento da tarja */
+--toner-3:          #666B75;  /* metadado */
+--esferografica:    #1B3FD1;  /* ação */
+--carimbo:          #B3322A;  /* vazamento e perigo */
 ```
 
-### Seletor de política
+`--folha` é **mais clara** que `--papel`, ao contrário do que sistemas escuros
+costumam fazer: uma folha apoiada numa mesa recebe mais luz que a mesa. Inverter
+faz o cartão parecer um buraco em vez de um objeto pousado.
 
-A escolha de como o dado é substituído ganha uma tela inteira em vez de um
-menu suspenso, porque a diferença entre as opções é a diferença entre um
-documento que pode circular e um que ainda permite reidentificar alguém. Cada
-opção mostra **o resultado concreto** (`[PESSOA_1]`, `J**** d* S****`,
-`*************`), não só o nome — ninguém deveria precisar processar um
-documento para descobrir o que escolheu.
+**Contraste medido, não estimado:**
 
-### `.marcacao`
+| Par | Razão | |
+|---|---|---|
+| `--toner-3` sobre `--papel` | 4,73:1 | ✓ |
+| `#6B707B` (o valor que parece óbvio) | 4,39:1 | ✗ reprova, por pouco |
+| `--esferografica` sobre `--papel` | 6,93:1 | ✓ |
+| `--sobre-acao` sobre `--esferografica` | 7,84:1 | ✓ |
 
-Alternativa leve, para quando o objetivo é localizar sem esconder: fundo
-translúcido e sublinhado na cor do tipo. `data-ativa="true"` destaca a
-ocorrência sob foco na navegação pela lista.
+### Tema noite
 
-## Acessibilidade — piso obrigatório
+Mesmos papéis, tinta invertida — um escuro frio, para o azul continuar lendo
+como azul. Declarado **duas vezes**, e as duas precisam existir:
 
-Não é polimento; é o piso que qualquer tela precisa respeitar.
+1. `@media (prefers-color-scheme: dark)` guardada por `:root:not([data-tema="papel"])`
+   — atende quem nunca tocou no alternador e tem o sistema no escuro, sem
+   sequestrar quem escolheu papel de propósito;
+2. `:root[data-tema="noite"]` — faz o alternador vencer nos **dois** sentidos.
+   Sem ela, escolher "noite" num sistema claro não teria efeito.
 
-- **Foco visível** em tudo que é focável (`:focus-visible` global com anel na
-  cor de ação). O projeto não tinha nenhum estilo de foco.
-- **Contraste AA**: 4,5:1 para texto, 3:1 para elementos de interface.
-- **Alvos de no mínimo 24px** (WCAG 2.2, 2.5.8).
-- **Estado anunciado**: `aria-pressed` em alternadores, `role="progressbar"` com
-  `aria-valuenow` no progresso, `aria-live` em avisos.
-- **Operável por teclado**: nada pode depender de passar o mouse. Um controle
-  que só aparece no hover é inalcançável por teclado.
-- **`prefers-reduced-motion`** respeitado globalmente.
+"Seguir o sistema" **remove** o atributo em vez de escrever um valor: é o que
+devolve a decisão ao `@media`.
 
-## Escrita
+---
 
-O texto da interface é design, não decoração.
+## As 14 cores de entidade
 
-- **Nomeie pelo que a pessoa controla**, não pela implementação. "O motor de
-  anonimização não respondeu", não "Erro ao conectar na porta 8123".
-- **Voz ativa e verbo do que acontece.** O botão diz "Salvar"; o aviso que
-  aparece depois diz "Salvo em...". Mesma palavra do começo ao fim do fluxo.
-- **Erro explica o que fazer.** Sem pedido de desculpas, sem vaguidão. Um erro
-  sem saída — como a tela que só dizia "verifique se o servidor está rodando" —
-  é um beco para quem não é desenvolvedor.
-- **Sem inglês solto.** "Baixar cópia", não "Download".
-- **Sem prometer o que não se cumpre.** Se a máscara é parcial, a interface não
-  diz que o dado foi removido.
-- **Diga o que custa tempo, e por quê.** "Documentos digitalizados passam por
-  reconhecimento de texto antes da anonimização. Isso leva alguns segundos por
-  página, e roda inteiramente nesta máquina." Explica a espera e reafirma o
-  que importa, numa frase.
+Uma volta completa em OKLCH: 14 matizes com passo de 360/14 = 25,7°, ancorada em
+27° para que CPF caia no vermelho, e-mail no ciano, endereço no verde e telefone
+no violeta — perto do que o usuário já associa a eles.
+
+**A luminosidade não é fixa, e isso é deliberado.** Com L constante, a única
+dimensão que separa 14 cores é o matiz, e 25,7° é pouco nas regiões onde o olho
+discrimina mal (o arco amarelo-verde e o ciano-azul). Medido: com L fixo em 0,45,
+**dezoito pares** ficavam perceptualmente confundíveis — `nit` e `email` a uma
+distância OK de 0,033, que é a mesma cor na prática. Todas passavam em contraste
+contra o fundo e mesmo assim falhavam no propósito de distinguir tipo de PII.
+
+| | L fixo | L intercalado |
+|---|---|---|
+| Menor distância entre pares (papel) | 0,033 | **0,086** |
+| Menor distância entre pares (noite) | 0,054 | **0,110** |
+| Menor contraste | ✓ | 4,70:1 / 5,05:1 ✓ |
+
+**A cor é canal secundário.** 14 categorias é mais do que a visão de cor separa
+com folga, e quem tem deficiência de cor não recebe nenhuma delas. O rótulo
+textual é o canal primário em toda a interface, por WCAG 1.4.1 — nenhuma tela
+informa o tipo só pela cor.
+
+### Onde elas moram
+
+Declaradas à mão no `:root`, **não** no `@theme`. O Tailwind faz tree-shaking
+dos tokens de tema, emitindo só os que alguma utility gerada referencia — e o
+acesso a estas é sempre dinâmico (`corDaEntidade()` monta
+`var(--color-entity-${token})` por interpolação). Uma string montada em runtime
+é invisível para quem escaneia arquivos: treze dos catorze tokens eram
+descartados, e o sintoma seria uma cor que não pinta, sem erro nenhum.
+
+`ALL_ENTITIES`, em `src/types/index.ts`, guarda o **nome** do token, nunca o
+valor. Antes havia duas paletas em desacordo: estes tokens, documentados e sem
+uso, e 14 cores default do Tailwind 3 cravadas no TypeScript — que eram as que o
+usuário via. Cor em constante de TypeScript não sabe que existe modo noturno.
+
+---
+
+## Elementos de assinatura
+
+### Tarja
+
+Um documento tarjado de verdade é barra **preta** sobre papel. O preenchimento é
+sempre `--toner`; o tipo se identifica pelo filete de 2px na lateral. A versão
+anterior pintava a tarja inteira na cor da entidade, o que fazia a página parecer
+marcada a marca-texto em vez de censurada.
+
+Cada tarja é um `<button>`: o revisor tem de alcançar **todas** as ocorrências
+por Tab, não só as que couberem no mouse. O nome acessível diz tipo e valor —
+para quem usa leitor de tela, a barra preta não comunica nada, e a cor do filete
+menos ainda.
+
+### Carimbo
+
+A única ousadia do sistema, e só na biblioteca. Filete duplo, girado −3°, mono
+caixa-alta com entreletra. `--carimbo` é reservado ao grave: uma cor de alarme
+usada em botão comum perde o efeito.
+
+### Movimento
+
+**Um momento orquestrado só:** ao terminar o processamento, as tarjas entram
+varrendo da esquerda para a direita, escalonadas, 240 ms no total — o documento
+sendo carimbado. Todo o resto é 120 ms de hover e foco.
+
+`prefers-reduced-motion` desliga a varredura e endireita o carimbo.
+
+---
+
+## Primitivas
+
+`src/ui/` — `Botao`, `Cartao`, `Campo`, `Selo`, `GrupoSegmentado`, `Tabela`,
+`Dialogo`, `Popover`, `Carimbo`, `Tarja`, `Marcacao`, `Icone`.
+
+Antes desta camada, cada tela montava seus próprios botões e cartões com classes
+soltas — dois botões com a mesma função tinham alturas diferentes, e o mesmo SVG
+de cadeado existia em três cópias.
+
+Notas que valem registro:
+
+- **`Dialogo` usa o `<dialog>` nativo** com `showModal()`, não uma `<div>` com
+  overlay. O elemento nativo entrega de graça o que uma reimplementação erra:
+  foco preso, Esc que fecha, `inert` no resto da página e a camada superior do
+  navegador — sem depender de z-index.
+- **`GrupoSegmentado` é um radiogroup**: Tab entra uma vez só e as setas trocam a
+  opção. Um grupo em que cada item é parada de Tab obriga quem usa teclado a
+  passar por todos para chegar ao próximo controle.
+- **`Campo` amarra rótulo e controle com `useId`**, por construção. Rótulo
+  desamarrado é a falha de acessibilidade mais comum em formulário, e não aparece
+  em nenhum teste que não seja de leitor de tela.
+- **Alvo mínimo de 24px**, inclusive no tamanho `mini` — piso de WCAG 2.2.
+
+### Camadas
+
+`z-10` fixo no topo de lista · `z-100` popover e diálogo · `z-200` aviso.
+
+Escala numérica do próprio Tailwind, e não token: existiam `--z-sticky`,
+`--z-overlay` e `--z-toast` no CSS, com `z-sticky`/`z-overlay`/`z-toast` usados
+no JSX. **Nunca foram classes** — o Tailwind v4 não gera utilities do namespace
+`--z-*`, e o navegador ignora classe inexistente sem reclamar. Passou
+despercebido porque, até o primeiro popover, a ordem do DOM já resolvia o
+empilhamento sozinha.

@@ -1,4 +1,4 @@
-import { ALL_ENTITIES, type EntityType } from "../types";
+import { ALL_ENTITIES, corDaEntidade, type EntityType } from "../types";
 
 interface EntityConfigProps {
   selected: EntityType[];
@@ -38,6 +38,11 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
       <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
         {ALL_ENTITIES.map((entity) => {
           const isSelected = selected.includes(entity.id);
+          /* `var(--color-entity-*)`, que responde ao tema. Os hex cravados que
+             estavam aqui traziam a opacidade concatenada no próprio literal
+             (`${entity.color}12`) — truque que só funciona com hex, e por isso
+             prendia a cor ao TypeScript. Com `var()`, a mistura é `color-mix`. */
+          const cor = corDaEntidade(entity.id);
           return (
             <button
               key={entity.id}
@@ -50,8 +55,8 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
               style={
                 isSelected
                   ? {
-                      backgroundColor: `${entity.color}12`,
-                      boxShadow: `inset 0 0 0 1px ${entity.color}30`,
+                      backgroundColor: `color-mix(in srgb, ${cor} 7%, transparent)`,
+                      boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${cor} 19%, transparent)`,
                     }
                   : undefined
               }
@@ -59,11 +64,9 @@ export function EntityConfig({ selected, onChange }: EntityConfigProps) {
               <span
                 className="h-2 w-2 shrink-0 rounded-full transition-all"
                 style={{
-                  backgroundColor: isSelected
-                      ? entity.color
-                      : "var(--color-border)",
+                  backgroundColor: isSelected ? cor : "var(--pauta-forte)",
                   boxShadow: isSelected
-                    ? `0 0 6px ${entity.color}40`
+                    ? `0 0 6px color-mix(in srgb, ${cor} 25%, transparent)`
                     : "none",
                 }}
               />

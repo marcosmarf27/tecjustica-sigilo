@@ -15,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+import api_v1
+import clientes
 import documentos
 import jobs
 import ocr_engine
@@ -38,22 +40,45 @@ app = FastAPI(title="TecJustiça Sigilo API")
 TOKEN_SESSAO = os.environ.get("PRESIDIO_TOKEN") or secrets.token_urlsafe(32)
 
 # Rotas sem token: `/health` só informa se o motor subiu, e é por ela que a
-# interface descobre que o servidor está de pé.
-ROTAS_PUBLICAS = {"/health", "/docs", "/openapi.json"}
+# interface descobre que o servidor está de pé. `/v1/info` é o cartão de visita
+# da instalação, que um cliente lê antes de pedir pareamento — não expõe nada
+# de documento nem a lista de clientes.
+ROTAS_PUBLICAS = {"/health", "/docs", "/openapi.json", "/v1/info"}
+
+# Abrir um pedido de pareamento e perguntar como ele ficou são, por definição,
+# coisas que se fazem **sem** credencial: é o que se está tentando obter. A
+# proteção aqui não é o token, é a aprovação humana no diálogo, com o mesmo
+# código nos dois lados, e a validade curta do pedido.
+ROTAS_DE_PAREAMENTO = "/v1/parear"
 
 
 @app.middleware("http")
 async def exigir_token(request: Request, call_next):
-    if request.url.path in ROTAS_PUBLICAS or request.method == "OPTIONS":
+    caminho = request.url.path
+
+    if caminho in ROTAS_PUBLICAS or request.method == "OPTIONS":
+        return await call_next(request)
+    if caminho == ROTAS_DE_PAREAMENTO or caminho.startswith(ROTAS_DE_PAREAMENTO + "/"):
         return await call_next(request)
 
     enviado = request.headers.get("x-presidio-token", "")
-    if not secrets.compare_digest(enviado, TOKEN_SESSAO):
-        return JSONResponse(
-            status_code=403,
-            content={"detail": "requisição sem credencial desta sessão"},
-        )
-    return await call_next(request)
+
+    # O token de sessão é o da janela do aplicativo: escopo total, inclusive
+    # `arquivo-local`. Continua sendo comparado com `compare_digest`.
+    if secrets.compare_digest(enviado, TOKEN_SESSAO):
+        return await call_next(request)
+
+    # Token de cliente pareado: vale só onde os escopos dele alcançam.
+    escopo = clientes.escopo_da_rota(caminho, request.method)
+    if escopo is not None:
+        cliente = clientes.autenticar(enviado)
+        if cliente is not None and escopo in cliente.escopos:
+            return await call_next(request)
+
+    return JSONResponse(
+        status_code=403,
+        content={"detail": "requisição sem credencial desta sessão"},
+    )
 
 
 # CORS, e só em desenvolvimento.
@@ -80,14 +105,28 @@ async def exigir_token(request: Request, call_next):
 # empacotado nunca aceita origem nenhuma, mesmo que alguém suba um servidor na
 # 5173. E CORS não é o que protege este backend de qualquer forma — o token é.
 # CORS só decide quem pode LER a resposta; não impede a requisição de chegar.
+# Com a API v1, uma extensão de navegador passa a ser cliente legítimo — e
+# extensão tem origem `chrome-extension://<32 letras a–p>`. O regex libera essa
+# forma e **só** ela; nenhuma origem `http://` de página comum é aceita, nem
+# mesmo em desenvolvimento, porque é exatamente o caso que o token existe para
+# barrar.
+#
+# **CORS não é autorização.** Quem autoriza é o token; o regex só evita que o
+# preflight reprove um cliente legítimo antes de a requisição chegar.
+# `allow_credentials` continua desligado: a credencial viaja no cabeçalho
+# `X-Presidio-Token`, não em cookie.
+ORIGEM_EXTENSAO = r"^chrome-extension://[a-p]{32}$"
 ORIGEM_DEV = os.environ.get("PRESIDIO_DEV_ORIGIN", "").strip()
-if ORIGEM_DEV:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[o for o in ORIGEM_DEV.split(",") if o],
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "X-Presidio-Token"],
-    )
+
+_origens_dev = [o for o in ORIGEM_DEV.split(",") if o] if ORIGEM_DEV else []
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origens_dev,
+    allow_origin_regex=ORIGEM_EXTENSAO,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Presidio-Token"],
+)
 
 
 class AnonymizeRequest(BaseModel):
@@ -392,6 +431,34 @@ def update_deny_list(req: DenyListUpdate):
     return {"status": "ok"}
 
 
+# Rotas versionadas. Registradas por último, depois de todas as antigas, para
+# que a ordem de declaração deixe claro que a v1 é acréscimo — as rotas que a
+# interface usa hoje continuam exatamente onde estavam.
+app.include_router(api_v1.router)
+
+
+def preparar_runtime(porta: int, token: str | None = None) -> None:
+    """
+    Prepara o que **todo** entrypoint precisa antes de processar qualquer coisa.
+
+    Isto era um trecho solto dentro do `if __name__ == "__main__"`, e essa é a
+    armadilha que a função existe para desarmar: qualquer entrypoint novo que
+    não repetisse a chamada — o servidor MCP, o modo offline da CLI, um teste —
+    fazia o liteparse cair **em silêncio** no Tesseract embutido no wheel. E o
+    Tesseract é justamente o motor descartado em 29/08/2026 por recuperar 17,7%
+    das palavras numa matrícula de cartório datilografada.
+
+    A degradação não levanta erro nenhum: sai um documento mutilado com cara de
+    completo, e o que o OCR não leu, nenhum recognizer detecta — logo, nada é
+    mascarado. Por isso a preparação virou uma função com nome, chamada de todos
+    os lados, em vez de quatro linhas que alguém precisa lembrar de copiar.
+    """
+    documentos.configurar_ocr(
+        f"http://127.0.0.1:{porta}/ocr",
+        {"X-Presidio-Token": token or TOKEN_SESSAO},
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8123)
@@ -399,18 +466,14 @@ if __name__ == "__main__":
 
     import sys
 
-    # O OCR do liteparse aponta para a nossa própria rota, com o token desta
-    # sessão. Precisa ser antes de qualquer job — um `ocr_server_url` vazio faz
-    # o liteparse cair no Tesseract embutido no wheel, em silêncio.
-    documentos.configurar_ocr(
-        f"http://127.0.0.1:{args.port}/ocr",
-        {"X-Presidio-Token": TOKEN_SESSAO},
-    )
+    preparar_runtime(args.port)
 
     engine = get_engine()
     print(f"Carregando modelo NLP (modo={engine.nlp_mode})...", flush=True)
     engine.initialize()
-    # O Electron lê esta linha para saber o token da sessão.
+    # O Electron lê esta linha para saber o token da sessão. A ordem importa:
+    # o token só sai DEPOIS do initialize(), e o Electron faz parsing linha a
+    # linha com buffer porque o chunk pode cortar o token no meio.
     print(f"PRESIDIO_TOKEN={TOKEN_SESSAO}", flush=True)
     print(f"Modelo carregado. Servidor rodando na porta {args.port}", flush=True)
     sys.stdout.flush()

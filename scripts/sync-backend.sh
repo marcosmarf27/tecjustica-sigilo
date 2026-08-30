@@ -40,6 +40,14 @@ ARQUIVOS=(
   jobs.py
   server.py
   cli.py
+  # API local v1: descoberta, pareamento e as rotas versionadas que a CLI, uma
+  # extensão do PJe e um agente MCP consomem. Fora desta lista, o aplicativo
+  # instalado sobe sem elas e todo cliente externo leva 404 — enquanto em
+  # desenvolvimento tudo funciona, porque ali se roda do diretório de origem.
+  api_v1.py
+  clientes.py
+  cliente_local.py
+  mcp_server.py
   requirements.txt
   # Atalho de linha de comando do Windows. Vivia só em resources/, fora do
   # git — o nome do arquivo é o próprio nome do comando, então ele precisa

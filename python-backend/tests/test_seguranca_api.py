@@ -15,7 +15,11 @@ import os
 
 import pytest
 
-TOKEN = "token-de-teste"
+# O conftest define `PRESIDIO_TOKEN` antes de qualquer import de `server`, que
+# lê o token na carga do módulo. Ler daqui, em vez de repetir o literal, evita
+# que dois arquivos discordem — foi o que fez o primeiro a importar ganhar e os
+# outros levarem 403.
+TOKEN = os.environ["PRESIDIO_TOKEN"]
 
 
 @pytest.fixture(scope="module")
@@ -70,13 +74,23 @@ def test_deny_list_sem_token_e_recusada(cliente):
     assert cliente.post("/config/deny-list", json={"deny_list": {}}).status_code == 403
 
 
-def test_arquivo_fora_dos_formatos_suportados(cliente, cabecalho):
+def test_arquivo_fora_dos_formatos_suportados(cliente, cabecalho, tmp_path):
     """
     Mesmo com credencial válida, só os formatos que o app declara ler são
     aceitos — a credencial protege de sites, não de um caminho digitado errado.
+
+    O arquivo é criado na hora, e isso é o ponto. Antes o teste apontava para
+    `/etc/passwd`: no Linux o arquivo existe, o backend passa da checagem de
+    existência e chega na de formato, devolvendo 415. No **Windows** ele não
+    existe, a resposta é 404 e o teste reprovava — na única plataforma em que
+    este aplicativo roda. Um arquivo temporário com extensão não suportada
+    exercita a checagem que interessa em qualquer sistema.
     """
+    proibido = tmp_path / "senhas.conf"
+    proibido.write_text("nada demais aqui", encoding="utf-8")
+
     resposta = cliente.post(
-        "/processar", json={"caminho": "/etc/passwd"}, headers=cabecalho
+        "/processar", json={"caminho": str(proibido)}, headers=cabecalho
     )
     assert resposta.status_code == 415
 

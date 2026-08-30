@@ -1,0 +1,34 @@
+{
+  // Checagem de tipos do renderer (`src/`).
+  //
+  // O `tsconfig.json` da raiz inclui `src` e `electron` juntos e referencia o
+  // `tsconfig.node.json`, que não é `composite` — a combinação faz o `tsc`
+  // parar em TS6305/TS6306 antes de checar qualquer coisa. Na prática o código
+  // React nunca passava por verificação de tipo: o `vite build` transpila sem
+  // checar, e o único `tsc` do `package.json` aponta para o projeto do Electron.
+  //
+  // Este arquivo existe para `npm run typecheck` ter o que rodar.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    // Caminho relativo em vez de `baseUrl`: o `baseUrl` está deprecado e o
+    // TypeScript 7 vai parar de aceitá-lo.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

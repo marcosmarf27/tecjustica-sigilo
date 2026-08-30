@@ -1,8 +1,14 @@
 # TecJustiça Sigilo — o que não está óbvio no código
 
 Anonimizador de dados pessoais em processos judiciais brasileiros. Electron +
-React + FastAPI + Microsoft Presidio. Tudo roda na máquina do usuário: nenhuma
-página sai daqui.
+React + FastAPI + [Presidio](https://presidio.dataprivacystack.org/). Tudo roda
+na máquina do usuário: nenhuma página sai daqui.
+
+> O Presidio deixou de ser da Microsoft e virou projeto comunitário sob a **Data
+> Privacy Stack** (licença MIT). Pacotes no PyPI e API continuam iguais, e o
+> projeto o usa **em processo** — não há Docker aqui, então a mudança de
+> registro (`mcr.microsoft.com` → `ghcr.io/data-privacy-stack`) não afeta nada.
+> Documentação: `presidio.dataprivacystack.org`.
 
 Este arquivo guarda o que custou caro descobrir. O resto está no código.
 
@@ -103,8 +109,31 @@ origem cruzada e nada é montado. A URL do Vite vive numa constante só
 (`URL_DEV`, em `main.ts`) porque origem declarada e URL carregada têm de
 coincidir — `localhost` de um lado e `127.0.0.1` do outro já reprova.
 
-**Sem navegador não existe CORS**, e é por isso que os 110 testes passam: eles
-falam HTTP direto com o backend. Só o renderer dentro do Chromium impõe a regra.
+**Sem navegador não existe CORS**, e é por isso que os testes passam: eles falam
+HTTP direto com o backend. Só o renderer dentro do Chromium impõe a regra.
+
+**O `userData` muda de nome entre dev e produção.** `app.getPath("userData")`
+deriva de `app.getName()`: em desenvolvimento vem do `name` do `package.json`
+(`tecjustica-sigilo`), e no app empacotado, do `productName` (`TecJustiça
+Sigilo`). Qualquer cliente externo que procure o `sessao.json` tem de olhar nos
+**dois** — cravar só o nome de produção faz a CLI funcionar depois de instalada
+e falhar em desenvolvimento, que é o pior tipo de bug para diagnosticar.
+
+**`app.routes` não enxerga rotas de router incluído.** O FastAPI atual mantém um
+`_IncludedRouter` sem `path` no lugar das rotas expandidas, então uma checagem
+por `app.routes` acha que as rotas `/v1` não existem. Quem precisa da lista de
+verdade — o `smoke-backend.sh`, por exemplo — usa `app.openapi()["paths"]`.
+
+**Classes de utilitário que nunca existiram.** O Tailwind v4 só gera utilities a
+partir dos namespaces que conhece (`--color-*`, `--font-*`, `--text-*`,
+`--radius-*`…). `--z-*` **não** é um deles: `z-sticky`, `z-overlay` e `z-toast`
+estavam no CSS e no JSX desde a v1 e nunca produziram uma linha de CSS — o
+navegador ignora classe inexistente sem reclamar. As camadas usam a escala
+numérica (`z-10`, `z-100`, `z-200`). Pelo mesmo motivo, token alcançado por
+`var()` a partir do JavaScript não pode depender do `@theme`: o Tailwind faz
+tree-shaking do que nenhuma utility menciona, e uma string montada em runtime é
+invisível para ele. Daí as 14 cores de entidade serem declaradas à mão no
+`:root`.
 
 ## Portabilidade Windows
 
@@ -173,13 +202,101 @@ palavras de contexto em `config/context_words.json`. Documentos brasileiros usam
 dígito verificador (`validators.py`) para elevar score ou descartar falso
 positivo.
 
+## Cofre
+
+Guarda o texto original e as ocorrências para a revisão poder ser reaberta. Isso
+**é** o índice pesquisável de CPFs que o produto existe para evitar, e a decisão
+foi tomada com o custo à vista — o que a torna defensável não é opcional:
+`safeStorage` (DPAPI) cifrando conteúdo **e** índice, desligado por padrão,
+consentimento explícito na primeira gravação, expurgo automático (30 dias).
+
+**Falha fechada:** com `isEncryptionAvailable()` falso, o cofre **recusa
+gravar**. Nunca grava em claro. Mesma cultura do `fetch-ocr-models.sh`, que
+recusa download sem pin.
+
+**O limite, que precisa estar escrito na interface:** DPAPI protege contra outro
+usuário da máquina e contra leitura do disco fora do sistema. **Não** protege
+contra programa malicioso rodando como o próprio usuário.
+
+Armadilhas de integridade, todas cobertas por teste em `cofre.test.mjs`, e cada
+guarda provada por mutação:
+
+**Gravar por cima de um índice ilegível** apagaria a referência a tudo que já
+está guardado — acontece quando o perfil do Windows muda. A guarda existia em
+`gravar` e **faltava em `apagar`**, que com índice ilegível gravava uma lista
+vazia por cima: apagava um documento e perdia todos.
+
+**A ordem é espelhada.** `gravar` põe o conteúdo antes do índice; `apagar` e
+`expurgar` põem o índice antes do conteúdo. Os dois pelo mesmo motivo: o índice
+nunca pode apontar para arquivo que não existe. Na ordem errada, apagar não tem
+rollback — arquivo apagado não volta.
+
+**Ausência de referência não prova que o arquivo é lixo.** A primeira tentativa
+de recolher restos varria a pasta apagando todo `.bin` que o índice não
+mencionasse. Com o `indice.bin` **apagado** (antivírus, restauração parcial de
+perfil), `indiceIlegivel()` devolve `false` — arquivo ausente não é arquivo
+ilegível — e `listar()` devolve `[]`: todo documento vira órfão e a faxina apaga
+a biblioteca inteira. Por isso a limpeza trabalha com uma **fila explícita**
+(`pendentes.bin`) do que alguém mandou apagar e não saiu. Perder o índice não
+destrói mais nada.
+
+`limparPendentes` roda no boot, no main — ao contrário do expurgo, ela não
+depende de preferência do usuário.
+
+**O expurgo roda no renderer, nunca no main.** O prazo é preferência do usuário,
+e o processo principal não a lê: um `expurgar(30)` no boot apagaria documentos
+60 dias antes da hora de quem configurou 90.
+
+## API local v1
+
+`sessao.json` no `userData` publica **porta e pid, nunca o token**. É a fronteira
+do desenho: página de navegador não lê arquivo, programa local lê. Quem descobre
+a porta ainda precisa parear, com aprovação humana e código conferido nos dois
+lados.
+
+**Status 200 não prova que é este aplicativo.** O `sessao.json` fica órfão sempre
+que o app morre sem passar pelo `before-quit`, e a porta volta ao pool. Um
+cliente que confia no código de status manda os autos para o programa que ficou
+com ela. Todo cliente confere a identidade em `GET /v1/info` (`produto` e `api`)
+antes de enviar conteúdo — `cliente_local.app_no_ar`. Não se confere o pid: ele
+é reciclado pelo sistema, e `os.kill(pid, 0)`, o idioma POSIX para "existe?", no
+Windows chama `TerminateProcess` e **mataria o app**.
+
+**Quem fala com o app usa a rota do app.** O servidor MCP extraía documento no
+próprio processo mesmo com o aplicativo aberto — e quem chama
+`documentos.configurar_ocr` é o `MotorLocal`, que só entra quando o app está
+*fechado*. Resultado: o liteparse caía no OCR embutido, sem erro nenhum. O envio
+mora em `cliente_local.enviar_documento`, e é por lá que CLI e MCP passam.
+
+**`arquivo-local` nunca é concedido em pareamento.** Cliente externo manda o
+conteúdo; quem abre arquivo por caminho continua sendo só a janela. `escopo_da_rota`
+em `clientes.py` mapeia apenas três rotas — tudo que não estiver lá fica fora do
+alcance de cliente externo **por omissão**, o que é o padrão certo: rota nova
+nasce inacessível.
+
+Contrato completo para quem for escrever cliente: [`docs/api-local.md`](docs/api-local.md).
+
+**`--in-place` na CLI só vale para texto.** A opção era inofensiva quando a CLI
+só lia `.txt`; ao ganhar leitura de PDF, passaria a gravar markdown por cima dos
+autos originais. A recusa vem antes de qualquer trabalho — validar depois de
+OCRizar 800 páginas seria cobrar minutos para então dizer que não dá.
+
+**E a guarda não pode olhar para o nome da opção.** `-o autos.pdf` faz a mesma
+destruição e escapava — a mensagem de erro do `--in-place` chegava a *sugerir*
+`-o`. Quem decide é o arquivo que vai ser aberto para escrita, comparado com
+`samefile`, que resolve link, junction e a diferença de maiúsculas do NTFS.
+Comparar strings não resolve.
+
 ## Pendências
 
 - Segundo passe do OCR para página ruim. Medido: subir a resolução do `small`
   rende mais que trocar para o `medium`, pela metade do tempo.
 - Tarja de redação em PDF (queimar pixels, sanear metadados, verificar resíduo).
-- Extensão de navegador para o PJe — desenho ainda não escolhido entre Native
-  Messaging (sem porta aberta) e HTTP local com pareamento.
+  O `presidio-image-redactor` **não** serve de atalho: roda sobre Tesseract, o
+  motor descartado por recuperar 17,7% em datilografado, e não aceita OCR
+  injetado.
+- Extensão de navegador para o PJe — o **contrato existe** (`docs/api-local.md`)
+  e a escolha foi HTTP local com pareamento; falta escrever a extensão.
 - Os dois vazamentos residuais da auditoria de 14/08 **continuam**, reconferidos
   com o motor de OCR novo em 29/08/2026. Ambos em `expedientes_13-08`: o CPF
   `004.811.253-` cortado no fim da linha, com o dígito verificador na linha

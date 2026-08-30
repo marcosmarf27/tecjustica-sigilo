@@ -101,6 +101,27 @@ async function comTimeout(
 }
 
 /** Informado quando o motor pedido não pôde ser carregado e caiu para o leve. */
+/** Um cliente autorizado a falar com o motor. Sem o hash do token. */
+export interface ClientePareado {
+  id: string;
+  nome: string;
+  escopos: string[];
+  criado_em: number;
+  ultimo_uso: number | null;
+  origem: string | null;
+}
+
+/** Pedido de pareamento à espera de decisão humana. */
+export interface PedidoDePareamento {
+  id: string;
+  nome: string;
+  escopos: string[];
+  /** Os seis caracteres que precisam bater com o que o cliente mostra. */
+  codigo: string;
+  criado_em: number;
+  origem: string | null;
+}
+
 export interface AvisoDeModo {
   solicitado: string;
   efetivo: string;
@@ -113,6 +134,11 @@ export function usePythonBackend() {
   const [avisoDeModo, setAvisoDeModo] = useState<AvisoDeModo | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const baseRef = useRef(`http://127.0.0.1:${PORTA_PADRAO}`);
+  /* O endereço como *estado*, além do ref: a tela Conexões precisa exibi-lo, e
+     um ref não dispara render quando a porta real chega pelo IPC. Sem isto, o
+     usuário — e quem vai escrever uma extensão — não tem como descobrir em que
+     porta o motor subiu, já que ela é dinâmica. */
+  const [enderecoApi, setEnderecoApi] = useState(`127.0.0.1:${PORTA_PADRAO}`);
 
   useEffect(() => {
     let cancelado = false;
@@ -161,7 +187,10 @@ export function usePythonBackend() {
     const iniciar = async () => {
       try {
         const porta = await window.electronAPI?.getBackendPort?.();
-        if (porta) baseRef.current = `http://127.0.0.1:${porta}`;
+        if (porta) {
+          baseRef.current = `http://127.0.0.1:${porta}`;
+          setEnderecoApi(`127.0.0.1:${porta}`);
+        }
       } catch {
         // Sem IPC (ex.: rodando no navegador em dev): usa a porta padrão.
       }
@@ -353,8 +382,95 @@ export function usePythonBackend() {
     []
   );
 
+  /** A deny-list inteira, para a tela de Ajustes listar e filtrar. */
+  const buscarDenyList = useCallback(async (): Promise<
+    Record<string, string[]>
+  > => {
+    const res = await comTimeout(
+      `${baseRef.current}/config/deny-list`,
+      {},
+      TIMEOUT_RAPIDO_MS
+    );
+    if (!res.ok) throw new Error("Não foi possível ler a lista de exceções");
+    const { deny_list: lista } = await res.json();
+    return lista;
+  }, []);
+
+  /**
+   * Substitui a deny-list inteira. É como a rota funciona — ela recebe o
+   * arquivo completo —, e é o que permite **remover** um termo, coisa que a
+   * interface não sabia fazer: só existia o caminho de acrescentar.
+   */
+  const gravarDenyList = useCallback(
+    async (lista: Record<string, string[]>): Promise<void> => {
+      const res = await comTimeout(
+        `${baseRef.current}/config/deny-list`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deny_list: lista }),
+        },
+        TIMEOUT_RAPIDO_MS
+      );
+      if (!res.ok) throw new Error("Não foi possível gravar a lista");
+    },
+    []
+  );
+
+  /* ---------------------------------------------------------------------
+     API local v1 — administração de clientes pareados.
+
+     Estas rotas exigem o **token de sessão**, ou seja, só a janela do
+     aplicativo as alcança. Um cliente pareado não administra outros clientes,
+     nem a si mesmo: `clientes.escopo_da_rota` não mapeia escopo nenhum para
+     elas, então caem no 403 por omissão.
+     --------------------------------------------------------------------- */
+
+  const listarClientes = useCallback(async (): Promise<ClientePareado[]> => {
+    const res = await comTimeout(
+      `${baseRef.current}/v1/clientes`,
+      {},
+      TIMEOUT_RAPIDO_MS
+    );
+    if (!res.ok) throw new Error("Não foi possível listar os clientes");
+    return (await res.json()).clientes;
+  }, []);
+
+  const revogarCliente = useCallback(async (id: string): Promise<void> => {
+    const res = await comTimeout(
+      `${baseRef.current}/v1/clientes/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      TIMEOUT_RAPIDO_MS
+    );
+    if (!res.ok) throw new Error("Não foi possível revogar o acesso");
+  }, []);
+
+  const listarPedidos = useCallback(async (): Promise<PedidoDePareamento[]> => {
+    const res = await comTimeout(
+      `${baseRef.current}/v1/pedidos`,
+      {},
+      TIMEOUT_RAPIDO_MS
+    );
+    if (!res.ok) throw new Error("Não foi possível ler os pedidos");
+    return (await res.json()).pedidos;
+  }, []);
+
+  const decidirPedido = useCallback(
+    async (id: string, aprovado: boolean): Promise<void> => {
+      const res = await comTimeout(
+        `${baseRef.current}/v1/pedidos/${encodeURIComponent(id)}/decidir?aprovado=${aprovado}`,
+        { method: "POST" },
+        TIMEOUT_RAPIDO_MS
+      );
+      if (!res.ok) throw new Error("O pedido expirou ou já foi decidido");
+    },
+    []
+  );
+
   return {
     status,
+    /** `127.0.0.1:8123` — o que a tela Conexões mostra e um cliente usa. */
+    enderecoApi,
     nlpMode,
     avisoDeModo,
     anonymize,
@@ -362,5 +478,11 @@ export function usePythonBackend() {
     extractText,
     reconectar,
     adicionarNaDenyList,
+    buscarDenyList,
+    gravarDenyList,
+    listarClientes,
+    revogarCliente,
+    listarPedidos,
+    decidirPedido,
   };
 }

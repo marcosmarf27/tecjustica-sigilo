@@ -103,28 +103,104 @@ Três políticas, com o resultado à vista na hora de escolher:
   (veja abaixo).
 
 ### ⌨️ CLI nativa (Windows + WSL)
-Além da GUI, a tela **Linha de Comando** instala automaticamente o comando
-`tecjustica-sigilo` no `cmd` / `PowerShell` (via User PATH) e no **WSL bash**
-(shim em `~/.local/bin` via interop). Uma instalação, dois ambientes — perfeito
-para automação, scripts de lote e agentes como Claude Code:
+O instalador põe `tecjustica-sigilo` no PATH do `cmd` / `PowerShell` e no
+**WSL bash** (shim em `~/.local/bin`). Uma instalação, dois ambientes.
 
 ```bash
-tecjustica-sigilo processo.txt -o processo_anon.txt
-cat peticao.txt | tecjustica-sigilo --entities PERSON,CPF_BR
-tecjustica-sigilo autos/*.txt --in-place
-tecjustica-sigilo termo.txt -q --format json   # para agentes/pipelines
+tecjustica-sigilo autos.pdf                    # PDF, DOCX, XLSX, imagem — com OCR
+tecjustica-sigilo processo.txt -o saida.md
+cat peticao.txt | tecjustica-sigilo -e PERSON,CPF_BR
+tecjustica-sigilo autos/*.pdf --output-dir ./anonimizados
+tecjustica-sigilo termo.txt -f json            # para agentes e pipelines
 ```
 
-### 🔒 Zero envio de dados — e nada de PII em disco
+**Subcomandos:**
+
+| | |
+|---|---|
+| `anonimizar <arquivo>…` | mascara os dados pessoais (é o padrão, pode omitir) |
+| `ler <arquivo>…` | extrai o texto com OCR, **sem** anonimizar |
+| `ocr <imagem>` | reconhece o texto de uma imagem |
+| `status` | o aplicativo está aberto? em que modo está o motor? |
+| `conectar` | autoriza esta CLI junto ao aplicativo |
+| `mcp` | servidor MCP em stdio, para agentes |
+
+**A CLI é cliente fino.** Com o aplicativo aberto, ela delega para o motor que
+já está quente — a resposta é imediata. Fechado, carrega o motor no próprio
+processo e avisa o custo, que é de segundos a minutos. `--offline` força o
+local; `--remoto` falha em vez de esperar.
+
+Para usar o motor do aplicativo, autorize uma vez:
+
+```bash
+tecjustica-sigilo conectar     # mostra um código; confira e aprove na janela
+```
+
+### 🤖 Servidor MCP
+
+O mesmo comando expõe o motor como ferramenta de agente:
+
+```json
+{
+  "mcpServers": {
+    "tecjustica-sigilo": { "command": "tecjustica-sigilo", "args": ["mcp"] }
+  }
+}
+```
+
+Quatro ferramentas: `anonimizar_texto`, `ler_documento`, `ocr_imagem` e
+`status`. Resolve o problema óbvio de um agente que lê autos — o conteúdo é
+sigiloso e mandá-lo para um modelo na nuvem é o que este produto existe para
+evitar. O agente manda o documento para cá e recebe o texto **já mascarado**.
+
+### 🔌 API local
+
+Enquanto o aplicativo está aberto, ele mantém um servidor em `127.0.0.1` para
+que extensões de navegador e outros programas usem o motor sem que o documento
+saia da máquina. Cada cliente é autorizado **individualmente**, com um código
+conferido nos dois lados, e pode ser revogado na tela **Conexões**.
+
+Ler arquivo do disco por caminho **nunca** é concedido a cliente externo: ele
+envia o conteúdo, e quem abre arquivo do seu computador continua sendo só a
+janela do aplicativo.
+
+📄 Contrato completo: [`docs/api-local.md`](docs/api-local.md)
+
+### 🔒 Zero envio de dados
 Tudo roda como processo local na sua máquina. Nenhuma chamada para serviço
 externo, nem no caminho da anonimização nem em qualquer outro: até as fontes da
 interface são empacotadas junto. O modelo BERT é baixado apenas **uma vez**
 (HuggingFace) na primeira execução; depois disso, offline.
 
-O histórico guarda apenas nome do arquivo, data e contagem por tipo. **O texto
-do documento e a lista de dados encontrados nunca vão para o disco** — ficam só
-na memória, enquanto o app está aberto. Um índice de todos os CPFs e endereços
-de um processo é exatamente o artefato que este app existe para evitar.
+### 🗄️ O que fica no disco, e como
+
+Versões anteriores prometiam que nada do documento tocava o disco. **Isso mudou,
+e vale ser exato sobre o que mudou.**
+
+Para que a revisão possa ser reaberta depois de fechar o programa — o histórico
+antigo prometia isso e não cumpria —, existe agora um **cofre**. Ele guarda o
+texto original, a lista de ocorrências encontradas e o texto anonimizado.
+
+| | |
+|---|---|
+| **Vem desligado** | nada é gravado até você consentir, uma vez, num aviso que diz exatamente o que passa a ficar no disco |
+| **Cifrado em repouso** | com a proteção de dados do Windows (DPAPI), atrelada à sua conta de usuário |
+| **Falha fechada** | onde o sistema não oferece cifragem, o cofre **recusa gravar** — nunca grava em claro |
+| **Apaga sozinho** | prazo de guarda configurável, 30 dias por padrão; dá para apagar item a item ou esvaziar tudo |
+| **O índice também é cifrado** | nome de arquivo em processo judicial carrega nome de pessoa |
+
+**O que a cifragem protege:** outra pessoa usando esta máquina com outra conta,
+e a leitura do disco fora do sistema — se o computador for levado ou o HD
+montado em outro lugar.
+
+**O que ela não protege:** um programa malicioso rodando com a sua própria
+conta, agora. Para o sistema, ele é você — e recebe os dados decifrados se
+pedir. Nenhuma cifragem atrelada à conta do usuário protege contra isso.
+
+Com o cofre desligado, o comportamento é o de antes: o texto e as ocorrências
+existem só na memória enquanto o programa está aberto. O arquivo anonimizado que
+você salva é seu, fica em claro onde você escolher, e é seguro por construção —
+os dados pessoais já não estão nele.
 
 ## 📥 Baixar
 
