@@ -118,11 +118,21 @@ function Casca() {
   const anonimizar = useCallback(async () => {
     if (estado.fila.length === 0 || prefs.entidades.length === 0) return;
 
-    const resultado = await executar(
-      estado.fila,
-      prefs.entidades,
-      prefs.politica
-    );
+    /* O `try` existe porque a alternativa é o sumiço.
+       Sem ele, qualquer exceção que escapasse do lote rejeitava esta promise
+       sem tratamento: a tela de progresso fechava pelo `finally` do `executar`
+       e o aplicativo voltava para a Mesa **sem uma palavra** — o usuário via
+       "começou, parou e voltou", e nem quem fosse consertar tinha por onde
+       começar. Falhar é aceitável; falhar em silêncio, não. */
+    let resultado;
+    try {
+      resultado = await executar(estado.fila, prefs.entidades, prefs.politica);
+    } catch (erro) {
+      const motivo = erro instanceof Error ? erro.message : "erro desconhecido";
+      console.error("O lote foi interrompido:", erro);
+      avisar(`O processamento foi interrompido: ${motivo}`, "erro");
+      return;
+    }
 
     const aviso = mensagemDoLote(resultado, estado.fila.length);
     if (aviso) avisar(aviso.mensagem, aviso.tipo);

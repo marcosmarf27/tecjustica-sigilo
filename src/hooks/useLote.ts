@@ -82,15 +82,23 @@ export function useLote({ despachar, processar, extractText }: DependenciasLote)
         for (let i = 0; i < fila.length; i++) {
           if (controle.signal.aborted) break;
           const arquivo = fila[i];
-          const ehRtf = arquivo.name.toLowerCase().endsWith(".rtf");
-
-          despachar({
-            tipo: "estado-do-arquivo",
-            caminho: arquivo.path,
-            estado: arquivo.precisaExtracao ? "lendo" : "anonimizando",
-          });
 
           try {
+            /* Tudo aqui dentro, sem exceção.
+               Estas três linhas ficavam FORA do try, e uma delas estourando
+               levava o lote inteiro: a exceção subia por `executar`, o
+               `finally` fechava a tela de progresso, e o aplicativo voltava
+               para a Mesa **sem mensagem nenhuma** — porque a montagem do aviso
+               acontece depois do `await`, que nunca retornava. Um lote pode
+               falhar; ele não pode sumir. */
+            const ehRtf = arquivo.name.toLowerCase().endsWith(".rtf");
+
+            despachar({
+              tipo: "estado-do-arquivo",
+              caminho: arquivo.path,
+              estado: arquivo.precisaExtracao ? "lendo" : "anonimizando",
+            });
+
             /* Documento binário (PDF, DOCX, imagem) é lido pelo backend, que
                faz OCR quando a página é digitalizada. Texto já em mãos vai
                direto — só o RTF precisa de uma conversão antes. */
@@ -142,14 +150,14 @@ export function useLote({ despachar, processar, extractText }: DependenciasLote)
             // Um arquivo problemático não pode levar o lote inteiro junto.
             const motivo =
               erro instanceof Error ? erro.message : "erro desconhecido";
-            falhas.push({ nome: arquivo.name, motivo });
+            falhas.push({ nome: arquivo?.name ?? `arquivo ${i + 1}`, motivo });
             despachar({
               tipo: "estado-do-arquivo",
-              caminho: arquivo.path,
+              caminho: arquivo?.path ?? "",
               estado: "falhou",
               motivo,
             });
-            console.error(`Falha em ${arquivo.name}:`, erro);
+            console.error(`Falha em ${arquivo?.name ?? i}:`, erro);
           }
         }
       } finally {
