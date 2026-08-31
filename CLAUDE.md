@@ -171,6 +171,33 @@ tree-shaking do que nenhuma utility menciona, e uma string montada em runtime é
 invisível para ele. Daí as 14 cores de entidade serem declaradas à mão no
 `:root`.
 
+## O instalador NSIS
+
+O `build/installer.nsh` põe a CLI no PATH ao instalar e a tira ao desinstalar.
+Ele **quebrava a geração do instalador inteiro**, e ninguém tinha visto porque o
+`build:dist` nunca chegava ao passo NSIS nas tentativas anteriores. Dois
+defeitos empilhados, os dois clássicos da linguagem:
+
+**`${WordFind}` e `${WordReplace}` não são comandos do NSIS.** Vêm de
+`WordFunc.nsh`, que precisa de `!include` **e** de um `!insertmacro` por função.
+Sem isso o `makensis` aborta com `Error in macro customUnInstall`.
+
+**Função usada no desinstalador precisa do prefixo `un.`** — declarada por
+`!insertmacro un.WordReplace` e chamada como `${un.WordReplace}`. O NSIS compila
+instalador e desinstalador como dois binários separados, e o segundo não enxerga
+as funções do primeiro.
+
+**E o arquivo precisa de BOM.** O `makensis` 3.0.4 sem BOM lê como ANSI e recusa
+os acentos dos comentários em português com `Bad text encoding`. Gravar em
+`utf-8-sig`.
+
+Dá para validar sem gastar um `build:dist` inteiro (que leva dezenas de minutos
+até chegar lá): monte um `.nsi` mínimo que inclua o hook, chame as duas macros
+**e um `WriteUninstaller`** — sem ele o NSIS avisa "Uninstaller script code
+found but WriteUninstaller never used" e **não compila a seção de
+desinstalação**, que é exatamente onde o defeito estava. Depois rode o
+`makensis` do cache do electron-builder direto no arquivo.
+
 ## Portabilidade Windows
 
 Quatro bugs numa única instalação limpa em 29/08/2026, todos em código que
