@@ -52,120 +52,167 @@ export interface ResultadoLote {
   cancelado: boolean;
 }
 
-export function useLote({ despachar, processar, extractText }: DependenciasLote) {
+/**
+ * Percorre a fila e devolve o que passou, o que falhou e se foi cancelado.
+ *
+ * Fora do hook pelo mesmo motivo que `mensagemDoLote`: assim dá para testá-la
+ * sem React — e é justamente esta função que morreu em silêncio. O laço tinha
+ * linhas fora do `try` por arquivo, e qualquer uma delas estourando levava o
+ * lote inteiro: a exceção subia, a tela de progresso fechava, e o aviso (que só
+ * é montado depois deste `await`) nunca chegava a existir. O usuário via
+ * "começou, parou e voltou".
+ *
+ * A regra que este código sustenta, e que os testes travam: **um arquivo pode
+ * falhar; o lote não pode sumir.** Toda saída daqui é um `ResultadoLote` — nunca
+ * uma exceção — a menos que o próprio `despachar` de encerramento quebre, e
+ * mesmo aí o `finally` já rodou.
+ */
+export async function percorrerLote(
+  fila: ArquivoNaFila[],
+  entidades: EntityType[],
+  politica: PoliticaMascara,
+  controle: AbortController,
+  { despachar, processar, extractText }: DependenciasLote
+): Promise<ResultadoLote> {
+  const processados: ProcessedFile[] = [];
+  /* Nome **e** motivo: dizer só que falhou deixa quem opera sem pista do que
+     fazer, e a causa costuma ser acionável (arquivo grande demais, backend fora
+     do ar, formato recusado). */
+  const falhas: { nome: string; motivo: string }[] = [];
+
+  despachar({
+    tipo: "iniciar-lote",
+    total: fila.length,
+    primeiroNome: fila[0]?.name ?? "",
+  });
+
+  try {
+    for (let i = 0; i < fila.length; i++) {
+      if (controle.signal.aborted) break;
+      const arquivo = fila[i];
+      /* Marca a passagem do ponto sem volta: daqui em diante o documento está
+         processado, e nada que falhe depois pode transformá-lo numa falha. */
+      let concluido = false;
+
+      try {
+        /* Tudo aqui dentro, sem exceção. Estas linhas já ficaram FORA do try, e
+           uma delas estourando levava o lote junto. */
+        const ehRtf = arquivo.name.toLowerCase().endsWith(".rtf");
+
+        despachar({
+          tipo: "estado-do-arquivo",
+          caminho: arquivo.path,
+          estado: arquivo.precisaExtracao ? "lendo" : "anonimizando",
+        });
+
+        /* Documento binário (PDF, DOCX, imagem) é lido pelo backend, que faz
+           OCR quando a página é digitalizada. Texto já em mãos vai direto — só
+           o RTF precisa de uma conversão antes. */
+        const entrada: EntradaProcessar = arquivo.precisaExtracao
+          ? { caminho: arquivo.path, nomeArquivo: arquivo.name }
+          : {
+              texto: ehRtf
+                ? await extractText(arquivo.content, "rtf")
+                : arquivo.content,
+              nomeArquivo: arquivo.name,
+            };
+
+        const resultado = await processar(
+          entrada,
+          entidades,
+          politica,
+          (p) =>
+            despachar({
+              tipo: "progresso",
+              progresso: {
+                atual: p.atual,
+                total: p.total,
+                nomeArquivo: arquivo.name,
+                etapa:
+                  fila.length > 1
+                    ? `${p.etapa} (${i + 1} de ${fila.length})`
+                    : p.etapa,
+              },
+            }),
+          controle.signal
+        );
+
+        processados.push({
+          originalName: arquivo.name,
+          originalPath: arquivo.path,
+          originalContent: resultado.texto_original,
+          anonymizedContent: resultado.anonymized_text,
+          entitiesFound: resultado.entities_found,
+          ocr: resultado.ocr,
+        });
+        concluido = true;
+
+        despachar({
+          tipo: "estado-do-arquivo",
+          caminho: arquivo.path,
+          estado: "pronto",
+        });
+      } catch (erro) {
+        if (controle.signal.aborted) break;
+
+        /* Um arquivo aparece em `processados` OU em `falhas`, nunca nos dois.
+           O `push` do resultado acontece antes do despacho de "pronto"; se esse
+           despacho estourasse, o mesmo documento entrava nas duas listas — e a
+           mensagem final anunciava "1 de 2 processados" sobre um lote em que os
+           dois passaram, com o documento aparecendo ao mesmo tempo na revisão e
+           entre as falhas. O trabalho já estava feito; o que falhou foi contar. */
+        if (concluido) {
+          console.error(`Falha ao registrar ${arquivo?.name} como pronto:`, erro);
+          continue;
+        }
+
+        // Um arquivo problemático não pode levar o lote inteiro junto.
+        const motivo = erro instanceof Error ? erro.message : "erro desconhecido";
+        falhas.push({ nome: arquivo?.name ?? `arquivo ${i + 1}`, motivo });
+        try {
+          despachar({
+            tipo: "estado-do-arquivo",
+            caminho: arquivo?.path ?? "",
+            estado: "falhou",
+            motivo,
+          });
+        } catch {
+          /* Nem relatar a falha pode derrubar o lote. A falha já está em
+             `falhas`, que é o que vira mensagem no fim. */
+        }
+        console.error(`Falha em ${arquivo?.name ?? i}:`, erro);
+      }
+    }
+  } finally {
+    despachar({ tipo: "encerrar-lote" });
+  }
+
+  return { processados, falhas, cancelado: controle.signal.aborted };
+}
+
+export function useLote(deps: DependenciasLote) {
   const cancelamento = useRef<AbortController | null>(null);
 
   const cancelar = useCallback(() => cancelamento.current?.abort(), []);
 
+  const { despachar, processar, extractText } = deps;
   const executar = useCallback(
     async (
       fila: ArquivoNaFila[],
       entidades: EntityType[],
       politica: PoliticaMascara
     ): Promise<ResultadoLote> => {
-      const processados: ProcessedFile[] = [];
-      /* Nome **e** motivo: dizer só que falhou deixa quem opera sem pista do
-         que fazer, e a causa costuma ser acionável (arquivo grande demais,
-         backend fora do ar, formato recusado). */
-      const falhas: { nome: string; motivo: string }[] = [];
-
       const controle = new AbortController();
       cancelamento.current = controle;
-
-      despachar({
-        tipo: "iniciar-lote",
-        total: fila.length,
-        primeiroNome: fila[0]?.name ?? "",
-      });
-
       try {
-        for (let i = 0; i < fila.length; i++) {
-          if (controle.signal.aborted) break;
-          const arquivo = fila[i];
-
-          try {
-            /* Tudo aqui dentro, sem exceção.
-               Estas três linhas ficavam FORA do try, e uma delas estourando
-               levava o lote inteiro: a exceção subia por `executar`, o
-               `finally` fechava a tela de progresso, e o aplicativo voltava
-               para a Mesa **sem mensagem nenhuma** — porque a montagem do aviso
-               acontece depois do `await`, que nunca retornava. Um lote pode
-               falhar; ele não pode sumir. */
-            const ehRtf = arquivo.name.toLowerCase().endsWith(".rtf");
-
-            despachar({
-              tipo: "estado-do-arquivo",
-              caminho: arquivo.path,
-              estado: arquivo.precisaExtracao ? "lendo" : "anonimizando",
-            });
-
-            /* Documento binário (PDF, DOCX, imagem) é lido pelo backend, que
-               faz OCR quando a página é digitalizada. Texto já em mãos vai
-               direto — só o RTF precisa de uma conversão antes. */
-            const entrada: EntradaProcessar = arquivo.precisaExtracao
-              ? { caminho: arquivo.path, nomeArquivo: arquivo.name }
-              : {
-                  texto: ehRtf
-                    ? await extractText(arquivo.content, "rtf")
-                    : arquivo.content,
-                  nomeArquivo: arquivo.name,
-                };
-
-            const resultado = await processar(
-              entrada,
-              entidades,
-              politica,
-              (p) =>
-                despachar({
-                  tipo: "progresso",
-                  progresso: {
-                    atual: p.atual,
-                    total: p.total,
-                    nomeArquivo: arquivo.name,
-                    etapa:
-                      fila.length > 1
-                        ? `${p.etapa} (${i + 1} de ${fila.length})`
-                        : p.etapa,
-                  },
-                }),
-              controle.signal
-            );
-
-            processados.push({
-              originalName: arquivo.name,
-              originalPath: arquivo.path,
-              originalContent: resultado.texto_original,
-              anonymizedContent: resultado.anonymized_text,
-              entitiesFound: resultado.entities_found,
-              ocr: resultado.ocr,
-            });
-
-            despachar({
-              tipo: "estado-do-arquivo",
-              caminho: arquivo.path,
-              estado: "pronto",
-            });
-          } catch (erro) {
-            if (controle.signal.aborted) break;
-            // Um arquivo problemático não pode levar o lote inteiro junto.
-            const motivo =
-              erro instanceof Error ? erro.message : "erro desconhecido";
-            falhas.push({ nome: arquivo?.name ?? `arquivo ${i + 1}`, motivo });
-            despachar({
-              tipo: "estado-do-arquivo",
-              caminho: arquivo?.path ?? "",
-              estado: "falhou",
-              motivo,
-            });
-            console.error(`Falha em ${arquivo?.name ?? i}:`, erro);
-          }
-        }
+        return await percorrerLote(fila, entidades, politica, controle, {
+          despachar,
+          processar,
+          extractText,
+        });
       } finally {
         cancelamento.current = null;
-        despachar({ tipo: "encerrar-lote" });
       }
-
-      return { processados, falhas, cancelado: controle.signal.aborted };
     },
     [despachar, processar, extractText]
   );

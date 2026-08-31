@@ -97,6 +97,14 @@ os dois números existem, são válidos, apontam para coisas diferentes, e nada
 estoura — o revisor acredita ter conferido a ocorrência que pediu. O índice
 original agora viaja junto no `segmentar`, antes de qualquer filtro.
 
+**Um arquivo aparece em `processados` OU em `falhas`, nunca nos dois.** O
+`push` do resultado acontece antes do despacho de "pronto"; com esse despacho
+estourando, o mesmo documento entrava nas duas listas e a mensagem final
+anunciava "1 de 2 processados" sobre um lote em que os dois passaram. O
+`percorrerLote` marca `concluido` no ponto sem volta — depois dele, nada que
+falhe transforma um documento processado numa falha. Achado pelo primeiro teste
+de lote escrito, minutos depois de o harness existir.
+
 **O renderer tem testes desde 30/08/2026** (`npm test`, vitest, recortado a
 `src/`). Antes não tinha nenhum, e é por isso que os dois defeitos acima foram
 achados lendo código em vez de por teste. Os três runners são separados de
