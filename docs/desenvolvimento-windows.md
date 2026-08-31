@@ -193,6 +193,45 @@ perseguir um bug que talvez não exista**.
 Para investigar comportamento de verdade: teste no app empacotado
 (`release/win-unpacked`), ou num `dev` que ninguém vai tocar até o teste acabar.
 
+## Dirigir o app empacotado para investigar
+
+Comportamento de interface não se investiga no `dev` — o HMR produz sintomas
+próprios (ver a seção acima). O app empacotado aceita `--remote-debugging-port`,
+e com isso dá para inspecionar e acionar o renderer de fora:
+
+```powershell
+Start-Process "release\win-unpacked\TecJustiça Sigilo.exe" `
+  -ArgumentList "--remote-debugging-port=9222"
+```
+
+Depois, `http://127.0.0.1:9222/json` lista os alvos, e um WebSocket para o
+`webSocketDebuggerUrl` aceita `Runtime.evaluate`, `DOM.setFileInputFiles` (que
+cria `File` com caminho de disco de verdade, o que o `getPathForFile` do preload
+precisa) e `Runtime.consoleAPICalled` para capturar os erros do renderer.
+
+**Cinco armadilhas que custaram uma noite**, todas de instrumento e todas
+produzindo sintomas idênticos ao defeito procurado:
+
+1. **`Start-Process -ArgumentList` não cita.** Caminho com espaço vira vários
+   argumentos, e o teste envia um caminho truncado. O backend responde 404 e a
+   tela faz exatamente o que o usuário relatou. Cite cada argumento à mão.
+2. **Comparar texto de botão por igualdade.** O botão de ação é
+   `ANONIMIZAR · 6 ARQUIVOS`; comparar com `"ANONIMIZAR"` casa só com o item do
+   trilho de navegação, e o clique não faz nada.
+3. **`/(\d+)\s+ARQUIVO/` no texto da página** casa com a dica do estado VAZIO
+   ("ATÉ 10 ARQUIVOS"). O teste anuncia fila carregada sobre fila vazia.
+4. **Comparar os primeiros N caracteres da tela.** Mesa vazia e Mesa com fila
+   têm o mesmo começo; a detecção de "voltou para a Mesa" dispara no primeiro
+   instante do teste.
+5. **A fila não se limpa sozinha entre execuções.** O `AreaDeSoltar` desduplica
+   por nome, então entradas velhas — com caminhos velhos — continuam lá.
+   `location.reload()` antes de cada rodada.
+
+A defesa que funcionou nas cinco vezes foi a mesma: **procurar o dado que não
+encaixa**. "Zero requisições HTTP" é incompatível com "o lote começou e parou".
+Sem essa checagem cruzada, cada uma delas teria virado um bug reportado que não
+existe.
+
 ## Medir desempenho de OCR neste notebook
 
 Se você for tocar em qualquer parâmetro do OCR, leia isto antes — foi uma tarde

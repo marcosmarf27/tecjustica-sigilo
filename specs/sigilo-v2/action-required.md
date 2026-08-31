@@ -114,7 +114,46 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
 Roteiro de teste com comandos e resultados esperados:
 https://claude.ai/code/artifact/69ea7150-bb79-46bb-8c88-3bf9779a09cc
 
-## O lote que abortava — o que já foi eliminado
+## O lote que abortava — investigação encerrada em 31/08/2026
+
+Relato: "seleciono cinco ou seis documentos, começa o processamento, aí de
+repente ele para e volta pra tela normal pra juntar novos documentos".
+
+**Não reproduzido como defeito do produto.** O app EMPACOTADO — sem Vite, sem
+HMR, dirigido por CDP — processou seis peças de um processo real do PJe em
+**32 segundos** e abriu a revisão com as seis abas e as tarjas renderizadas:
+
+```
+[00:58:03]   0% PREPARANDO ..................... PROGRESSO 0 DE 6
+[00:58:27]  50% LENDO O DOCUMENTO — PAGINA 1 DE 2 (5 DE 6)
+[00:58:35]  VOLTAR  003_Procuracao...  004_Documento-de-Identificacao...
+```
+
+O que foi eliminado, cada um por medição e não por leitura:
+
+1. **Backend** — seis peças por HTTP direto: 6 processados, 0 falhas, nenhuma
+   sondagem de status acima de 0,1 s.
+2. **O laço do lote** — extraído para `percorrerLote` e coberto por 7 testes
+   contra toda forma de morrer construível.
+3. **Tratamento no `App`** — a exceção do lote não era tratada; agora é, e há
+   barreira de erro no renderer.
+4. **Health check virando "erro" no meio** — impossível: o laço faz `return`
+   assim que o motor fica pronto.
+5. **HMR do servidor de desenvolvimento** — mecanismo provado (um `page reload`
+   apaga o estado e produz o sintoma), mas os eventos caíram fora das janelas de
+   processamento nos logs.
+6. **O app empacotado** — funciona, conforme acima.
+
+**A causa mais provável, com o formato exato do sintoma:** `/processar`
+devolvendo **404**. O backend responde 404 quando `Path(caminho).is_file()` é
+falso; aí os seis arquivos falham em ~2 segundos, `processados.length === 0`, e
+o `App` volta para a Mesa. Reproduzi isso por acidente — com um caminho truncado
+— e o resultado na tela é indistinguível do relatado.
+
+O que mudou: antes isso era **mudo**. Hoje aparece aviso vermelho com o motivo e
+cada arquivo fica marcado "falhou" com a causa na própria linha. Se o sintoma
+voltar, ele vem com a explicação junto.
+
 
 Relato: "seleciono cinco ou seis documentos, começa o processamento, aí de
 repente ele para e volta pra tela normal pra juntar novos documentos".
@@ -139,5 +178,5 @@ estado do renderer e produz exatamente este sintoma (ver
 caíram **fora** das janelas de processamento, então não dá para atribuir o
 relato a eles.
 
-**Teste decisivo:** reproduzir no app empacotado, ou num `dev` que ninguém toque
-durante o teste. Se não acontecer ali, era o HMR.
+**Se voltar a acontecer:** o texto do aviso diz o motivo. Um 404 aponta para
+caminho que o backend não abre.
