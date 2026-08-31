@@ -202,6 +202,20 @@ as funções do primeiro.
 os acentos dos comentários em português com `Bad text encoding`. Gravar em
 `utf-8-sig`.
 
+**Verificado executando, em 31/08/2026**, com um instalador mínimo que inclui as
+macros: instalar acrescenta a entrada (20 → 21 no PATH do usuário) e desinstalar
+a remove, deixando o valor **byte a byte idêntico** ao original. Duas condições
+que o teste precisa ter, e que custaram uma tentativa cada: `RequestExecutionLevel
+user` (sem isso o NSIS pede elevação por padrão e o teste morre num UAC que
+ninguém clica) e `SilentInstall silent`.
+
+Um detalhe que a execução revelou: o gancho usa `WriteRegExpandStr`, então
+**normaliza o PATH para `REG_EXPAND_SZ`** mesmo que estivesse como `REG_SZ`. É o
+tipo correto para PATH — é o que permite `%USERPROFILE%` funcionar dentro dele —
+mas note a diferença de política em relação ao `setUserPath` do `main.ts`, que
+**preserva** o tipo original de propósito. As duas escolhas são defensáveis;
+saber qual é qual evita concluir que uma delas está quebrada.
+
 Dá para validar sem gastar um `build:dist` inteiro (que leva dezenas de minutos
 até chegar lá): monte um `.nsi` mínimo que inclua o hook, chame as duas macros
 **e um `WriteUninstaller`** — sem ele o NSIS avisa "Uninstaller script code

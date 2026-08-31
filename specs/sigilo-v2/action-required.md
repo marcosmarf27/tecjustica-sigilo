@@ -97,8 +97,15 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
   residuais conhecidos. A contagem por ocorrência saiu idêntica à da v1.2.0,
   confirmando que nenhuma das nove correções do dia tocou a detecção.
 
-- **Instalar em máquina limpa e rodar `tecjustica-sigilo status` num `cmd` novo**
-  — o único critério que prova o hook NSIS.
+- [~] **Instalar em máquina limpa e validar a CLI sem abrir a GUI** — o
+  mecanismo está verificado ponta a ponta em 31/08/2026, cada peça por execução:
+  o gancho NSIS **executa** (instalar acrescenta a entrada no PATH, desinstalar
+  a remove deixando o valor byte a byte idêntico), o atalho
+  `tecjustica-sigilo.cmd` responde, e `tecjustica-sigilo status` resolve num
+  ambiente montado a partir do registro — encontrando o app EMPACOTADO na porta
+  8124. Falta só a coisa que nenhuma máquina de desenvolvimento oferece: uma
+  instalação do zero, num perfil que nunca teve o projeto.
+
 - **CORS de uma extensão de verdade** — falta só a metade positiva. A negativa
   (página comum recusada) está automatizada e provada por mutação em
   `tests/test_cors_extensao.py`.
