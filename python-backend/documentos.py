@@ -426,10 +426,48 @@ def extrair(
 
 
 def _reconhecidas(extracao: str) -> int:
-    """Quantas páginas o motor de OCR desta extração de fato reconheceu."""
+    """
+    Quantas páginas o motor de OCR desta extração de fato reconheceu.
+
+    **Pergunta a quem contou**, e não ao dicionário deste processo. O contador
+    vive no módulo `ocr_engine` de quem atende `/ocr`, e nem sempre é este
+    processo: no modo offline o `MotorLocal` sobe o servidor num `subprocess`,
+    então `registrar_atendimento` roda lá e a leitura daqui vinha sempre zero.
+    O efeito era um alarme falso em todo documento digitalizado — "as páginas
+    não chegaram ao motor de OCR, o texto delas não está neste resultado" sobre
+    um documento lido inteiro.
+
+    **Servidor que não responde à contagem está fora do ar, e fora do ar
+    reconheceu zero páginas** — então a resposta certa nesse caso é a contagem
+    local, que é zero, e o alarme deve subir. Devolver "não sei" aqui suprimiria
+    o aviso exatamente na situação que ele existe para denunciar: motor de OCR
+    morto, liteparse terminando sem erro, e o documento saindo mutilado com cara
+    de completo. É o defeito que `test_motor_fora_do_ar_e_denunciado_no_caminho_real`
+    guarda — e que uma primeira versão deste conserto reintroduziu, por aplicar
+    "na dúvida, silêncio" a um alarme em vez de a uma afirmação.
+    """
     import ocr_engine
 
-    return ocr_engine.encerrar_contagem(extracao)
+    local = ocr_engine.encerrar_contagem(extracao)
+    if not _ocr_url:
+        return local
+    if local:
+        # Mesmo processo (é o caso do aplicativo): já temos a resposta.
+        return local
+
+    import json
+    import urllib.request
+
+    base = _ocr_url.rsplit("/", 1)[0]
+    for caminho in (f"{base}/contagem/{extracao}", f"{base}/contagem-ocr/{extracao}"):
+        try:
+            pedido = urllib.request.Request(caminho, headers=dict(_ocr_headers or {}))
+            with urllib.request.urlopen(pedido, timeout=10) as r:
+                return int(json.loads(r.read().decode("utf-8"))["atendidas"])
+        except Exception:
+            continue
+    # Ninguém respondeu: o servidor está fora do ar e nada foi reconhecido.
+    return local
 
 
 def _paginas_que_precisavam_de_ocr(

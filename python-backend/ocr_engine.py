@@ -730,6 +730,24 @@ def montar_app_ocr(perfil: str = PERFIL_PADRAO):
         except Exception as erro:  # noqa: BLE001 - o contrato pede 500 com corpo
             return JSONResponse(status_code=500, content={"error": str(erro)})
 
+    @app.get("/contagem/{extracao}")
+    async def contagem(extracao: str):
+        """
+        Quantas páginas ESTE processo reconheceu para a extração.
+
+        Existe porque o contador é um dicionário de módulo, e no modo offline
+        quem escreve nele não é quem lê: o `MotorLocal` sobe este servidor num
+        `subprocess`, então `registrar_atendimento` roda aqui e
+        `documentos._reconhecidas` rodava lá, sempre lendo zero. O efeito era um
+        alarme falso em todo documento digitalizado — "as páginas não chegaram
+        ao motor de OCR, o texto delas não está neste resultado" sobre um
+        documento lido perfeitamente.
+
+        Aviso que mente treina a pessoa a ignorá-lo, e este é o aviso que diz ao
+        revisor que falta texto. Perdê-lo por descrédito é pior que não tê-lo.
+        """
+        return {"atendidas": paginas_atendidas(extracao)}
+
     @app.get("/health")
     async def health():
         return {"status": "ok", "perfil": perfil}

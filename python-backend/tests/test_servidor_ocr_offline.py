@@ -121,3 +121,76 @@ def test_conta_a_pagina_na_extracao_informada(cliente):
 
     assert ocr_engine.encerrar_contagem(extracao) == 1
     assert ocr_engine.paginas_atendidas(extracao) == 0, "encerrar esvazia a conta"
+
+
+def test_a_contagem_e_publicada_para_quem_extrai(cliente):
+    """
+    O contador vive no processo que atende `/ocr` — e nem sempre é o mesmo que
+    extrai.
+
+    No modo offline o `MotorLocal` sobe este servidor num `subprocess`, então
+    `registrar_atendimento` roda aqui e `documentos._reconhecidas` rodava do
+    outro lado, lendo sempre zero. O resultado era alarme falso em TODO
+    documento digitalizado: "as páginas não chegaram ao motor de OCR, o texto
+    delas não está neste resultado" sobre um documento lido inteiro.
+
+    Aviso que mente treina a pessoa a ignorá-lo — e este é justamente o aviso
+    que diz ao revisor que falta texto no resultado.
+    """
+    import io
+
+    from PIL import Image
+
+    extracao = "extracao-contagem"
+    buf = io.BytesIO()
+    Image.new("RGB", (50, 25), "white").save(buf, format="PNG")
+
+    assert cliente.get(f"/contagem/{extracao}").json()["atendidas"] == 0
+
+    cliente.post(
+        "/ocr",
+        files={"file": ("p1.png", buf.getvalue(), "image/png")},
+        data={"language": "pt"},
+        headers={"X-Presidio-OCR-Extracao": extracao},
+    )
+    assert cliente.get(f"/contagem/{extracao}").json()["atendidas"] == 1
+
+    # Outra página, outro hash: a conta sobe.
+    outro = io.BytesIO()
+    Image.new("RGB", (60, 25), "white").save(outro, format="PNG")
+    cliente.post(
+        "/ocr",
+        files={"file": ("p2.png", outro.getvalue(), "image/png")},
+        data={"language": "pt"},
+        headers={"X-Presidio-OCR-Extracao": extracao},
+    )
+    assert cliente.get(f"/contagem/{extracao}").json()["atendidas"] == 2
+
+
+def test_servidor_de_ocr_fora_do_ar_continua_acusando():
+    """
+    Servidor que não responde reconheceu ZERO páginas — e o alarme tem de subir.
+
+    A primeira versão do conserto da contagem entre processos devolvia "não sei"
+    quando a consulta falhava, e mandava não acusar na dúvida. Isso suprimia o
+    aviso exatamente na situação que ele existe para denunciar: motor de OCR
+    morto, liteparse terminando sem erro, documento saindo mutilado com cara de
+    completo.
+
+    "Na dúvida não afirme" é boa regra para afirmar fato e péssima para calar
+    alarme. Quem pegou foi `test_motor_fora_do_ar_e_denunciado_no_caminho_real`,
+    que já existia.
+    """
+    import documentos
+
+    documentos.configurar_ocr("http://127.0.0.1:9/ocr", {})
+    try:
+        faltaram, aviso = documentos._paginas_que_nao_chegaram_ao_ocr(0, {1, 2, 3})
+        assert faltaram == 3
+        assert aviso and "não chegaram ao motor de OCR" in aviso[0]
+
+        # E com contagem parcial conhecida, acusa só a diferença.
+        faltaram, aviso = documentos._paginas_que_nao_chegaram_ao_ocr(1, {1, 2, 3})
+        assert faltaram == 2
+    finally:
+        documentos.configurar_ocr("", {})

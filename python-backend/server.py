@@ -187,6 +187,20 @@ def health():
     }
 
 
+
+@app.get("/contagem-ocr/{extracao}")
+def contagem_ocr(extracao: str):
+    """
+    A contagem de páginas reconhecidas, perguntada a quem contou.
+
+    No aplicativo esta rota é redundante — `/ocr` e a extração rodam no mesmo
+    processo, então o dicionário é o mesmo. Ela existe para o contrato ser um
+    só: `documentos` pergunta ao servidor de OCR, seja ele qual for. No modo
+    offline o servidor é outro processo, e ali a pergunta é a única forma de
+    saber.
+    """
+    return {"atendidas": ocr_engine.paginas_atendidas(extracao)}
+
 @app.post("/ocr")
 async def ocr(
     request: Request,

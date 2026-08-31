@@ -302,6 +302,22 @@ falha. O mesmo documento saía com 3.800 caracteres em vez de 55.453. Importar o
 módulo não pega — as rotas registram normalmente. Só chamar pega, e é por isso
 que existe `tests/test_servidor_ocr_offline.py`.
 
+**O contador de páginas vive no processo que atende `/ocr` — e nem sempre é o
+que extrai.** No aplicativo é o mesmo processo, então o dicionário de módulo
+funciona. No modo offline o `MotorLocal` sobe o servidor num `subprocess`:
+`registrar_atendimento` roda lá e a leitura vinha daqui, sempre zero. Efeito:
+**alarme falso em todo documento digitalizado** pela CLI e pelo MCP — "as
+páginas não chegaram ao motor de OCR, o texto delas não está neste resultado"
+sobre um documento lido inteiro. Agora `_reconhecidas` pergunta a quem contou,
+por HTTP (`/contagem` no servidor autônomo, `/contagem-ocr` no `server.py`).
+
+Cuidado ao mexer nisso: quando a consulta **falha**, a resposta certa é zero, e
+o alarme deve subir — servidor que não responde está fora do ar e não reconheceu
+nada. Uma primeira versão do conserto devolvia "não sei" e mandava calar na
+dúvida, o que suprimia o aviso exatamente na situação que ele existe para
+denunciar. "Na dúvida não afirme" é boa regra para afirmar fato e péssima para
+calar alarme.
+
 **`ParseResult.page_errors` NÃO cobre falha de OCR.** Com o motor fora do ar o
 liteparse termina sem erro e a página sai com o resto de texto nativo: o app
 declarava "1 de 1 página lida por OCR" sobre uma página vazia. Por isso o
