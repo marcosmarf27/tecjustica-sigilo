@@ -1,0 +1,6 @@
+# Os scripts de preparo são lidos por bash, e bash do Linux (o do WSL, que o
+# `npm` pode resolver antes do Git Bash) não tolera CR: `set -euo pipefail`
+# aborta com "invalid option name". Os blobs deste repositório sempre foram LF;
+# quem estragava era o checkout numa máquina com `core.autocrlf=true`, que
+# reescrevia tudo em CRLF no working tree. Esta linha vence sobre o autocrlf.
+*.sh text eol=lf

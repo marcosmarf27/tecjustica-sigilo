@@ -291,6 +291,40 @@ devolvendo `win32`.
 por `\r\n` no Windows: mesmo conteúdo, outros bytes, outro SHA-256. Para
 qualquer arquivo cujo hash é conferido, `newline="\n"` explícito.
 
+**E o checkout reescreve na outra direção — o que quebrava o `build:dist`
+inteiro.** Descoberto em 31/08/2026, na primeira tentativa de gerar o instalador
+depois das correções da madrugada. Os quatro `scripts/*.sh` estavam **100% em
+CRLF no disco**, embora os blobs no repositório sempre tenham sido LF puro: quem
+converteu foi o `core.autocrlf=true` desta máquina, e não havia `.gitattributes`
+para impedir.
+
+Isso ficou latente por dias, e o motivo de ficar latente é o mais instrutivo:
+**bash não é bash.** O do Git (`x86_64-pc-msys`) tolera o CR e roda o script sem
+reclamar — é por ele que passa todo comando digitado num terminal. O do WSL
+(`x86_64-pc-linux-gnu`, em `C:/Windows/System32/bash.exe`) é Linux puro e aborta
+na linha 18:
+
+```
+scripts/fetch-ocr-models.sh: line 18: set: pipefail
+: invalid option name
+```
+
+A quebra de linha no meio da mensagem **é** o CR devolvendo o cursor. E qual dos
+dois roda depende de quem invoca: rodando `npm run build:dist` a partir do
+PowerShell, o `bash` do `System32` vem antes no PATH; do Git Bash, não. O mesmo
+comando, na mesma máquina, com dois desfechos.
+
+Dois consertos, porque são dois problemas:
+
+- `.gitattributes` com `*.sh text eol=lf` — vence sobre o `autocrlf` e
+  materializa LF em qualquer máquina. É a correção de fundo.
+- **O build precisa do Git Bash no PATH, à frente do `System32`.** Só o LF não
+  basta: com o WSL o script passa da linha 18 e falha adiante dizendo
+  `MANIFESTO.json ilegível em /mnt/c/...` e `SEM PIN`, que lido sozinho parece
+  corrupção dos modelos. Os scripts usam `cygpath` (que não existe no WSL) e o
+  `python.exe` do Windows — é o cenário que a seção *Onde desenvolver* proíbe,
+  chegando disfarçado de erro de dados.
+
 ## OCR
 
 **PP-OCRv6** (pesos oficiais da PaddlePaddle em ONNX, Apache-2.0) sobre ONNX
@@ -410,6 +444,28 @@ entrega: "mexer em X afetou a acurácia?". Aqui as nove correções do dia mexer
 em threads de OCR, paralelismo de páginas, rota de OCR offline, progresso, cofre,
 CLI, descoberta e interface — e nenhuma tocou a detecção. A medição confirma o
 que o diff sugeria.
+
+**Reconferido em 31/08/2026, depois do rebuild do instalador** — mesma pergunta,
+terceira resposta igual. Modo `transformer` nos três documentos, 55,3 min:
+
+| documento | ocorrências | valores únicos | escapes |
+|---|---|---|---|
+| `civel_0200161` | 747 / 747 | 87 / 87 | 0 |
+| `juri_19-08` | 2.237 / 2.237 | 167 / 167 | 0 |
+| `expedientes_13-08` | 629 / 631 | 77 / 79 | 2 |
+| **total** | **3.613 / 3.615 — 99,94%** | **331 / 333 — 99,40%** | **2** |
+
+A contagem por ocorrência saiu **outra vez** idêntica: 3.613/3.615 pela terceira
+medição seguida, atravessando v1.2.0, v1.3.0 e o rebuild. Os dois escapes são os
+mesmos de sempre, com o mesmo texto — `004.811.253` cortado antes do dígito e
+`ELIONEUDO EVARISTO` partido na quebra.
+
+Uma diferença pequena e honesta: os valores únicos deram **331/333** contra os
+330/332 registrados acima, e a diferença inteira está no `juri_19-08` (167 contra
+166). Um valor único a mais no gabarito, e protegido — o percentual não se move
+(99,40% nos dois casos). Não investigado; fica anotado porque contagem de
+gabarito que muda sozinha entre corridas do mesmo arquivo é o tipo de coisa que
+vale conferir se alguém voltar a mexer nisso.
 
 Custa ~66 min de CPU. Não é gate de cada commit, é gate de release. E **não roda
 como tarefa de fundo do harness**: aquelas morrem na virada do turno. Um processo
