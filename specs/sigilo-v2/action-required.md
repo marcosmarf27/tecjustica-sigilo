@@ -146,8 +146,15 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
 - **Forçar `safeStorage.isEncryptionAvailable()` a `false`** e confirmar que o
   cofre recusa gravar. A busca por CPF nos bytes já é automática em
   `electron/cofre.test.mjs`.
-- **`PRESIDIO_CORPUS_OCR`** continua ausente nesta máquina: o
-  `test_deteccao_ocr.py` pula em silêncio.
+5. **Corpus de OCR** — RESOLVIDO em 31/08/2026 para o teste de detecção. Ele
+   exigia o arquivo `06-matricula-pg4-ruim.pdf` pelo nome, mas suas asserções
+   não dizem nada sobre aquele documento: valem para qualquer PDF escaneado.
+   Removido o acoplamento, apontar `PRESIDIO_CORPUS_OCR` para uma pasta com
+   escaneados basta, e a suíte vai a **157 passando, zero pulos**.
+
+   O que continua precisando do corpus original são as **medições**
+   (`eval/bench_ocr.py`), onde o documento importa — é a pior página conhecida,
+   e comparar recall exige o mesmo material.
 
 Roteiro de teste com comandos e resultados esperados:
 https://claude.ai/code/artifact/69ea7150-bb79-46bb-8c88-3bf9779a09cc

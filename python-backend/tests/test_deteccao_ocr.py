@@ -38,6 +38,48 @@ CORPUS_ESCANEADO = (
 )
 
 
+def _algum_pdf_escaneado() -> "Path | None":
+    """
+    Qualquer PDF do corpus cujas páginas não tragam texto próprio.
+
+    O nome `06-matricula-pg4-ruim.pdf` estava cravado aqui, e isso acoplava o
+    teste a **um documento** quando o que ele afirma vale para **qualquer**
+    escaneado — as asserções abaixo não dizem nada sobre aquele arquivo. O
+    resultado prático: numa máquina com corpus de escaneados, mas sem aquele
+    nome exato, o teste pulava sem motivo.
+
+    É a mesma fragilidade que o caminho absoluto cravado já custou uma vez neste
+    projeto, e está no CLAUDE.md desde então. O arquivo de referência continua
+    sendo preferido quando existe — ele é a pior página do corpus e o caso mais
+    duro —, mas deixou de ser requisito.
+    """
+    if not _PASTA_CORPUS:
+        return None
+    pasta = Path(_PASTA_CORPUS)
+    if CORPUS_ESCANEADO.exists():
+        return CORPUS_ESCANEADO
+
+    import pypdfium2 as pdfium
+
+    for pdf in sorted(pasta.glob("*.pdf")):
+        try:
+            documento = pdfium.PdfDocument(str(pdf))
+            try:
+                if not len(documento):
+                    continue
+                sem_texto = all(
+                    len(documento[i].get_textpage().get_text_range().strip()) < 50
+                    for i in range(len(documento))
+                )
+            finally:
+                documento.close()
+        except Exception:
+            continue
+        if sem_texto:
+            return pdf
+    return None
+
+
 def _situacao_do_corpus() -> str:
     """`ausente`, `mal_configurado` ou `pronto` — e a distinção importa.
 
@@ -57,7 +99,10 @@ def _situacao_do_corpus() -> str:
     """
     if not _PASTA_CORPUS:
         return "ausente"
-    return "pronto" if CORPUS_ESCANEADO.exists() else "mal_configurado"
+    # "Pronto" é ter **algum** PDF escaneado, não um nome específico: é isso que
+    # os testes daqui precisam. Exigir o arquivo de referência faria uma pasta
+    # cheia de escaneados ser reprovada como mal configurada.
+    return "pronto" if _algum_pdf_escaneado() is not None else "mal_configurado"
 
 
 def test_corpus_configurado_precisa_existir():
@@ -74,10 +119,11 @@ def test_corpus_configurado_precisa_existir():
             "máquina. Os testes que dependem dele serão pulados."
         )
     assert situacao == "pronto", (
-        f"PRESIDIO_CORPUS_OCR aponta para {_PASTA_CORPUS!r}, mas "
-        f"{_NOME_DE_REFERENCIA!r} não está lá. Configuração errada é pior que "
-        "configuração ausente: os testes de OCR seriam pulados e passariam por "
-        "aprovados. Confira a pasta."
+        f"PRESIDIO_CORPUS_OCR aponta para {_PASTA_CORPUS!r}, e não há nenhum PDF "
+        "escaneado lá. Configuração errada é pior que configuração ausente: os "
+        "testes de OCR seriam pulados e passariam por aprovados. Confira a pasta "
+        f"(o arquivo de referência é {_NOME_DE_REFERENCIA!r}, mas qualquer PDF "
+        "sem camada de texto serve)."
     )
 
 
@@ -186,12 +232,15 @@ def test_carimbo_de_assinatura_nao_conta_como_camada_de_texto():
     assert len(carimbo) < documentos._MINIMO_CAMADA_DE_TEXTO
 
 
+_ESCANEADO = _algum_pdf_escaneado()
+
+
 @pytest.mark.skipif(
-    not CORPUS_ESCANEADO.exists(), reason="PDF escaneado de referência indisponível"
+    _ESCANEADO is None, reason="nenhum PDF escaneado no corpus (PRESIDIO_CORPUS_OCR)"
 )
 def test_pdf_escaneado_real_e_reconhecido_como_ocr():
     """O caso que a heurística antiga errava, medido sobre documento real."""
-    resultado = documentos.extrair(CORPUS_ESCANEADO)
+    resultado = documentos.extrair(_ESCANEADO)
     assert resultado.houve_ocr is True
     assert resultado.paginas_ocr == resultado.total_paginas
 

@@ -40,7 +40,7 @@ cada um é apontado por uma variável:
 
 | Variável | Aponta para | Sem ela |
 |---|---|---|
-| `PRESIDIO_CORPUS_OCR` | pasta com os PDFs escaneados | `eval/bench_ocr.py` não roda; nenhuma mudança de motor de OCR pode ser medida |
+| `PRESIDIO_CORPUS_OCR` | pasta com PDFs escaneados | `eval/bench_ocr.py` não roda; nenhuma mudança de motor de OCR pode ser medida |
 | `PRESIDIO_EVAL_CORPUS` | pasta com os três `.md` | o gate de acurácia é **pulado**, não reprovado |
 
 Repare no modo de falha: ausência de corpus vira *skip*, e skip parece sucesso
@@ -50,7 +50,18 @@ onde ela manda procurar, e quem configurou acredita que a verificação
 aconteceu. O `run_eval` já tratava isso (imprime "Corpus não encontrado em
 &lt;pasta&gt;" e sai com código 2), mas o `test_deteccao_ocr.py` pulava nos dois
 casos. Agora ele distingue: variável ausente **pula**, variável mal configurada
-**reprova**. Antes era pior — havia um caminho padrão absoluto da máquina de
+**reprova**.
+
+E o teste deixou de exigir um **nome de arquivo**. Ele afirma só que um PDF
+escaneado real é reconhecido como tendo passado por OCR — nada sobre qual
+documento —, mas o nome `06-matricula-pg4-ruim.pdf` estava cravado, e com isso
+uma pasta cheia de escaneados era rejeitada por não ter aquele nome exato. Hoje
+serve **qualquer** PDF sem camada de texto; o arquivo de referência continua
+preferido quando existe, por ser a pior página do corpus.
+
+Efeito prático nesta máquina: apontando `PRESIDIO_CORPUS_OCR` para um processo
+real do PJe, a suíte vai de "155 passando, 2 pulados" para **157 passando, zero
+pulos**. Antes era pior — havia um caminho padrão absoluto da máquina de
 origem, em formato WSL (`/mnt/c/...`), que no Windows não resolve para lugar
 nenhum: o gate era pulado até onde o corpus existia, só que noutro diretório.
 Agora não há padrão. Antes de confiar num "passou", confira que o corpus foi
