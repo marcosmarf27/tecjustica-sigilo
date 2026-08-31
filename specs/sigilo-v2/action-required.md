@@ -48,8 +48,12 @@ do git, de tempo de CPU ou de julgamento sobre a promessa do produto.
   decide quem **lê** a resposta. Falta a positiva: confirmar que uma extensão
   instalada passa de verdade, o que só o Chromium responde.
 
-- [ ] **Registrar o servidor MCP num cliente real** (fase 7) — Claude Code ou
-  Claude Desktop — e chamar as quatro ferramentas.
+- [~] **Registrar o servidor MCP num cliente real** (fase 7) — o **contrato do
+  protocolo** está automatizado em `tests/test_mcp_protocolo.py`: o teste sobe
+  `cli.py mcp` de verdade e fala JSON-RPC pelo stdio dele, com o SDK oficial —
+  `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, mais
+  ferramenta desconhecida e esquema de cada uma. O que resta é comportamento de
+  cliente: ver um agente escolher a ferramenta certa. Isso é UX, não contrato.
 
 ## Após a Implementação
 
@@ -98,7 +102,9 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
 - **CORS de uma extensão de verdade** — falta só a metade positiva. A negativa
   (página comum recusada) está automatizada e provada por mutação em
   `tests/test_cors_extensao.py`.
-- **Registrar o MCP num cliente real** — o protocolo foi exercitado por stdio.
+- **Registrar o MCP num cliente real** — falta só o comportamento do agente
+  escolhendo a ferramenta. O contrato do protocolo está automatizado em
+  `tests/test_mcp_protocolo.py`, contra o SDK oficial.
 - **Forçar `safeStorage.isEncryptionAvailable()` a `false`** e confirmar que o
   cofre recusa gravar. A busca por CPF nos bytes já é automática em
   `electron/cofre.test.mjs`.

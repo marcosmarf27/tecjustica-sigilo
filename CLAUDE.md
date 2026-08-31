@@ -416,6 +416,20 @@ em `clientes.py` mapeia apenas três rotas — tudo que não estiver lá fica fo
 alcance de cliente externo **por omissão**, o que é o padrão certo: rota nova
 nasce inacessível.
 
+**Dois detalhes do MCP que custaram diagnóstico errado**, ambos travados em
+`tests/test_mcp_protocolo.py`:
+
+O cliente **tem** de mandar `notifications/initialized` depois do `initialize`.
+Sem ela, o SDK oficial responde `-32602 Invalid request parameters` à primeira
+chamada seguinte e **para de responder**. Parece servidor quebrado; é o aperto
+de mão incompleto.
+
+E não dá para testar despejando tudo no stdin e fechando. O SDK encerra a sessão
+ao ver EOF e **cancela as chamadas em voo** — como toda ferramenta roda numa
+thread (algumas levam minutos), um `tools/call` simplesmente nunca responde.
+Parece `tools/call` quebrado; é o canal fechado cedo demais. O teste mantém o
+processo aberto e lê enquanto escreve, como um cliente de verdade.
+
 Contrato completo para quem for escrever cliente: [`docs/api-local.md`](docs/api-local.md).
 
 **`--in-place` na CLI só vale para texto.** A opção era inofensiva quando a CLI
