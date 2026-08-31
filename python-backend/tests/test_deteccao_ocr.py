@@ -29,11 +29,56 @@ from documentos import PaginaExtraida
 # existe em nenhuma outra, então o teste era pulado sempre, inclusive onde o
 # corpus estava presente, só que noutro lugar.
 _PASTA_CORPUS = os.environ.get("PRESIDIO_CORPUS_OCR")
+_NOME_DE_REFERENCIA = "06-matricula-pg4-ruim.pdf"
+
 CORPUS_ESCANEADO = (
-    Path(_PASTA_CORPUS) / "06-matricula-pg4-ruim.pdf"
+    Path(_PASTA_CORPUS) / _NOME_DE_REFERENCIA
     if _PASTA_CORPUS
     else Path("corpus-nao-configurado")
 )
+
+
+def _situacao_do_corpus() -> str:
+    """`ausente`, `mal_configurado` ou `pronto` — e a distinção importa.
+
+    Um `skipif(not existe)` trata dois casos muito diferentes como um só:
+
+    - a variável **não está definida** — o corpus não está nesta máquina, e
+      pular é honesto;
+    - a variável **está definida e aponta para a pasta errada** — digitação
+      trocada, arquivo movido, corpus noutro diretório. Aqui pular é mentira:
+      quem configurou acredita que a detecção sobre OCR foi verificada, e ela
+      não foi.
+
+    É a mesma armadilha que o `PRESIDIO_EVAL_CORPUS` já custou uma vez e está
+    escrita no CLAUDE.md — o gate de acurácia era pulado até onde o corpus
+    existia, só que noutro diretório. A lição estava registrada e não tinha sido
+    aplicada aqui.
+    """
+    if not _PASTA_CORPUS:
+        return "ausente"
+    return "pronto" if CORPUS_ESCANEADO.exists() else "mal_configurado"
+
+
+def test_corpus_configurado_precisa_existir():
+    """
+    Configuração apontando para o lugar errado **reprova**, não pula.
+
+    Este teste roda sempre, e é o único aqui que não depende do corpus: ele
+    olha para a configuração, não para o documento.
+    """
+    situacao = _situacao_do_corpus()
+    if situacao == "ausente":
+        pytest.skip(
+            "PRESIDIO_CORPUS_OCR não definida — o corpus de OCR não está nesta "
+            "máquina. Os testes que dependem dele serão pulados."
+        )
+    assert situacao == "pronto", (
+        f"PRESIDIO_CORPUS_OCR aponta para {_PASTA_CORPUS!r}, mas "
+        f"{_NOME_DE_REFERENCIA!r} não está lá. Configuração errada é pior que "
+        "configuração ausente: os testes de OCR seriam pulados e passariam por "
+        "aprovados. Confira a pasta."
+    )
 
 
 def _com_paginas(monkeypatch, *textos: str, erros: tuple[str, ...] = ()) -> None:

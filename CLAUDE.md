@@ -44,7 +44,13 @@ cada um é apontado por uma variável:
 | `PRESIDIO_EVAL_CORPUS` | pasta com os três `.md` | o gate de acurácia é **pulado**, não reprovado |
 
 Repare no modo de falha: ausência de corpus vira *skip*, e skip parece sucesso
-em log corrido. Antes era pior — havia um caminho padrão absoluto da máquina de
+em log corrido. **E há um caso pior que a ausência: a variável definida
+apontando para a pasta errada.** Aí não falta configuração — falta o arquivo
+onde ela manda procurar, e quem configurou acredita que a verificação
+aconteceu. O `run_eval` já tratava isso (imprime "Corpus não encontrado em
+&lt;pasta&gt;" e sai com código 2), mas o `test_deteccao_ocr.py` pulava nos dois
+casos. Agora ele distingue: variável ausente **pula**, variável mal configurada
+**reprova**. Antes era pior — havia um caminho padrão absoluto da máquina de
 origem, em formato WSL (`/mnt/c/...`), que no Windows não resolve para lugar
 nenhum: o gate era pulado até onde o corpus existia, só que noutro diretório.
 Agora não há padrão. Antes de confiar num "passou", confira que o corpus foi
