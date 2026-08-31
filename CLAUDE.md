@@ -227,9 +227,13 @@ entrada de desenvolvimento no PATH e rode o instalado. Feito: o CLI instalado
 anonimizou um documento inteiro com o motor do `python-embed`, e o shim não
 menciona o repositório nem o `.venv`.
 
-Resíduo honesto: o cache do HuggingFace (~2,5 GB do BERT) é de **usuário**, não
-do repositório — numa máquina limpa ele é baixado na primeira execução. É
-comportamento documentado, não dependência escondida.
+Sobre o cache do HuggingFace (~2,5 GB do BERT): é de **usuário**, não do
+repositório. Numa máquina sem ele e sem rede, o motor **cai para o spaCy e diz
+por quê** — verificado em 31/08/2026 com `HF_HOME` numa pasta vazia e
+`HF_HUB_OFFLINE=1`. O `motivo_fallback` chega ao `/health` (que a interface lê
+para montar o `avisoDeModo`) e ao `/v1/info`. Isso importa mais que o download:
+anonimizar com qualidade de spaCy acreditando ter BERT é o risco de verdade, e é
+o que a degradação silenciosa causaria.
 
 Antes disso, verificado também com um instalador mínimo que inclui as macros: instalar acrescenta a entrada (20 → 21 no PATH do usuário) e desinstalar
 a remove, deixando o valor **byte a byte idêntico** ao original. Duas condições

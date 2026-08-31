@@ -118,10 +118,25 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
   OAB, número CNJ e nomes, todos mascarados. O shim instalado não menciona o
   repositório nem o `.venv`.
 
-  O que continua sem teste, e é o resíduo honesto: o cache do HuggingFace
-  (~2,5 GB do BERT) é de usuário, não do repositório — numa máquina limpa ele
-  seria **baixado na primeira execução**, que é comportamento documentado e não
-  defeito. E as peculiaridades de um perfil recém-criado do Windows.
+  **E o comportamento numa máquina sem o cache do BERT foi testado**, que é o
+  outro núcleo verificável de "máquina limpa". Com `HF_HOME` apontando para uma
+  pasta vazia e a rede desligada, o motor **cai para o spaCy sem quebrar e diz
+  por quê** — o que importa, porque anonimizar com qualidade de spaCy achando
+  que se tem BERT é o risco real:
+
+  ```
+  modo efetivo    : spacy        (solicitado: transformer)
+  motivo_fallback : "We couldn't connect to 'https://huggingface.co'..."
+  motor pronto    : True
+  mascarou        : CPF [CPF_1] de [PESSOA_1].
+  ```
+
+  E chega aos dois lugares: `/health`, que a interface lê para montar o
+  `avisoDeModo`, e `/v1/info`, que um cliente externo lê.
+
+  Resíduo final: numa máquina com rede, o modelo seria **baixado** na primeira
+  execução em vez de cair para o leve. Esse caminho continua sem execução — mas
+  o desfecho perigoso (degradar em silêncio) está coberto.
 - **CORS de uma extensão de verdade** — falta só a metade positiva. A negativa
   (página comum recusada) está automatizada e provada por mutação em
   `tests/test_cors_extensao.py`.
