@@ -266,39 +266,39 @@ Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
 único**, no modo BERT. Confira `modo_nlp` dentro do JSON — se o motor cair para
 spaCy, o arquivo sai com números de spaCy.
 
-**Conferência parcial na v1.3.0, 30/08/2026.** O gate inteiro não coube naquela
-sessão: o ambiente encerrava tarefa de fundo longa (quatro tentativas, todas
-mortas) e o primeiro plano tinha teto de dez minutos, contra ~20 min por
-documento. O `run_eval` aceita `--doc` e `--paginas`, então rodaram fatias —
-**os três documentos do corpus**, modo `transformer`, as mesmas 14 entidades da
-interface:
+**Gate completo na v1.3.0, 30/08/2026** (modo `transformer` nos três documentos,
+14 entidades da interface, 819 páginas, 66 min):
 
-| documento | páginas | ocorrências | valores únicos | vazamentos |
-|---|---|---|---|---|
-| `expedientes_13-08` | 80 | 373 / 374 | 58 / 59 | 1 |
-| `juri_19-08` | 40 | 204 / 204 | 39 / 39 | 0 |
-| `civel_0200161` | 40 | 166 / 166 | 32 / 32 | 0 |
-| **soma** | **160 de 819** | **743 / 744 (99,87%)** | **129 / 130 (99,23%)** | **1** |
+| documento | ocorrências | valores únicos | escapes |
+|---|---|---|---|
+| `civel_0200161` | 747 / 747 | 87 / 87 | 0 |
+| `juri_19-08` | 2.237 / 2.237 | 166 / 166 | 0 |
+| `expedientes_13-08` | 629 / 631 | 77 / 79 | 2 |
+| **total** | **3.613 / 3.615 — 99,94%** | **330 / 332 — 99,40%** | **2** |
 
-**Isto não é o gate**, e registrar como se fosse seria trocar amostra por censo.
-O que sustenta é o que importava depois de nove correções num dia: **nenhum tipo
-novo vaza.** CEP, CNJ, CNPJ, CPF, e-mail, RG e telefone deram 100% nos três
-documentos.
+Acima da baseline (99,92% / 99,10%) nos dois critérios. Os dois escapes são
+exatamente os residuais que a auditoria de 14/08 já descrevia — o CPF
+`004.811.253-` cortado no fim da linha e `ELIONEUDO EVARISTO DE`, nome partido
+na quebra. Nenhum tipo novo.
 
-O sinal mais forte não é o percentual, é a **contagem de escapes**: dobrando as
-páginas de `expedientes_13-08` de 40 para 80, as ocorrências foram de 243 para
-374 e os vazamentos ficaram em **1** — o mesmo `ELIONEUDO EVARISTO DE`, nome
-partido na quebra de linha, já descrito aqui desde a auditoria de 14/08. Falha
-sistemática escalaria com o volume; esta não escala.
+**A contagem por ocorrência saiu idêntica à da v1.2.0** — os mesmos 3.613/3.615,
+numerador e denominador. Serve de referência para uma pergunta que aparece toda
+entrega: "mexer em X afetou a acurácia?". Aqui as nove correções do dia mexeram
+em threads de OCR, paralelismo de páginas, rota de OCR offline, progresso, cofre,
+CLI, descoberta e interface — e nenhuma tocou a detecção. A medição confirma o
+que o diff sugeria.
 
-Fazer o gate de verdade exige rodá-lo num terminal sem teto de tempo:
-`PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
-`python-backend`, ~62 min.
+Custa ~66 min de CPU. Não é gate de cada commit, é gate de release. E **não roda
+como tarefa de fundo do harness**: aquelas morrem na virada do turno. Um processo
+destacado pelo sistema operacional sobrevive:
 
-Última execução completa, 29/08/2026, na v1.2.0Última execução completa, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
-da interface, 819 páginas): **99,94% por ocorrência** (3.613/3.615) e **99,40%
-por valor único** (331/333). Acima da baseline. Custa ~62 min de CPU — não é
-gate de cada commit, é gate de release.
+```powershell
+$env:PRESIDIO_EVAL_CORPUS = "<pasta>"; $env:PRESIDIO_NLP_MODE = "transformer"
+Start-Process -FilePath "<venv>\Scripts\python.exe" `
+  -ArgumentList "-u","-m","eval.run_eval","--json","$env:TEMP\gate.json" `
+  -WorkingDirectory "<repo>\python-backend" `
+  -RedirectStandardOutput "$env:TEMP\gate.log" -WindowStyle Hidden
+```
 
 Termos novos vão em `python-backend/config/deny_list.json`, não hardcoded;
 palavras de contexto em `config/context_words.json`. Documentos brasileiros usam

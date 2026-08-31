@@ -676,7 +676,7 @@ difere: `Scripts/python.exe` no Windows, `bin/python` no resto.
 - [x] Reescrever `docs/design-system.md` na direção nova
 - [x] Criar `docs/api-local.md` — contrato para quem for escrever a extensão
 - [x] Rodar a suíte Python e `npm run test:electron`
-- [ ] Rodar o gate de acurácia e registrar o resultado
+- [x] Rodar o gate de acurácia e registrar o resultado
 - [x] Abrir o app e percorrer os cinco destinos
 
 ### Detalhes Técnicos

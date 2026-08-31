@@ -84,13 +84,11 @@ do git, de tempo de CPU ou de julgamento sobre a promessa do produto.
 
 Entregue na **v1.3.0**. O que continua aberto, e por quê:
 
-- **Gate de acurácia completo** — ~62 min de CPU, e precisa de um terminal sem
-  teto de tempo. Conferido por fatias em 30/08/2026, os três documentos do
-  corpus, modo `transformer`: **743 de 744 ocorrências (99,87%)** e 129 de 130
-  valores únicos (99,23%), sobre 160 das 819 páginas. Único escape: o residual
-  conhecido `ELIONEUDO EVARISTO DE`. Não é o gate — é a prova de que as nove
-  correções do dia não causaram regressão. A detecção não mudou nesta entrega,
-  então a medição da v1.2.0 (99,94% / 99,40%) continua valendo para assinar.
+- [x] **Gate de acurácia completo** — RODADO em 30/08/2026, 66 min, modo
+  `transformer`: **3.613 / 3.615 ocorrências (99,94%)** e 330 / 332 valores
+  únicos (99,40%), acima da baseline de 99,92% / 99,10%. Os dois escapes são os
+  residuais conhecidos. A contagem por ocorrência saiu idêntica à da v1.2.0,
+  confirmando que nenhuma das nove correções do dia tocou a detecção.
 
 - **Instalar em máquina limpa e rodar `tecjustica-sigilo status` num `cmd` novo**
   — o único critério que prova o hook NSIS.
