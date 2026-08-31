@@ -301,6 +301,24 @@ PRESIDIO_NLP_MODE=spacy npm run dev:electron
 
 ## Testes e medição de acurácia
 
+Três suítes, três runners, por motivos diferentes:
+
+```bash
+npm test              # renderer (vitest) — funções puras da interface
+npm run test:electron # processo principal (node --test) — cofre, token, sessão
+cd python-backend && ../.venv/Scripts/python.exe -m pytest -q
+```
+
+O `npm test` entra no `npm run build`, junto do typecheck: os dois primeiros
+defeitos que ele pegou eram invisíveis para o TypeScript — uma numeração de
+ocorrência que divergia entre a lista e o texto, e um lote que morria sem
+mensagem. Nenhum dos dois é erro de tipo.
+
+O `test:electron` roda contra o JavaScript **compilado** e intercepta o módulo
+`electron` no `require`; o vitest fica recortado a `src/` por isso mesmo
+(`vitest.config.ts`).
+
+
 O interpretador do venv está em `../.venv/Scripts/python.exe` no Windows e em
 `../.venv/bin/python` no resto — os exemplos abaixo usam o primeiro, já que o
 desenvolvimento acontece no Windows.

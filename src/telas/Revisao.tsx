@@ -43,7 +43,7 @@ import {
 type Modo = "revisar" | "resultado";
 
 /** Segmento de texto: trecho comum ou uma ocorrência detectada. */
-type Segmento =
+export type Segmento =
   | { tipo: "texto"; conteudo: string }
   | { tipo: "entidade"; conteudo: string; entidade: EntityFound; indice: number };
 
@@ -70,7 +70,7 @@ type Segmento =
  * que pediu. O erro não aparece em lugar nenhum — os dois números existem, são
  * válidos, e apontam para coisas diferentes.
  */
-function segmentar(texto: string, entidades: EntityFound[]): Segmento[] {
+export function segmentar(texto: string, entidades: EntityFound[]): Segmento[] {
   const ordenadas = entidades
     // O índice original viaja junto, antes de qualquer filtro ou ordenação.
     .map((entidade, indice) => ({ entidade, indice }))

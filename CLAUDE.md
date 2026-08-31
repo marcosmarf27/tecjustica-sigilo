@@ -87,6 +87,22 @@ e por isso está fixado por URL no fim do lock. O `setup-python-embed.sh` e o
 `smoke-backend.sh` carregam o modelo de propósito: import limpo e rotas
 registradas não provam que o motor sobe.
 
+**A mesma ocorrência era numerada de dois jeitos.** Na tela de Revisão, a lista
+lateral identifica cada ocorrência por `entitiesFound.indexOf(e)` — posição no
+array original — e a tarja no texto era marcada com a posição no array
+**ordenado e filtrado** do `segmentar`. Só coincidem se o motor devolver tudo
+ordenado por `start` e sem descartar nada; num documento de OCR não acontece.
+Clicar no CPF na lista levava à tarja do nome. É o pior tipo de defeito aqui:
+os dois números existem, são válidos, apontam para coisas diferentes, e nada
+estoura — o revisor acredita ter conferido a ocorrência que pediu. O índice
+original agora viaja junto no `segmentar`, antes de qualquer filtro.
+
+**O renderer tem testes desde 30/08/2026** (`npm test`, vitest, recortado a
+`src/`). Antes não tinha nenhum, e é por isso que os dois defeitos acima foram
+achados lendo código em vez de por teste. Os três runners são separados de
+propósito: o `test:electron` roda sobre JavaScript compilado e intercepta o
+módulo `electron` no `require`, o que não faz sentido no vitest.
+
 **A saída é texto, nunca o formato de entrada.** Gravar markdown num arquivo
 `.pdf` produz um arquivo que nenhum leitor abre — foi o comportamento anterior,
 para `.pdf`, `.docx`, `.xlsx` e imagens. A regra vive em `src/lib/nomeDeSaida.ts`

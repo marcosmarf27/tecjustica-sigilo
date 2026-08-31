@@ -9,13 +9,14 @@
     "typecheck": "tsc -p tsconfig.app.json",
     "dev:electron": "npm run build:electron-ts && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "test:electron": "npm run build:electron-ts && node --test electron/*.test.mjs",
-    "build": "npm run typecheck && tsc -p tsconfig.electron.json && vite build",
+    "build": "npm run typecheck && npm test && tsc -p tsconfig.electron.json && vite build",
     "build:dist": "npm run fetch:ocr-models && npm run sync:backend && npm run check:backend && npm run build && electron-builder --win",
     "preview": "vite preview",
     "sync:backend": "bash scripts/sync-backend.sh",
     "fetch:ocr-models": "bash scripts/fetch-ocr-models.sh",
     "check:backend": "bash scripts/fetch-ocr-models.sh --check && bash scripts/sync-backend.sh --check && bash scripts/smoke-backend.sh",
-    "smoke:backend": "bash scripts/smoke-backend.sh"
+    "smoke:backend": "bash scripts/smoke-backend.sh",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +33,7 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
     "vite": "^8.0.3",
+    "vitest": "^3.2.7",
     "wait-on": "^9.0.4"
   },
   "dependencies": {
