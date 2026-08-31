@@ -266,7 +266,26 @@ Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
 único**, no modo BERT. Confira `modo_nlp` dentro do JSON — se o motor cair para
 spaCy, o arquivo sai com números de spaCy.
 
-Última execução, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
+**Conferência parcial na v1.3.0, 30/08/2026.** O gate inteiro não coube: o
+ambiente desta sessão encerra tarefa de fundo longa (quatro tentativas, todas
+mortas), e um documento sozinho passa dos nove minutos que o primeiro plano
+aceita. O que coube foram duas fatias de 40 páginas, no modo `transformer` e com
+as mesmas 14 entidades da interface:
+
+| documento | ocorrências | valores únicos | vazamentos |
+|---|---|---|---|
+| `expedientes_13-08` | 242 / 243 | 38 / 39 | 1 |
+| `juri_19-08` | 204 / 204 | 39 / 39 | 0 |
+| **soma** | **446 / 447 (99,78%)** | **77 / 78 (98,72%)** | **1** |
+
+**Estes números não substituem o gate** e não são comparáveis ao baseline: são
+~80 de 819 páginas, dois documentos de três, com outro denominador. O que eles
+sustentam é outra coisa, e é o que importava depois de nove correções num dia:
+**nenhum tipo novo vaza.** CEP, CNJ, CPF, e-mail, RG e telefone deram 100% nos
+dois, e o único escape é `ELIONEUDO EVARISTO DE` — o vazamento residual já
+documentado aqui, o nome partido na quebra de linha. Não há regressão.
+
+Última execução completa, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
 da interface, 819 páginas): **99,94% por ocorrência** (3.613/3.615) e **99,40%
 por valor único** (331/333). Acima da baseline. Custa ~62 min de CPU — não é
 gate de cada commit, é gate de release.

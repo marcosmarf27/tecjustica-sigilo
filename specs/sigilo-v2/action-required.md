@@ -84,9 +84,13 @@ do git, de tempo de CPU ou de julgamento sobre a promessa do produto.
 
 Entregue na **v1.3.0**. O que continua aberto, e por quê:
 
-- **Gate de acurácia** — ~62 min de CPU. A lógica de detecção não mudou nesta
-  entrega, então a medição da v1.2.0 (99,94% por ocorrência / 99,40% por valor
-  único) continua valendo. Decisão de quem assina a entrega.
+- **Gate de acurácia completo** — ~62 min de CPU, ainda não rodado de ponta a
+  ponta. Rodaram duas fatias de 40 páginas em modo `transformer`: **446 de 447
+  ocorrências (99,78%)**, com o único escape sendo o vazamento residual já
+  conhecido (`ELIONEUDO EVARISTO DE`, nome partido na quebra). Não é o gate e
+  não substitui o baseline — é a prova de que as nove correções do dia não
+  causaram regressão. A lógica de detecção não mudou nesta entrega, então a
+  medição da v1.2.0 (99,94% / 99,40%) continua valendo para assinar.
 - **Instalar em máquina limpa e rodar `tecjustica-sigilo status` num `cmd` novo**
   — o único critério que prova o hook NSIS.
 - **CORS de uma extensão de verdade** — só o renderer dentro do Chromium impõe
