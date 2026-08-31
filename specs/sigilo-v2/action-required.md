@@ -105,3 +105,31 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
 
 Roteiro de teste com comandos e resultados esperados:
 https://claude.ai/code/artifact/69ea7150-bb79-46bb-8c88-3bf9779a09cc
+
+## O lote que abortava — o que já foi eliminado
+
+Relato: "seleciono cinco ou seis documentos, começa o processamento, aí de
+repente ele para e volta pra tela normal pra juntar novos documentos".
+
+Quatro hipóteses eliminadas por medição ou leitura:
+
+1. **Backend** — reproduzido falando HTTP direto com ele, seis peças de um
+   processo real do PJe: 6 processados, 0 falhas, nenhuma sondagem de status
+   acima de 0,1 s.
+2. **O laço do lote** — extraído para `percorrerLote` e coberto por 7 testes
+   contra todas as formas de morrer construíveis (arquivo que estoura, todos
+   estourando, item malformado, `despachar` quebrando, cancelamento).
+3. **Tratamento no `App`** — a exceção do lote não era tratada; agora é, e há
+   barreira de erro no renderer.
+4. **Health check virando "erro" no meio** — impossível: o laço faz `return`
+   assim que o motor fica pronto, e só o botão "tentar de novo" o reinicia.
+
+Uma quinta explicação **existe e está provada como mecanismo**, mas não como
+causa deste caso: HMR do servidor de desenvolvimento. Um `page reload` apaga o
+estado do renderer e produz exatamente este sintoma (ver
+`docs/desenvolvimento-windows.md`). Nos logos desta máquina os eventos de HMR
+caíram **fora** das janelas de processamento, então não dá para atribuir o
+relato a eles.
+
+**Teste decisivo:** reproduzir no app empacotado, ou num `dev` que ninguém toque
+durante o teste. Se não acontecer ali, era o HMR.

@@ -170,6 +170,29 @@ Alguns testes de OCR são pulados: dependem de um corpus de processos reais que
 não está no repositório (são documentos de verdade). Os caminhos apontam para a
 máquina onde foram escritos.
 
+## Não teste comportamento contra um servidor que alguém está editando
+
+O `dev:electron` sobe o Vite com HMR. Toda edição em `src/` empurra uma
+atualização para o renderer, e certas edições — `src/main.tsx`, por exemplo —
+disparam **`page reload`**, que apaga o estado inteiro da janela: fila,
+progresso do lote, revisão aberta. A tela volta ao ponto inicial enquanto o
+backend segue processando sem erro nenhum, e o log dele não registra nada de
+anormal, porque nada de anormal aconteceu **nele**.
+
+Confirmado nos logs desta máquina em 30/08/2026:
+
+```
+19:30:14 [vite] (client) page reload src/main.tsx
+```
+
+O sintoma que isso produz é indistinguível de um defeito no lote: "começou o
+processamento, aí de repente parou e voltou para a tela de juntar documentos".
+Se alguém estiver mexendo no código enquanto outra pessoa testa, **os dois vão
+perseguir um bug que talvez não exista**.
+
+Para investigar comportamento de verdade: teste no app empacotado
+(`release/win-unpacked`), ou num `dev` que ninguém vai tocar até o teste acabar.
+
 ## Medir desempenho de OCR neste notebook
 
 Se você for tocar em qualquer parâmetro do OCR, leia isto antes — foi uma tarde
