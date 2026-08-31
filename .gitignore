@@ -58,3 +58,8 @@ models/
 *.AppImage
 *.deb
 *.rpm
+
+# Diagramas e relatórios gerados (Archify, visual-check): pesam alguns MB, são
+# reconstrutíveis a partir das especificações e descrevem medições internas.
+# O que vale de aprendizado fica no CLAUDE.md, em texto.
+docs/arquitetura/

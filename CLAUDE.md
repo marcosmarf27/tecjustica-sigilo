@@ -416,6 +416,83 @@ backend conta as páginas que realmente reconheceu, indexadas por hash da imagem
 (não por número de chamadas — o liteparse repete página, e uma repetida
 compensaria outra perdida).
 
+## Capacidade: quanto custa processar
+
+Medido em 31/08/2026 sobre um processo real do PJe inteiro — 19 peças, 97
+páginas (53 dependendo de OCR), 242 mil caracteres —, com a máquina folgada
+(5,4 GB livres) e o motor no modo `transformer`.
+
+| | |
+|---|---|
+| lote completo | 12,9 min |
+| por página | 8,0 s |
+| **páginas por hora** | **452** |
+| leitura + OCR | 373 s (48%) |
+| detecção | 399 s (52%) |
+| carga do motor | 3,3 s, uma vez por processo |
+
+**O preditor do custo é o CARACTERE, não a página — e muito menos o OCR.**
+Correlação com o tempo total, nas 19 peças:
+
+| preditor | correlação |
+|---|---|
+| caracteres | **0,927** |
+| páginas | 0,508 |
+| páginas de OCR | **0,192** |
+
+Daí a unidade de dimensionamento ser **~3,2 s por mil caracteres**, e não
+segundos por página: a fórmula por caractere sobrevive à mudança da mistura de
+peças, a por página não.
+
+O custo por tipo de página sai **invertido** em relação à intuição:
+
+| | medido |
+|---|---|
+| página nativa | 14,0 s |
+| página escaneada | 3,9 s |
+
+Os dois extremos do lote explicam sozinhos: um anexo de 22 páginas todas
+escaneadas, com 1.315 caracteres por página, deu 2,2 s/página; um documento
+constitutivo de 2 páginas nativas, com 24.164 caracteres por página, deu
+**79,9 s/página**. Um documento de identidade escaneado tem vinte palavras; um
+contrato tem vinte e quatro mil caracteres. O OCR cobra pela imagem, a detecção
+cobra pelo texto, e a detecção leva mais da metade do tempo.
+
+**O erro de amostragem que produziu a conclusão contrária, e que vale evitar.**
+A primeira medição usou "um documento nativo e um escaneado", o que parecia
+justo. Só que a escolha foi uma petição nativa (densa) e uma procuração
+escaneada (também densa): sem querer, o texto ficou constante e só o OCR variou
+— e a conclusão inevitável foi "o OCR é a variável". O lote real desfaz isso
+porque traz as combinações que ninguém escolheria de propósito: escaneado
+esparso e nativo densíssimo no mesmo pacote. **Amostra representativa é a que
+chega, não a que se monta.**
+
+### A memória domina a variação, e não é sutil
+
+Três medições de naturezas diferentes, no mesmo dia, apontando para o mesmo
+mecanismo:
+
+| ensaio | efeito |
+|---|---|
+| mesma extração, com e sem o BERT residente (não usado na etapa) | 1,48x |
+| mesma detecção, mesmo texto, corridas diferentes | 3,9x (59,9 s → 15,5 s) |
+| instalador NSIS, máquina saturada vs. livre | **15x** (110 min → 7,3 min) |
+
+O caso do instalador é o mais didático porque a magnitude não deixa margem: o
+mesmo `Setup.exe`, na mesma máquina, na mesma sessão, escrevendo a 2,1 MB/s com
+a RAM em 0,1 GB livre e a 31,5 MB/s depois que os processos pesados saíram.
+
+Duas consequências práticas:
+
+- **Medir com a máquina ocupada mede a paginação, não o motor.** Antes de
+  qualquer benchmark: fechar navegador e `wsl --shutdown` (a VM do WSL sobrevive
+  ao fechamento do terminal e segura mais de 1 GB).
+- **Na faixa em que a memória acaba, o desempenho não degrada suavemente — ele
+  desaba.** É o que torna "16 GB dá conta" uma frase perigosa.
+
+O medidor de capacidade fica em `eval/` do scratchpad da sessão, não no
+repositório: ele aponta para corpus com dados pessoais reais.
+
 ## Acurácia
 
 Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
@@ -585,6 +662,21 @@ Comparar strings não resolve.
 
 ## Pendências
 
+- **Janelas de texto em lote na detecção.** O laço do `anonymize` passa uma
+  janela de 1.200 caracteres por vez pelo modelo, e a detecção é 52% do tempo.
+  Agrupar dezenas por chamada é a mudança de melhor retorno medido/esforço, e é
+  ela que destrava qualquer uso sério de GPU — com lote de um, a placa fica
+  ociosa esperando a próxima janela. Nada disso foi medido ainda; é a próxima
+  medição a fazer.
+- **Documentos do lote em paralelo.** O `percorrerLote` é estritamente
+  sequencial. Enquanto o OCR espera no lock, há folga que outro documento
+  usaria. O custo é memória: cada documento simultâneo quer a sua fatia.
+- **Escala horizontal já funciona, e ninguém aproveita.** Os locks do
+  `ocr_engine` são `threading.Lock` — de processo. Duas cópias do backend não
+  disputam entre si, então N processos multiplicam a vazão quase linearmente. O
+  que falta é quem distribua trabalho entre eles: o `RegistroDeJobs` é um
+  dicionário em memória, teto de 20, que morre com o processo, e o
+  `uvicorn.run` sobe um processo só.
 - Segundo passe do OCR para página ruim. Medido: subir a resolução do `small`
   rende mais que trocar para o `medium`, pela metade do tempo.
 - Tarja de redação em PDF (queimar pixels, sanear metadados, verificar resíduo).
