@@ -202,8 +202,19 @@ as funções do primeiro.
 os acentos dos comentários em português com `Bad text encoding`. Gravar em
 `utf-8-sig`.
 
-**Verificado executando, em 31/08/2026**, com um instalador mínimo que inclui as
-macros: instalar acrescenta a entrada (20 → 21 no PATH do usuário) e desinstalar
+**Verificado com o instalador REAL em 31/08/2026.** Instalar acrescenta a
+entrada no PATH, o shim responde, e `tecjustica-sigilo status` roda num `cmd`
+novo **sem a GUI aberta** — a cadeia inteira. Desinstalar devolve o PATH byte a
+byte idêntico ao original.
+
+Duas armadilhas na hora de testar isso: o instalador **ignora o `/D=` quando já
+existe instalação registrada**? Não — ele honra, mas **remove a instalação
+anterior** no processo. Verifique se há instalação prévia antes de apontar o
+`/D=` para outro lugar, ou você troca a instalação do usuário por uma em pasta
+temporária. E `du -sm` sobre a pasta instalada (2,3 GB) estoura o tempo de um
+comando curto: acompanhe por um monitor, não por sondagem.
+
+Antes disso, verificado também com um instalador mínimo que inclui as macros: instalar acrescenta a entrada (20 → 21 no PATH do usuário) e desinstalar
 a remove, deixando o valor **byte a byte idêntico** ao original. Duas condições
 que o teste precisa ter, e que custaram uma tentativa cada: `RequestExecutionLevel
 user` (sem isso o NSIS pede elevação por padrão e o teste morre num UAC que
