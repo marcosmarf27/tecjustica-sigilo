@@ -127,14 +127,26 @@ preflight antes, e o backend não tinha o que responder. Em dev a interface vem
 do Vite (`localhost:5173`) e o backend está em `127.0.0.1` — origem cruzada. O
 preflight era reprovado, o `catch` do hook engolia o erro e a tela ficava presa
 em "Carregando motor de anonimização" **com o backend perfeitamente no ar**, até
-estourar os 180 s. Ou seja: a defesa criou a condição da falha. O `server.py` só
-monta CORS quando o Electron declara `PRESIDIO_DEV_ORIGIN`; empacotado não há
-origem cruzada e nada é montado. A URL do Vite vive numa constante só
+estourar os 180 s. Ou seja: a defesa criou a condição da falha. O `server.py` monta o CORS
+**sempre** — o que é condicional é só a lista de origens de desenvolvimento
+(`PRESIDIO_DEV_ORIGIN`). Empacotado essa lista sai vazia, e o que resta é o
+regex `^chrome-extension://[a-p]{32}$`, que existe porque uma extensão passou a
+ser cliente legítimo com a API v1. Nenhuma origem `http://` de página comum é
+aceita, nem em desenvolvimento. A URL do Vite vive numa constante só
 (`URL_DEV`, em `main.ts`) porque origem declarada e URL carregada têm de
 coincidir — `localhost` de um lado e `127.0.0.1` do outro já reprova.
 
-**Sem navegador não existe CORS**, e é por isso que os testes passam: eles falam
-HTTP direto com o backend. Só o renderer dentro do Chromium impõe a regra.
+**Sem navegador não existe CORS**, e é por isso que os testes de rota passam:
+eles falam HTTP direto com o backend. Só o renderer dentro do Chromium impõe a
+regra sobre o que a página pode **ler**.
+
+Mas metade da política é testável sem navegador, e está em
+`tests/test_cors_extensao.py`: quem o backend autoriza no preflight. Os testes
+negativos — página comum, `null`, `file://`, origem de extensão malformada —
+são a metade que protege o usuário, porque `127.0.0.1` não impede a requisição
+de chegar; o CORS decide quem lê a resposta. Provados por mutação: abrir o regex
+faz oito dos dez falharem. O que continua exigindo humano é a metade positiva
+com uma extensão instalada de verdade.
 
 **O `userData` muda de nome entre dev e produção.** `app.getPath("userData")`
 deriva de `app.getName()`: em desenvolvimento vem do `name` do `package.json`

@@ -40,10 +40,13 @@ do git, de tempo de CPU ou de julgamento sobre a promessa do produto.
   (fase 1) — 4,5:1 para texto, 3:1 para a marcação. Os três valores da paleta
   base já vêm medidos no plano; os de entidade não.
 
-- [ ] **Testar CORS a partir de uma extensão de verdade** (fase 6) — só o
-  renderer dentro do Chromium impõe a regra. Os 110 testes falam HTTP direto e
-  **não** cobrem isso; foi exatamente esse buraco que travou a tela em
-  "Carregando motor de anonimização" com o backend no ar.
+- [~] **Testar CORS a partir de uma extensão de verdade** (fase 6) — metade
+  fechada. A NEGATIVA está automatizada em `tests/test_cors_extensao.py` e
+  provada por mutação: página comum, `null`, `file://` e origem de extensão
+  malformada são todas recusadas no preflight. É a metade que protege o
+  usuário, porque `127.0.0.1` não impede a requisição de chegar — o CORS
+  decide quem **lê** a resposta. Falta a positiva: confirmar que uma extensão
+  instalada passa de verdade, o que só o Chromium responde.
 
 - [ ] **Registrar o servidor MCP num cliente real** (fase 7) — Claude Code ou
   Claude Desktop — e chamar as quatro ferramentas.
@@ -92,8 +95,9 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
 
 - **Instalar em máquina limpa e rodar `tecjustica-sigilo status` num `cmd` novo**
   — o único critério que prova o hook NSIS.
-- **CORS de uma extensão de verdade** — só o renderer dentro do Chromium impõe
-  a regra.
+- **CORS de uma extensão de verdade** — falta só a metade positiva. A negativa
+  (página comum recusada) está automatizada e provada por mutação em
+  `tests/test_cors_extensao.py`.
 - **Registrar o MCP num cliente real** — o protocolo foi exercitado por stdio.
 - **Forçar `safeStorage.isEncryptionAvailable()` a `false`** e confirmar que o
   cofre recusa gravar. A busca por CPF nos bytes já é automática em
