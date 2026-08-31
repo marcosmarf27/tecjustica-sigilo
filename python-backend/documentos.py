@@ -52,10 +52,48 @@ IDIOMA_OCR = "pt"
 # é pagar o custo sem levar o ganho. Ver LADO_MAXIMO em `ocr_engine`.
 DPI_OCR = 300
 
-# Quantas páginas processar em paralelo. Deixa um núcleo livre para a interface
-# e para o modelo de linguagem, que roda em seguida.
+# Quantas páginas processar em paralelo.
+#
+# ## `cpu_count - 1` era a resposta errada aqui também
+#
+# Este valor já foi 11 numa máquina de 12 threads, com o raciocínio de "deixar
+# um núcleo livre para a interface". Ele erra pelos mesmos dois motivos que
+# derrubaram o `intra_op_num_threads` do `ocr_engine` (ver o bloco de
+# `THREADS_PADRAO` lá, que explica o mecanismo em detalhe):
+#
+# 1. **A inferência do OCR é serializada** por um lock por perfil. As threads
+#    extras não reconhecem nada em paralelo — rasterizam A4 a 300 dpi (~26 MB de
+#    bitmap cada) e ficam na fila.
+# 2. **Os núcleos não são iguais.** Num Intel híbrido, pedir mais threads que os
+#    P-cores disponíveis garante trabalho caindo nos E-cores, que são ~2,3x mais
+#    lentos. Some o GIL: o parse do liteparse é Python, então threads a mais
+#    disputam o interpretador em vez de somar vazão.
+#
+# Medido em 30/08/2026, i5-12450HX, ordem direta e inversa para cancelar a
+# deriva térmica (medir em sequência simples aqui dá número sem sentido — ver
+# `docs/desenvolvimento-windows.md`):
+#
+# | documento                     | 11 workers | 3 workers |       |
+# |-------------------------------|------------|-----------|-------|
+# | digitalizado, 6 páginas de OCR|   86,4 s   |  68,1 s   | 1,27x |
+# | nativo, 10 páginas, zero OCR  |   82,7 s   |  61,2 s   | 1,35x |
+#
+# O caso **nativo** foi medido de propósito, para testar a objeção óbvia: sem
+# OCR não há lock, então mais workers deveriam ajudar. Não ajudam — perdem por
+# mais ainda. E a variância repete a assinatura do defeito das threads: com 3
+# workers os tempos ficam em 61,31 e 61,15 s; com 11, em 83,69 e 81,65 s.
+#
+# O texto extraído é **idêntico** nas duas configurações, nos dois documentos.
+# Este número não afeta o que se lê do documento, só quanto tempo leva.
+WORKERS_PADRAO = 3
+
+
 def _workers_padrao() -> int:
-    return max(1, (os.cpu_count() or 2) - 1)
+    """Páginas em paralelo. Ver o bloco de `WORKERS_PADRAO`."""
+    bruto = os.environ.get("PRESIDIO_PAGINAS_PARALELAS")
+    if bruto and bruto.isdigit() and int(bruto) > 0:
+        return int(bruto)
+    return max(1, min(WORKERS_PADRAO, os.cpu_count() or WORKERS_PADRAO))
 
 
 @dataclass(frozen=True)

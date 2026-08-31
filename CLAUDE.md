@@ -227,9 +227,12 @@ causa. A correção seria prender o OCR aos P-cores, e não cabe onde ele está 
 OCR roda no mesmo processo que o BERT e `SetProcessAffinityMask` no Windows
 atinge todas as threads do processo. Sairia num processo separado.
 
-O `_workers_padrao()` em `documentos.py` **continua** `cpu_count - 1`: são 11
-threads rasterizando A4 a 300 dpi (~26 MB cada) para enfileirar num motor
-serializado por lock. Mesmo cheiro, ainda não medido.
+O `_workers_padrao()` em `documentos.py` era o mesmo `cpu_count - 1`, e foi
+medido em 30/08/2026: **3 workers ganha de 11 nos dois casos**, com texto
+idêntico — 1,27x num documento digitalizado e **1,35x num nativo**, que foi
+medido de propósito para testar a objeção óbvia (sem OCR não há lock, logo mais
+workers deveriam ajudar; não ajudam, perdem por mais). A variância repete a
+assinatura: 3 workers dá 61,31 e 61,15 s; 11 dá 83,69 e 81,65 s.
 
 Não confie nos números absolutos de OCR deste notebook fora do ranking: a mesma
 medição deu de 4,7 s a 20,7 s conforme o estado térmico. Meça sempre em ordem
