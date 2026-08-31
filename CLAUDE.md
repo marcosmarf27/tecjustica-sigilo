@@ -148,12 +148,23 @@ de chegar; o CORS decide quem lê a resposta. Provados por mutação: abrir o re
 faz oito dos dez falharem. O que continua exigindo humano é a metade positiva
 com uma extensão instalada de verdade.
 
-**O `userData` muda de nome entre dev e produção.** `app.getPath("userData")`
-deriva de `app.getName()`: em desenvolvimento vem do `name` do `package.json`
-(`tecjustica-sigilo`), e no app empacotado, do `productName` (`TecJustiça
-Sigilo`). Qualquer cliente externo que procure o `sessao.json` tem de olhar nos
-**dois** — cravar só o nome de produção faz a CLI funcionar depois de instalada
-e falhar em desenvolvimento, que é o pior tipo de bug para diagnosticar.
+**O nome da pasta `userData` não é o que parece — confira, não deduza.**
+`app.getPath("userData")` deriva de `app.getName()`, que lê o `package.json`
+**embarcado**: `productName` se existir lá, senão `name`.
+
+Aqui o `productName` está só no `electron-builder.yml`, e o `package.json` só tem
+`name`. Resultado medido no instalador 1.3.0, rodando o app empacotado:
+a pasta é **`tecjustica-sigilo`**, a mesma do desenvolvimento — **não**
+`TecJustiça Sigilo`, como este arquivo afirmou até 30/08/2026.
+
+O erro estava aqui como lição aprendida, com o motivo invertido, e sobreviveu
+porque ninguém tinha rodado o app empacotado e olhado a pasta.
+
+A defesa continua certa, e agora por um motivo mais honesto: **procurar nos dois
+nomes** (`cliente_local.NOMES_DA_PASTA`). Não porque se saiba qual é qual, mas
+porque isso depende de detalhe de empacotamento que muda sem aviso — mover o
+`productName` para o `package.json` inverteria a resposta amanhã, e o cliente
+externo não tem como saber.
 
 **`app.routes` não enxerga rotas de router incluído.** O FastAPI atual mantém um
 `_IncludedRouter` sem `path` no lugar das rotas expandidas, então uma checagem

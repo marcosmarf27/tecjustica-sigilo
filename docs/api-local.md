@@ -31,14 +31,20 @@ Leia `sessao.json` no diretório de dados do aplicativo:
 
 | Sistema | Caminho |
 |---|---|
-| Windows (instalado) | `%APPDATA%\TecJustiça Sigilo\sessao.json` |
-| Windows (dev) | `%APPDATA%\tecjustica-sigilo\sessao.json` |
-| macOS | `~/Library/Application Support/TecJustiça Sigilo/sessao.json` |
-| Linux | `~/.config/TecJustiça Sigilo/sessao.json` |
+| Windows | `%APPDATA%\tecjustica-sigilo\sessao.json` |
+| Windows (alternativa) | `%APPDATA%\TecJustiça Sigilo\sessao.json` |
+| macOS | `~/Library/Application Support/tecjustica-sigilo/sessao.json` |
+| macOS (alternativa) | `~/Library/Application Support/TecJustiça Sigilo/sessao.json` |
+| Linux | `~/.config/tecjustica-sigilo/sessao.json` |
+| Linux (alternativa) | `~/.config/TecJustiça Sigilo/sessao.json` |
 
-> **Por que dois caminhos no Windows:** `app.getPath("userData")` do Electron
-> deriva de `app.getName()`. Em desenvolvimento isso vem do campo `name` do
-> `package.json`; no app empacotado, do `productName`. Procure nos dois.
+> **Procure nos dois nomes, sempre.** A pasta vem de `app.getName()`, que lê o
+> `package.json` **embarcado**: `productName` se existir lá, senão `name`. Hoje
+> o `productName` mora só na configuração do empacotador, então **a versão
+> instalada usa `tecjustica-sigilo`** — a mesma do desenvolvimento. Isso foi
+> medido rodando o app do instalador 1.3.0, e esta tabela afirmava o contrário
+> até 30/08/2026. Mover uma linha de configuração inverte a resposta sem que
+> você fique sabendo; um cliente que crava um nome quebra num dia qualquer.
 
 ```json
 { "versao": 1, "porta": 8123, "pid": 27780, "api": "habilitada" }
