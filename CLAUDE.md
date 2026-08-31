@@ -266,29 +266,36 @@ Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
 único**, no modo BERT. Confira `modo_nlp` dentro do JSON — se o motor cair para
 spaCy, o arquivo sai com números de spaCy.
 
-**Conferência parcial na v1.3.0, 30/08/2026.** O gate inteiro não coube: o
-ambiente daquela sessão encerra tarefa de fundo longa (quatro tentativas, todas
-mortas), e um documento sozinho passa dos nove minutos que o primeiro plano
-aceita. O `run_eval` aceita `--doc` e `--paginas`, então rodaram três fatias de
-40 páginas — **os três documentos do corpus** —, no modo `transformer` e com as
-mesmas 14 entidades da interface:
+**Conferência parcial na v1.3.0, 30/08/2026.** O gate inteiro não coube naquela
+sessão: o ambiente encerrava tarefa de fundo longa (quatro tentativas, todas
+mortas) e o primeiro plano tinha teto de dez minutos, contra ~20 min por
+documento. O `run_eval` aceita `--doc` e `--paginas`, então rodaram fatias —
+**os três documentos do corpus**, modo `transformer`, as mesmas 14 entidades da
+interface:
 
-| documento | ocorrências | valores únicos | vazamentos |
-|---|---|---|---|
-| `expedientes_13-08` | 242 / 243 | 38 / 39 | 1 |
-| `juri_19-08` | 204 / 204 | 39 / 39 | 0 |
-| `civel_0200161` | 166 / 166 | 32 / 32 | 0 |
-| **soma** | **612 / 613 (99,84%)** | **109 / 110 (99,09%)** | **1** |
+| documento | páginas | ocorrências | valores únicos | vazamentos |
+|---|---|---|---|---|
+| `expedientes_13-08` | 80 | 373 / 374 | 58 / 59 | 1 |
+| `juri_19-08` | 40 | 204 / 204 | 39 / 39 | 0 |
+| `civel_0200161` | 40 | 166 / 166 | 32 / 32 | 0 |
+| **soma** | **160 de 819** | **743 / 744 (99,87%)** | **129 / 130 (99,23%)** | **1** |
 
-Contra a baseline de 99,92% / 99,10%, fica em cima — mas **isto não é o gate**:
-são ~120 de 819 páginas, com outro denominador, e o único escape pesa mais numa
-amostra menor. O que a conferência sustenta, e era o que importava depois de
-nove correções num dia, é que **nenhum tipo novo vaza**: CEP, CNJ, CNPJ, CPF,
-e-mail, RG e telefone deram 100% nos três documentos, e o único escape é
-`ELIONEUDO EVARISTO DE` — o vazamento residual já descrito aqui, o nome partido
-na quebra de linha. Não há regressão.
+**Isto não é o gate**, e registrar como se fosse seria trocar amostra por censo.
+O que sustenta é o que importava depois de nove correções num dia: **nenhum tipo
+novo vaza.** CEP, CNJ, CNPJ, CPF, e-mail, RG e telefone deram 100% nos três
+documentos.
 
-Última execução completa, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
+O sinal mais forte não é o percentual, é a **contagem de escapes**: dobrando as
+páginas de `expedientes_13-08` de 40 para 80, as ocorrências foram de 243 para
+374 e os vazamentos ficaram em **1** — o mesmo `ELIONEUDO EVARISTO DE`, nome
+partido na quebra de linha, já descrito aqui desde a auditoria de 14/08. Falha
+sistemática escalaria com o volume; esta não escala.
+
+Fazer o gate de verdade exige rodá-lo num terminal sem teto de tempo:
+`PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
+`python-backend`, ~62 min.
+
+Última execução completa, 29/08/2026, na v1.2.0Última execução completa, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
 da interface, 819 páginas): **99,94% por ocorrência** (3.613/3.615) e **99,40%
 por valor único** (331/333). Acima da baseline. Custa ~62 min de CPU — não é
 gate de cada commit, é gate de release.
