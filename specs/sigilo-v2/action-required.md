@@ -111,9 +111,17 @@ Entregue na **v1.3.0**. O que continua aberto, e por quê:
   E o gancho de desinstalação também: numa instalação de teste em pasta
   temporária, remover devolveu o PATH **byte a byte idêntico** ao original.
 
-  Continua valendo a ressalva do enunciado: esta máquina não é limpa — tem o
-  repositório, o `.venv` e o `userData` do projeto. O que foi provado é o
-  mecanismo, não a ausência de dependência em coisas que só existem aqui.
+  **E a autossuficiência foi testada**, que é o núcleo verificável de "máquina
+  limpa". Montando um ambiente sem a entrada de desenvolvimento no PATH — sem
+  tocar no registro —, o CLI instalado anonimizou um documento inteiro, com o
+  motor carregado do `python-embed`: CPF, RG, endereço, CEP, telefone, e-mail,
+  OAB, número CNJ e nomes, todos mascarados. O shim instalado não menciona o
+  repositório nem o `.venv`.
+
+  O que continua sem teste, e é o resíduo honesto: o cache do HuggingFace
+  (~2,5 GB do BERT) é de usuário, não do repositório — numa máquina limpa ele
+  seria **baixado na primeira execução**, que é comportamento documentado e não
+  defeito. E as peculiaridades de um perfil recém-criado do Windows.
 - **CORS de uma extensão de verdade** — falta só a metade positiva. A negativa
   (página comum recusada) está automatizada e provada por mutação em
   `tests/test_cors_extensao.py`.

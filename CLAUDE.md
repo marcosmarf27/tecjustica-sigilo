@@ -214,6 +214,17 @@ anterior** no processo. Verifique se há instalação prévia antes de apontar o
 temporária. E `du -sm` sobre a pasta instalada (2,3 GB) estoura o tempo de um
 comando curto: acompanhe por um monitor, não por sondagem.
 
+**Autossuficiência conferida em 31/08/2026.** "Máquina limpa" é aproximação de
+uma pergunta concreta: *o app instalado depende de algo que só existe na máquina
+de desenvolvimento?* Isso se testa sem máquina nenhuma — monte um ambiente sem a
+entrada de desenvolvimento no PATH e rode o instalado. Feito: o CLI instalado
+anonimizou um documento inteiro com o motor do `python-embed`, e o shim não
+menciona o repositório nem o `.venv`.
+
+Resíduo honesto: o cache do HuggingFace (~2,5 GB do BERT) é de **usuário**, não
+do repositório — numa máquina limpa ele é baixado na primeira execução. É
+comportamento documentado, não dependência escondida.
+
 Antes disso, verificado também com um instalador mínimo que inclui as macros: instalar acrescenta a entrada (20 → 21 no PATH do usuário) e desinstalar
 a remove, deixando o valor **byte a byte idêntico** ao original. Duas condições
 que o teste precisa ter, e que custaram uma tentativa cada: `RequestExecutionLevel
