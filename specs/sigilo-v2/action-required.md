@@ -85,8 +85,9 @@ do git, de tempo de CPU ou de julgamento sobre a promessa do produto.
 Entregue na **v1.3.0**. O que continua aberto, e por quê:
 
 - **Gate de acurácia completo** — ~62 min de CPU, ainda não rodado de ponta a
-  ponta. Rodaram duas fatias de 40 páginas em modo `transformer`: **446 de 447
-  ocorrências (99,78%)**, com o único escape sendo o vazamento residual já
+  ponta. Rodaram três fatias de 40 páginas — os três documentos do corpus — em modo
+  `transformer`: **612 de 613 ocorrências (99,84%)** e 109 de 110 valores únicos
+  (99,09%), contra a baseline de 99,92% / 99,10%, com o único escape sendo o vazamento residual já
   conhecido (`ELIONEUDO EVARISTO DE`, nome partido na quebra). Não é o gate e
   não substitui o baseline — é a prova de que as nove correções do dia não
   causaram regressão. A lógica de detecção não mudou nesta entrega, então a

@@ -267,23 +267,26 @@ Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
 spaCy, o arquivo sai com números de spaCy.
 
 **Conferência parcial na v1.3.0, 30/08/2026.** O gate inteiro não coube: o
-ambiente desta sessão encerra tarefa de fundo longa (quatro tentativas, todas
+ambiente daquela sessão encerra tarefa de fundo longa (quatro tentativas, todas
 mortas), e um documento sozinho passa dos nove minutos que o primeiro plano
-aceita. O que coube foram duas fatias de 40 páginas, no modo `transformer` e com
-as mesmas 14 entidades da interface:
+aceita. O `run_eval` aceita `--doc` e `--paginas`, então rodaram três fatias de
+40 páginas — **os três documentos do corpus** —, no modo `transformer` e com as
+mesmas 14 entidades da interface:
 
 | documento | ocorrências | valores únicos | vazamentos |
 |---|---|---|---|
 | `expedientes_13-08` | 242 / 243 | 38 / 39 | 1 |
 | `juri_19-08` | 204 / 204 | 39 / 39 | 0 |
-| **soma** | **446 / 447 (99,78%)** | **77 / 78 (98,72%)** | **1** |
+| `civel_0200161` | 166 / 166 | 32 / 32 | 0 |
+| **soma** | **612 / 613 (99,84%)** | **109 / 110 (99,09%)** | **1** |
 
-**Estes números não substituem o gate** e não são comparáveis ao baseline: são
-~80 de 819 páginas, dois documentos de três, com outro denominador. O que eles
-sustentam é outra coisa, e é o que importava depois de nove correções num dia:
-**nenhum tipo novo vaza.** CEP, CNJ, CPF, e-mail, RG e telefone deram 100% nos
-dois, e o único escape é `ELIONEUDO EVARISTO DE` — o vazamento residual já
-documentado aqui, o nome partido na quebra de linha. Não há regressão.
+Contra a baseline de 99,92% / 99,10%, fica em cima — mas **isto não é o gate**:
+são ~120 de 819 páginas, com outro denominador, e o único escape pesa mais numa
+amostra menor. O que a conferência sustenta, e era o que importava depois de
+nove correções num dia, é que **nenhum tipo novo vaza**: CEP, CNJ, CNPJ, CPF,
+e-mail, RG e telefone deram 100% nos três documentos, e o único escape é
+`ELIONEUDO EVARISTO DE` — o vazamento residual já descrito aqui, o nome partido
+na quebra de linha. Não há regressão.
 
 Última execução completa, 29/08/2026, na v1.2.0 (modo efetivo `transformer`, 14 entidades
 da interface, 819 páginas): **99,94% por ocorrência** (3.613/3.615) e **99,40%
