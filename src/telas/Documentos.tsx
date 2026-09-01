@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { pastasDe } from "../hooks/useBiblioteca";
 import { Botao, Cartao, Carimbo, Campo, Marcador, Selo, Tabela, Dialogo } from "../ui";
 import type { ColunaTabela } from "../ui";
-import { rotuloDaEntidade, corDaEntidade } from "../types";
+import { POLITICAS_MASCARA, rotuloDaEntidade, corDaEntidade } from "../types";
 
 /**
  * Documentos — a biblioteca.
@@ -25,6 +25,26 @@ const PASTA_TODAS = "@todas";
 function dataCurta(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+/**
+ * Como o documento foi mascarado, dito na linguagem da tela.
+ *
+ * "Marcador" é o rótulo que a receita usa em `POLITICAS_MASCARA`, e repeti-lo
+ * aqui é de propósito: quem escolheu "com marcador" na Mesa reconhece a mesma
+ * palavra na biblioteca. Chamar de "placeholder" num lugar e "marcador" no
+ * outro faria duas coisas parecerem diferentes.
+ *
+ * Ausente significa ausente, nunca "provavelmente marcador": o documento foi
+ * guardado antes de o campo existir, e supor a política é o que a conversa
+ * recusa fazer.
+ */
+function politicaDe(item: EntradaDoCofre): { texto: string; atencao: boolean } {
+  const opcao = POLITICAS_MASCARA.find((p) => p.id === item.politicaMascara);
+  if (opcao) {
+    return { texto: opcao.titulo, atencao: opcao.id !== "placeholder" };
+  }
+  return { texto: "máscara não registrada", atencao: true };
 }
 
 interface DocumentosProps {
@@ -50,6 +70,7 @@ export function Documentos({
   const [pasta, setPasta] = useState<string>(PASTA_TODAS);
   const [busca, setBusca] = useState("");
   const [paraApagar, setParaApagar] = useState<EntradaDoCofre | null>(null);
+  const [apagarMarcados, setApagarMarcados] = useState(false);
   /* Marcados para conversar. Por id, e não por índice: a lista muda com o
      filtro de pasta e com a busca, e um índice apontaria para outro documento
      depois de qualquer uma das duas. */
@@ -157,6 +178,14 @@ export function Documentos({
           <p className="mt-1 font-mono text-2xs text-text-tertiary">
             {i.cnj ?? "Avulsos"} · {dataCurta(i.gravadoEm)}
             {i.totalPaginas > 0 && ` · fls. 1–${i.totalPaginas}`}
+            {/* Como foi mascarado. Só "Marcador" produz pseudônimo numerado, e
+                só ele conversa — descobrir isso ao tentar abrir a conversa é
+                tarde, então a lista diz antes. O que destoa fica em cor de
+                atenção; o normal fica cinza como o resto do metadado. */}
+            {" · "}
+            <span className={politicaDe(i).atencao ? "text-warning" : undefined}>
+              {politicaDe(i).texto}
+            </span>
             {homonimos.has(i.nome) && (
               <span className="text-accent">
                 {" "}
@@ -334,15 +363,22 @@ export function Documentos({
         <div className="sticky bottom-0 -mx-8 mt-2 border-t border-border-subtle bg-surface/95 px-8 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3">
             <span className="font-mono text-2xs uppercase tracking-wide text-text-secondary">
-              {marcados.size} documento{marcados.size > 1 ? "s" : ""} para conversar
+              {marcados.size} marcado{marcados.size > 1 ? "s" : ""}
             </span>
             <button
               onClick={() => setMarcados(new Set())}
               className="font-mono text-2xs text-text-tertiary underline-offset-2 hover:text-text-secondary hover:underline"
             >
-              limpar
+              desmarcar
             </button>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              {/* Apagar fica à esquerda do primário e em `secundario`: é a ação
+                  destrutiva, não pode disputar o clique com a que se quer. A
+                  confirmação nomeia o número, porque apagar trinta documentos
+                  por engano não tem desfazer. */}
+              <Botao tipo="secundario" onClick={() => setApagarMarcados(true)}>
+                Apagar
+              </Botao>
               <Botao tipo="primario" icone="conversa" onClick={() => aoConversar([...marcados])}>
                 Conversar
               </Botao>
@@ -350,6 +386,36 @@ export function Documentos({
           </div>
         </div>
       )}
+
+      <Dialogo
+        aberto={apagarMarcados}
+        aoFechar={() => setApagarMarcados(false)}
+        titulo={`Apagar ${marcados.size} documento${marcados.size > 1 ? "s" : ""} do cofre`}
+        acoes={
+          <>
+            <Botao tipo="secundario" onClick={() => setApagarMarcados(false)}>
+              Cancelar
+            </Botao>
+            <Botao
+              tipo="perigo"
+              onClick={() => {
+                for (const id of marcados) aoApagar(id);
+                setMarcados(new Set());
+                setApagarMarcados(false);
+              }}
+            >
+              Apagar {marcados.size}
+            </Botao>
+          </>
+        }
+      >
+        <p>
+          {marcados.size === 1 ? "O documento sai" : "Os documentos saem"} do
+          cofre e não {marcados.size === 1 ? "poderá" : "poderão"} ser
+          {marcados.size === 1 ? " reaberto" : " reabertos"}. Os arquivos que
+          você já salvou em disco não são afetados.
+        </p>
+      </Dialogo>
 
       <Dialogo
           aberto={paraApagar !== null}

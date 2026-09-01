@@ -91,6 +91,10 @@ export type AcaoApp =
   | { tipo: "ir-para"; destino: Destino }
   | { tipo: "definir-fila"; arquivos: FileItem[] }
   | { tipo: "limpar-fila" }
+  /* Tira da fila só o que foi processado. As falhas ficam, com o motivo à
+     vista: são o único lugar onde o usuário lê por que aquele arquivo não
+     passou. */
+  | { tipo: "tirar-da-fila"; caminhos: string[] }
   | {
       tipo: "estado-do-arquivo";
       caminho: string;

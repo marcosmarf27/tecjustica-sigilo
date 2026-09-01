@@ -85,6 +85,7 @@ export function useBiblioteca(cofreLigado: boolean, diasDeExpurgo: number) {
           porTipo: contarPorTipo(arquivo),
           paginasComErro: arquivo.ocr?.paginas_com_erro ?? 0,
           totalPaginas: arquivo.ocr?.total_paginas ?? 0,
+          politicaMascara: arquivo.politicaMascara,
         },
         {
           textoOriginal: arquivo.originalContent,
@@ -143,6 +144,7 @@ export function useBiblioteca(cofreLigado: boolean, diasDeExpurgo: number) {
           porTipo: contarPorTipo(arquivo),
           paginasComErro: arquivo.ocr?.paginas_com_erro ?? 0,
           totalPaginas: arquivo.ocr?.total_paginas ?? 0,
+          politicaMascara: arquivo.politicaMascara ?? conteudo.politicaMascara,
         },
         {
           ...conteudo,

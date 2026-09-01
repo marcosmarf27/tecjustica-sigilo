@@ -60,6 +60,18 @@ export interface EntradaDoCofre {
   /** Páginas que precisavam de OCR e não voltaram. */
   paginasComErro: number;
   totalPaginas: number;
+  /**
+   * Com que política o documento foi mascarado.
+   *
+   * No índice, e não só no conteúdo cifrado, porque a biblioteca precisa
+   * mostrá-la em cada linha da lista — e ler o conteúdo de trinta documentos
+   * para desenhar uma tabela significaria decifrar trinta arquivos de autos a
+   * cada abertura da tela.
+   *
+   * É ela que decide se o documento pode conversar: só `placeholder` produz
+   * pseudônimo numerado. Ausente em tudo que foi guardado antes da v1.4.0.
+   */
+  politicaMascara?: string;
 }
 
 /** O conteúdo pesado, num arquivo por documento. */

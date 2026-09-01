@@ -25,6 +25,8 @@ interface EntradaDoCofre {
   cnj: string | null;
   totalOcorrencias: number;
   porTipo: Record<string, number>;
+  /** Política de máscara; ausente no que foi guardado antes da v1.4.0. */
+  politicaMascara?: string;
   paginasComErro: number;
   totalPaginas: number;
 }

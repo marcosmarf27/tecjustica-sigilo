@@ -28,6 +28,11 @@ export function reducer(estado: EstadoApp, acao: AcaoApp): EstadoApp {
     case "limpar-fila":
       return { ...estado, fila: [], progresso: null };
 
+    case "tirar-da-fila": {
+      const sair = new Set(acao.caminhos);
+      return { ...estado, fila: estado.fila.filter((a) => !sair.has(a.path)) };
+    }
+
     case "estado-do-arquivo":
       return {
         ...estado,

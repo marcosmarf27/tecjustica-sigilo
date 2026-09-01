@@ -187,6 +187,15 @@ function Casca() {
     const aviso = mensagemDoLote(resultado, estado.fila.length);
     if (aviso) avisar(aviso.mensagem, aviso.tipo);
 
+    /* Sai da fila o que foi processado — arquivo já anonimizado ali é convite
+       para reprocessar o mesmo documento e acabar com três cópias no cofre. O
+       que falhou fica, porque a fila é onde o motivo da falha está escrito, e
+       porque é dali que se tenta de novo. */
+    despachar({
+      tipo: "tirar-da-fila",
+      caminhos: resultado.processados.map((p) => p.originalPath),
+    });
+
     if (resultado.processados.length === 0) return;
 
     despachar({
