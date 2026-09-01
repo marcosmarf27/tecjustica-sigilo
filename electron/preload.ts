@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     listar: () => ipcRenderer.invoke("cofre-listar"),
     gravar: (entrada: unknown, conteudo: unknown) =>
       ipcRenderer.invoke("cofre-gravar", entrada, conteudo),
+    atualizar: (id: string, entrada: unknown, conteudo: unknown) =>
+      ipcRenderer.invoke("cofre-atualizar", id, entrada, conteudo),
     ler: (id: string) => ipcRenderer.invoke("cofre-ler", id),
     apagar: (id: string) => ipcRenderer.invoke("cofre-apagar", id),
     esvaziar: () => ipcRenderer.invoke("cofre-esvaziar"),

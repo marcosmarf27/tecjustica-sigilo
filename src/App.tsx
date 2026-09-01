@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePythonBackend } from "./hooks/usePythonBackend";
 import { useLote, mensagemDoLote } from "./hooks/useLote";
 import { useSalvamento } from "./hooks/useSalvamento";
@@ -125,12 +125,22 @@ function Casca() {
   });
 
   /** Guarda o lote no cofre, contando o que falhou em vez de silenciar. */
+  /** Caminho do arquivo → id no cofre, para o que foi guardado nesta sessão. */
+  const idsNoCofre = useRef(new Map<string, string>());
+
   const guardarNoCofre = useCallback(
     async (arquivos: ProcessedFile[]) => {
       let guardados = 0;
       for (const arquivo of arquivos) {
         try {
-          await biblioteca.guardar(arquivo, prefs.autoArquivamento);
+          const entrada = await biblioteca.guardar(
+            arquivo,
+            prefs.autoArquivamento
+          );
+          /* O id é preciso depois: rejeitar uma detecção tem de regravar ESTE
+             documento no cofre, e a revisão vinda do processamento não carrega
+             id nenhum — a gravação acontece em paralelo com a tela abrindo. */
+          if (entrada) idsNoCofre.current.set(arquivo.originalPath, entrada.id);
           guardados++;
         } catch (erro) {
           /* Falha aqui é quase sempre cofre indisponível — e o usuário precisa
@@ -277,20 +287,31 @@ function Casca() {
           arquivo.politicaMascara ?? prefs.politica
         );
 
+        const atualizado: ProcessedFile = {
+          ...arquivo,
+          anonymizedContent: refeito.anonymized_text,
+          entitiesFound: refeito.entities_found,
+        };
+
         despachar({
           tipo: "substituir-em-revisao",
           indice: indiceArquivo,
-          arquivo: {
-            ...arquivo,
-            anonymizedContent: refeito.anonymized_text,
-            entitiesFound: refeito.entities_found,
-          },
+          arquivo: atualizado,
         });
 
+        /* O cofre é gravado assim que o processamento termina, antes de
+           qualquer revisão. Sem regravar aqui, a lista ficaria limpa na tela e
+           o cofre guardaria a versão com o falso positivo — e é do cofre que a
+           conversa lê. */
+        const idNoCofre =
+          estado.revisao?.idNoCofre ?? idsNoCofre.current.get(arquivo.originalPath);
+        const noCofre = idNoCofre
+          ? await biblioteca.atualizar(idNoCofre, atualizado)
+          : false;
+
         avisar(
-          saindo === 1
-            ? `"${entidade.text}" saiu da lista e não será mais mascarado.`
-            : `"${entidade.text}" saiu da lista (${saindo} ocorrências) e não será mais mascarado.`
+          `"${entidade.text}" saiu da lista${saindo > 1 ? ` (${saindo} ocorrências)` : ""}` +
+            (noCofre ? " e do cofre." : ".")
         );
       } catch (erro) {
         /* A exceção já está gravada: vale dos próximos documentos em diante. O
@@ -305,6 +326,7 @@ function Casca() {
     [
       adicionarNaDenyList,
       avisar,
+      biblioteca,
       despachar,
       estado.revisao,
       prefs.politica,

@@ -847,6 +847,21 @@ falso positivo que o motor repetiu quarenta vezes — e ele repete, via
 `_propagar_nomes` — exigiria quarenta cliques para o efeito que a gravação já
 teve.
 
+**E o conserto só ficou de pé com `cofre.atualizar`.** O cofre é gravado assim
+que o processamento termina (`App.tsx`, logo depois de `abrir-revisao`),
+**antes** de qualquer revisão. Sem regravar, rejeitar um falso positivo
+corrigia a tela e o arquivo salvo em disco, e deixava no cofre a versão suja —
+que é de onde a conversa lê. O revisor veria a lista limpa e o modelo receberia
+o texto com `[PESSOA_7]` no lugar de "os dados", sem nada na tela dizendo isso.
+
+Não é `apagar` + `gravar`: isso trocaria o id, e o id é o que a revisão aberta e
+a seleção da conversa carregam — trocá-lo no meio da sessão transformaria uma
+correção em "documento não está mais no cofre". Provado por mutação: trocar
+`id: anterior.id` por um id novo faz o teste reprovar. E id ausente devolve
+`null` em vez de criar a entrada, porque gravar tem consentimento próprio e
+recriar aqui gravaria dado pessoal no disco de quem escolheu não guardar
+nenhum.
+
 **Rota nova nasce atrás do token, e agora isso é testado por varredura.** Era
 testado por amostragem: `/processar`, `/anonymize` e a deny-list tinham um
 teste cada, e as demais dependiam de alguém lembrar. Quem esquecesse não veria

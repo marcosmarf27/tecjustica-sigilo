@@ -59,6 +59,12 @@ interface CofreAPI {
     entrada: Omit<EntradaDoCofre, "id" | "gravadoEm">,
     conteudo: ConteudoDoCofre
   ) => Promise<EntradaDoCofre>;
+  /** Regrava um documento guardado, mantendo id e data. `null` se ele já saiu. */
+  atualizar: (
+    id: string,
+    entrada: Omit<EntradaDoCofre, "id" | "gravadoEm">,
+    conteudo: ConteudoDoCofre
+  ) => Promise<EntradaDoCofre | null>;
   ler: (id: string) => Promise<ConteudoDoCofre | null>;
   apagar: (id: string) => Promise<void>;
   esvaziar: () => Promise<void>;

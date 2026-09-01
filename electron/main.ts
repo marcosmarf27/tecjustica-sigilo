@@ -660,6 +660,15 @@ ipcMain.handle(
   (_e, entrada: Parameters<typeof cofre.gravar>[0], conteudo: cofre.ConteudoDoCofre) =>
     cofre.gravar(entrada, conteudo)
 );
+ipcMain.handle(
+  "cofre-atualizar",
+  (
+    _e,
+    id: string,
+    entrada: Parameters<typeof cofre.atualizar>[1],
+    conteudo: cofre.ConteudoDoCofre
+  ) => cofre.atualizar(id, entrada, conteudo)
+);
 ipcMain.handle("cofre-ler", (_e, id: string) => cofre.ler(id));
 ipcMain.handle("cofre-apagar", (_e, id: string) => cofre.apagar(id));
 ipcMain.handle("cofre-esvaziar", () => cofre.esvaziar());

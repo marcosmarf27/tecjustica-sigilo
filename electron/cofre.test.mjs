@@ -475,4 +475,90 @@ describe("cofre", () => {
     );
   });
 
+  // --- Regravar um documento já guardado -----------------------------------
+  //
+  // O cofre é gravado assim que o processamento termina, ANTES da revisão. Sem
+  // `atualizar`, rejeitar um falso positivo corrigia a tela e deixava no cofre
+  // a versão suja — e é do cofre que a conversa lê.
+
+  test("atualizar troca o conteúdo e preserva id e data", () => {
+    const antes = cofre.gravar(entradaDeExemplo(), conteudoDeExemplo());
+
+    const depois = cofre.atualizar(
+      antes.id,
+      entradaDeExemplo({ totalOcorrencias: 1, porTipo: { CPF_BR: 1 } }),
+      { ...conteudoDeExemplo(), textoAnonimizado: "Requerente: Ana, CPF [CPF_1]." }
+    );
+
+    /* Trocar o id seria a implementação preguiçosa — apagar e gravar. O id é o
+       que a revisão aberta e a seleção da conversa carregam: trocá-lo no meio
+       da sessão transformaria uma correção em "documento não está mais no
+       cofre". A data também fica: revisar não é guardar de novo. */
+    assert.equal(depois.id, antes.id);
+    assert.equal(depois.gravadoEm, antes.gravadoEm);
+    assert.equal(depois.totalOcorrencias, 1);
+    assert.equal(
+      cofre.ler(antes.id).textoAnonimizado,
+      "Requerente: Ana, CPF [CPF_1]."
+    );
+  });
+
+  test("atualizar mexe só no documento pedido", () => {
+    const a = cofre.gravar(entradaDeExemplo({ nome: "A.pdf" }), conteudoDeExemplo());
+    const b = cofre.gravar(entradaDeExemplo({ nome: "B.pdf" }), conteudoDeExemplo());
+
+    cofre.atualizar(a.id, entradaDeExemplo({ nome: "A.pdf" }), {
+      ...conteudoDeExemplo(),
+      textoAnonimizado: "só o A mudou",
+    });
+
+    assert.equal(cofre.ler(b.id).textoAnonimizado, conteudoDeExemplo().textoAnonimizado);
+    assert.equal(cofre.listar().length, 2, "não duplicou a linha do índice");
+    assert.deepEqual(
+      cofre.listar().map((i) => i.id).sort(),
+      [a.id, b.id].sort()
+    );
+  });
+
+  test("atualizar um id que não está no cofre devolve null, sem criar nada", () => {
+    /* Documento apagado no meio do caminho, ou nunca guardado porque o cofre
+       está desligado. Recriar a entrada aqui passaria por cima do
+       consentimento que a gravação tem — e gravaria dados pessoais no disco de
+       quem escolheu não guardar nenhum. */
+    assert.equal(
+      cofre.atualizar("naoexiste", entradaDeExemplo(), conteudoDeExemplo()),
+      null
+    );
+    assert.equal(cofre.listar().length, 0);
+    const pasta = path.join(pastaTemporaria, "cofre");
+    const restos = fs.existsSync(pasta)
+      ? fs.readdirSync(pasta).filter((f) => f.endsWith(".bin"))
+      : [];
+    assert.deepEqual(restos, [], "nada pode ter sido escrito em disco");
+  });
+
+  test("RECUSA atualizar sobre um índice ilegível, em vez de destruí-lo", () => {
+    /* Mesma guarda de `gravar` e `apagar`: com o índice ilegível — perfil do
+       Windows trocado —, regravá-lo por cima apagaria a referência a tudo que
+       já está guardado. */
+    const a = cofre.gravar(entradaDeExemplo(), conteudoDeExemplo());
+    const pasta = path.join(pastaTemporaria, "cofre");
+    fs.writeFileSync(path.join(pasta, "indice.bin"), Buffer.from("lixo"));
+
+    assert.throws(() =>
+      cofre.atualizar(a.id, entradaDeExemplo(), conteudoDeExemplo())
+    );
+  });
+
+  test("RECUSA atualizar quando o sistema não oferece cifragem", () => {
+    const a = cofre.gravar(entradaDeExemplo(), conteudoDeExemplo());
+    controle.cifragemDisponivel = false;
+
+    assert.throws(
+      () => cofre.atualizar(a.id, entradaDeExemplo(), conteudoDeExemplo()),
+      /cofre|cifragem/i,
+      "sem cifragem, regravar em claro seria pior que não regravar"
+    );
+  });
+
 });

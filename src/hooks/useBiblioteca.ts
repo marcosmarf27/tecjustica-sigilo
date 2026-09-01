@@ -110,6 +110,54 @@ export function useBiblioteca(cofreLigado: boolean, diasDeExpurgo: number) {
     []
   );
 
+  /**
+   * Regrava um documento já guardado com a versão revisada.
+   *
+   * O cofre é gravado assim que o processamento termina, antes de qualquer
+   * revisão. Sem isto, rejeitar uma detecção corrigia a tela e deixava no cofre
+   * a versão com o falso positivo — e é do cofre que a conversa lê. O revisor
+   * veria a lista limpa e o modelo receberia o texto sujo.
+   *
+   * Devolve `false` quando o documento não está no cofre: pode nunca ter sido
+   * guardado (cofre desligado) ou ter sido apagado no caminho. Nos dois casos
+   * não há o que atualizar, e criar a entrada aqui passaria por cima do
+   * consentimento que a gravação tem.
+   */
+  const atualizar = useCallback(
+    async (id: string, arquivo: ProcessedFile): Promise<boolean> => {
+      const api = window.electronAPI?.cofre;
+      if (!api) return false;
+
+      const conteudo = await api.ler(id);
+      if (!conteudo) return false;
+
+      const entrada = await api.atualizar(
+        id,
+        {
+          nome: arquivo.originalName,
+          /* O CNJ vem do que já estava gravado: ele decide a pasta da
+             biblioteca, e uma correção de falso positivo não é hora de mover o
+             documento de lugar. */
+          cnj: itens.find((i) => i.id === id)?.cnj ?? null,
+          totalOcorrencias: arquivo.entitiesFound.length,
+          porTipo: contarPorTipo(arquivo),
+          paginasComErro: arquivo.ocr?.paginas_com_erro ?? 0,
+          totalPaginas: arquivo.ocr?.total_paginas ?? 0,
+        },
+        {
+          ...conteudo,
+          textoAnonimizado: arquivo.anonymizedContent,
+          ocorrencias: arquivo.entitiesFound,
+        }
+      );
+
+      if (!entrada) return false;
+      setItens((atuais) => atuais.map((i) => (i.id === id ? entrada : i)));
+      return true;
+    },
+    [itens]
+  );
+
   /** Reconstrói o `ProcessedFile` a partir do cofre, para a revisão reabrir. */
   const abrir = useCallback(
     async (item: EntradaDoCofre): Promise<ProcessedFile | null> => {
@@ -147,6 +195,7 @@ export function useBiblioteca(cofreLigado: boolean, diasDeExpurgo: number) {
     /** Quantos itens o expurgo removeu na abertura desta sessão. */
     expurgados,
     guardar,
+    atualizar,
     abrir,
     apagar,
     esvaziar,

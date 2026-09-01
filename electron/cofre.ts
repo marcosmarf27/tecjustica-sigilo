@@ -232,6 +232,52 @@ export function gravar(
   return completa;
 }
 
+/**
+ * Regrava um documento que já está guardado, mantendo id e data.
+ *
+ * Existe para o "Não é PII" da revisão. Sem isto, rejeitar uma detecção
+ * corrigia a tela e o arquivo salvo em disco, e deixava o cofre com a versão
+ * antiga — que é de onde a conversa lê. O revisor veria a lista limpa e o
+ * modelo receberia o texto sujo, sem nada na tela dizendo isso.
+ *
+ * Não é `apagar` seguido de `gravar`: isso trocaria o id, e o id é o que a
+ * seleção da conversa e a revisão aberta carregam. Trocá-lo no meio da sessão
+ * transformaria uma correção num "documento não está mais no cofre".
+ *
+ * Mesma ordem de `gravar` — conteúdo antes do índice — e pelo mesmo motivo. A
+ * escrita do conteúdo é `.tmp` + rename, então uma falha antes do rename deixa
+ * a versão anterior intacta, com o índice ainda apontando corretamente para
+ * ela.
+ */
+export function atualizar(
+  id: string,
+  entrada: Omit<EntradaDoCofre, "id" | "gravadoEm">,
+  conteudo: ConteudoDoCofre
+): EntradaDoCofre | null {
+  exigirDisponivel();
+  exigirIndiceUtilizavel();
+
+  const atual = listar();
+  const anterior = atual.find((i) => i.id === id);
+  /* Documento que saiu do cofre no meio do caminho não é recriado aqui: a
+     gravação é a decisão de guardar, e ela tem consentimento próprio. */
+  if (!anterior) return null;
+
+  const completa: EntradaDoCofre = {
+    ...entrada,
+    id: anterior.id,
+    gravadoEm: anterior.gravadoEm,
+  };
+
+  cifrarPara(caminhoDoConteudo(id), conteudo);
+  cifrarPara(
+    caminhoDoIndice(),
+    atual.map((i) => (i.id === id ? completa : i))
+  );
+
+  return completa;
+}
+
 export function ler(id: string): ConteudoDoCofre | null {
   return decifrarDe<ConteudoDoCofre | null>(caminhoDoConteudo(id), null);
 }
