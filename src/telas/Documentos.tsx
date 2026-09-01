@@ -34,6 +34,8 @@ interface DocumentosProps {
   expurgados: number;
   aoAbrir: (item: EntradaDoCofre) => void;
   aoApagar: (id: string) => void;
+  /** Abre a conversa sobre os documentos marcados. */
+  aoConversar: (ids: string[]) => void;
 }
 
 export function Documentos({
@@ -43,10 +45,23 @@ export function Documentos({
   expurgados,
   aoAbrir,
   aoApagar,
+  aoConversar,
 }: DocumentosProps) {
   const [pasta, setPasta] = useState<string>(PASTA_TODAS);
   const [busca, setBusca] = useState("");
   const [paraApagar, setParaApagar] = useState<EntradaDoCofre | null>(null);
+  /* Marcados para conversar. Por id, e não por índice: a lista muda com o
+     filtro de pasta e com a busca, e um índice apontaria para outro documento
+     depois de qualquer uma das duas. */
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+
+  const alternar = (id: string) =>
+    setMarcados((atuais) => {
+      const novo = new Set(atuais);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
 
   const pastas = useMemo(() => pastasDe(itens), [itens]);
 
@@ -65,6 +80,20 @@ export function Documentos({
   }, [itens, pasta, busca]);
 
   const colunas: ColunaTabela<EntradaDoCofre>[] = [
+    {
+      chave: "marcar",
+      cabecalho: "",
+      estreita: true,
+      render: (i) => (
+        <input
+          type="checkbox"
+          checked={marcados.has(i.id)}
+          onChange={() => alternar(i.id)}
+          aria-label={`Selecionar ${i.nome} para conversar`}
+          className="size-3.5 accent-[var(--esferografica)]"
+        />
+      ),
+    },
     {
       chave: "documento",
       cabecalho: "Documento",
@@ -205,6 +234,44 @@ export function Documentos({
                   {p}
                 </button>
               ))}
+            </div>
+
+            {/* A barra de conversa só aparece quando há o que conversar. O
+                atalho de marcar tudo importa porque a pasta É o processo: com
+                o filtro num CNJ, "marcar os visíveis" seleciona os autos
+                inteiros, que é como a pergunta interessante costuma ser feita
+                — uma peça sozinha raramente responde. */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  setMarcados((atuais) =>
+                    visiveis.every((i) => atuais.has(i.id))
+                      ? new Set()
+                      : new Set(visiveis.map((i) => i.id))
+                  )
+                }
+                className="min-h-6 rounded px-2 py-1 font-mono text-2xs tracking-wide text-text-tertiary hover:bg-surface-hover hover:text-text-secondary"
+              >
+                {visiveis.length > 0 && visiveis.every((i) => marcados.has(i.id))
+                  ? "Desmarcar todos"
+                  : "Marcar os visíveis"}
+              </button>
+
+              {marcados.size > 0 && (
+                <>
+                  <span className="font-mono text-2xs text-text-tertiary">
+                    {marcados.size} marcado{marcados.size > 1 ? "s" : ""}
+                  </span>
+                  <Botao
+                    tamanho="mini"
+                    tipo="primario"
+                    icone="conversa"
+                    onClick={() => aoConversar([...marcados])}
+                  >
+                    Conversar
+                  </Botao>
+                </>
+              )}
             </div>
 
             <Cartao semPreenchimento>

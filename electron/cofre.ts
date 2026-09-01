@@ -69,7 +69,33 @@ export interface ConteudoDoCofre {
   ocorrencias: unknown[];
   caminhoOriginal: string;
   ocr?: unknown;
+  /* Em que condições o texto anonimizado foi produzido. Enquanto ele só era
+     reaberto para revisão por quem já tinha o original, nada disso fazia falta.
+     Faz falta a partir do momento em que o texto pode sair da máquina: os
+     mesmos caracteres significam coisas diferentes conforme a política
+     aplicada, as entidades pedidas e o motor que rodou.
+
+     Todos opcionais porque o cofre tem documentos gravados antes disto existir.
+     Ausente é **desconhecido**, e quem consome trata desconhecido como recusa —
+     nunca como "deve ser o padrão". */
+  politicaMascara?: string;
+  valoresDistintos?: Record<string, number>;
+  modoNlp?: string;
+  entidadesSolicitadas?: string[];
 }
+
+/**
+ * O que a conversa recebe — sem o texto original.
+ *
+ * `ConteudoDoCofre` guarda `textoOriginal` e `textoAnonimizado` lado a lado, e
+ * trocar um pelo outro na hora de montar o que sai da máquina é uma edição de
+ * uma palavra que vaza o processo inteiro. Nenhuma revisão de código pega isso
+ * de forma confiável, porque as duas linhas são plausíveis.
+ *
+ * Então o campo não entra em escopo. Quem monta a conversa recebe este tipo, e
+ * a linha errada deixa de ser possível de escrever.
+ */
+export type ConteudoParaConversa = Omit<ConteudoDoCofre, "textoOriginal">;
 
 export class CofreIndisponivelError extends Error {
   constructor() {
@@ -208,6 +234,21 @@ export function gravar(
 
 export function ler(id: string): ConteudoDoCofre | null {
   return decifrarDe<ConteudoDoCofre | null>(caminhoDoConteudo(id), null);
+}
+
+/**
+ * O mesmo documento, sem o texto original, para o que vai sair da máquina.
+ *
+ * A eliminação é explícita e feita aqui, no ponto mais próximo do disco. Ela
+ * não substitui a verificação do corpo antes do envio — são camadas diferentes:
+ * esta impede a linha errada de existir, a outra confere o resultado.
+ */
+export function lerParaConversa(id: string): ConteudoParaConversa | null {
+  const conteudo = ler(id);
+  if (conteudo === null) return null;
+
+  const { textoOriginal: _descartado, ...semOriginal } = conteudo;
+  return semOriginal;
 }
 
 /**

@@ -13,9 +13,14 @@ import type { FileItem, ProcessedFile } from "../types";
  * | fila, progresso, aviso | aqui | não faz sentido guardar |
  */
 
-/** Os quatro destinos do trilho. Revisão não entra: não é destino, é o que
- *  abre ao escolher um documento. */
-export type Destino = "mesa" | "documentos" | "conexoes" | "ajustes";
+/** Os destinos do trilho. Revisão não entra: não é destino, é o que abre ao
+ *  escolher um documento. */
+export type Destino =
+  | "mesa"
+  | "documentos"
+  | "conversa"
+  | "conexoes"
+  | "ajustes";
 
 /** Estágio de um arquivo dentro do lote. */
 export type EstadoArquivo =
@@ -63,6 +68,14 @@ export interface EstadoApp {
   /** Não-nulo enquanto o lote roda. */
   progresso: Progresso | null;
   aviso: Aviso | null;
+  /**
+   * Os documentos escolhidos para conversar, por id do cofre.
+   *
+   * Ids, nunca texto — a mesma fronteira que a ponte IPC impõe. Vive aqui
+   * porque a seleção é feita em Documentos e consumida na Conversa, e o
+   * componente de origem desmonta ao navegar.
+   */
+  conversaAberta: string[] | null;
 }
 
 export const ESTADO_INICIAL: EstadoApp = {
@@ -71,6 +84,7 @@ export const ESTADO_INICIAL: EstadoApp = {
   fila: [],
   progresso: null,
   aviso: null,
+  conversaAberta: null,
 };
 
 export type AcaoApp =
@@ -89,4 +103,6 @@ export type AcaoApp =
   | { tipo: "abrir-revisao"; revisao: RevisaoAberta }
   | { tipo: "fechar-revisao" }
   | { tipo: "avisar"; mensagem: string; tipoAviso?: "sucesso" | "erro" }
+  | { tipo: "abrir-conversa"; ids: string[] }
+  | { tipo: "fechar-conversa" }
   | { tipo: "fechar-aviso" };

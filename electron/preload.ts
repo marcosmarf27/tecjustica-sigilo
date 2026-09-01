@@ -28,6 +28,29 @@ contextBridge.exposeInMainWorld("electronAPI", {
     esvaziar: () => ipcRenderer.invoke("cofre-esvaziar"),
     expurgar: (dias: number) => ipcRenderer.invoke("cofre-expurgar", dias),
   },
+  /* A chave da API não tem canal de leitura, e isso é proposital: o processo
+     principal a usa ao montar a requisição, e o renderer só precisa saber se
+     ela existe. `ultimos4` basta para reconhecer qual chave está guardada. */
+  segredo: {
+    resumo: () => ipcRenderer.invoke("segredo-resumo"),
+    guardar: (chave: string) => ipcRenderer.invoke("segredo-guardar", chave),
+    apagar: () => ipcRenderer.invoke("segredo-apagar"),
+  },
+  /* `abrir` recebe ids do cofre, nunca texto: não há como o renderer mandar
+     conteúdo arbitrário para a nuvem, porque o canal não aceita conteúdo. */
+  chat: {
+    modelos: () => ipcRenderer.invoke("chat-modelos"),
+    abrir: (ids: string[], modelo?: string) =>
+      ipcRenderer.invoke("chat-abrir", ids, modelo),
+    estado: (id: string) => ipcRenderer.invoke("chat-estado", id),
+    orcamento: (id: string) => ipcRenderer.invoke("chat-orcamento", id),
+    previsualizar: (id: string) => ipcRenderer.invoke("chat-previsualizar", id),
+    perguntar: (id: string, pergunta: string) =>
+      ipcRenderer.invoke("chat-perguntar", id, pergunta),
+    cancelar: (id: string) => ipcRenderer.invoke("chat-cancelar", id),
+    fechar: (id: string) => ipcRenderer.invoke("chat-fechar", id),
+    sondar: (modelo: string) => ipcRenderer.invoke("chat-sondar", modelo),
+  },
   cli: {
     status: () => ipcRenderer.invoke("cli-status"),
     installWindows: () => ipcRenderer.invoke("cli-install-windows"),

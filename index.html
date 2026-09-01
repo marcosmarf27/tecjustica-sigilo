@@ -3,7 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Presidio Anon</title>
+    <!--
+      A jaula do renderer, e o chão dela.
+
+      O `main.ts` também manda esta política por cabeçalho, mas
+      `onHeadersReceived` não é acionado de forma confiável para respostas
+      `file://` — que é exatamente como esta página carrega no aplicativo
+      empacotado. Sem a meta aqui, a política valeria em desenvolvimento e
+      sumiria na versão instalada, que é a que importa.
+
+      `connect-src` é o que importa de verdade: a interface só alcança o backend
+      local. A conversa com a nuvem acontece no processo principal, que é onde a
+      verificação do que sai está implementada. Um defeito no renderer não vira
+      vazamento porque o renderer não tem para onde mandar.
+
+      `'unsafe-inline'` em `style-src` é necessário: a tarja de redação recebe a
+      cor do tipo de entidade por atributo `style`, e sem isso o CSP a bloqueia.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://localhost:*; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>TecJustiça Sigilo</title>
   </head>
   <body>
     <div id="root"></div>

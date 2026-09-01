@@ -660,6 +660,107 @@ destruição e escapava — a mensagem de erro do `--in-place` chegava a *sugeri
 `samefile`, que resolve link, junction e a diferença de maiúsculas do NTFS.
 Comparar strings não resolve.
 
+## Conversar com os autos (v1.4.0)
+
+O primeiro recurso que **manda dado para fora**. Até aqui o pior defeito
+possível entregava um documento mal anonimizado ao próprio usuário; agora ele
+manda dado sigiloso para a internet. Tudo abaixo existe por causa dessa
+mudança de natureza.
+
+O que sustenta a decisão é a Resolução CNJ 615/2025: dado sigiloso pode ser
+processado fora desde que anonimizado. O produto inteiro existe para fabricar
+exatamente esse artefato — a conversa é o primeiro consumidor dele.
+
+**A peça mais difícil já existia, e ninguém tinha percebido.** O `Mascarador`
+(`mask_config.py:278-284`) numera por valor e mantém o número estável dentro do
+documento: `[PESSOA_1]` é sempre a mesma pessoa. Sem isso não haveria conversa
+possível — só com rótulo genérico, o modelo não distingue autor de réu.
+
+**Mas a numeração é por documento, e isso quebra o caso real.** `Mascarador` é
+instanciado por chamada de `anonymize()` e descartado (`engine.py:591`). Juntar
+a petição e a procuração como estão no cofre entrega ao modelo um texto em que
+`[PESSOA_1]` designa duas pessoas diferentes — e ele responde com confiança
+sobre quem assinou o quê, trocando as pessoas. Não estoura nada.
+
+`electron/pseudonimos.ts` dá a todas as peças um espaço de numeração comum,
+**traduzindo rótulo para rótulo**. A entrada é o texto já anonimizado e a saída
+é o mesmo texto com outros números: o `textoOriginal` não é lido em ponto
+nenhum desse caminho, e por isso o pior defeito ali produz um rótulo errado, e
+não um vazamento. Efeito colateral bom: o autor que aparece nas 19 peças passa
+a ter **um** rótulo no processo inteiro, coisa que a anonimização
+documento-a-documento não entrega.
+
+**A pergunta do usuário é o vetor de vazamento, não o documento.** O documento
+foi anonimizado com cuidado; a pergunta é digitada com os dados reais na frente
+("o CPF 123.456.789-00 do João aparece?"). Ela passa pelo detector antes de
+sair. E há uma armadilha: chamar `/anonymize` com a pergunta isolada **não
+resolve**, porque o `Mascarador` recomeça do 1 e o `[PESSOA_1]` da pergunta
+seria outra pessoa que a do contexto. O backend é usado como **detector**, e o
+`anonymized_text` da resposta é descartado — a numeração é feita no Electron,
+contra o mapa da conversa.
+
+**Numerar e substituir são duas passadas.** A numeração segue a ordem de
+leitura; a substituição vai de trás para frente, para não deslocar offsets.
+Fundir as duas inverte os números de duas entidades na mesma frase. O
+`_aplicar_mascaras` já avisava isso em comentário (`engine.py:756-760`), e a
+primeira versão do `prepararPergunta` errou mesmo assim — pego pelo teste das
+entidades coladas.
+
+**O cofre esquecia quatro coisas que decidem se o documento pode sair.** Nem
+`EntradaDoCofre` nem `ConteudoDoCofre` guardavam `politicaMascara`,
+`entidadesSolicitadas`, `modoNlp` nem `valoresDistintos`. A pior é a segunda:
+`porTipo` conta o que foi **encontrado**, então a ausência de `LOCATION` ali é
+ambígua entre "não pedi" e "não achei" — e um documento anonimizado com
+`LOCATION` desmarcado carrega endereços em claro. O conserto não tocou o
+Python: `/processar/{job}/resultado` já devolvia o dicionário inteiro
+(`server.py:409-429`), e os campos eram descartados em `useLote.ts` por não
+estarem declarados. Campo ausente = desconhecido = recusa ou aviso, nunca
+`?? "placeholder"`.
+
+**Nome de arquivo e CNJ são dado pessoal.** O caminho óbvio — cabeçalhar cada
+peça com `nome (processo CNJ)` — desfaria a anonimização de graça, e o
+`cofre.ts:42-45` já dizia por que o índice é cifrado. Pior: o CNJ é uma das 14
+entidades mascaradas dentro do texto. No prompt vão `Documento 1`,
+`Documento 2`; os três valores (nome, CNJ, caminho) entram no conjunto proibido
+da trava.
+
+**Lista embutida de provedores ZDR envelhece e vira alarme falso.** A primeira
+versão cravou dezesseis provedores, tirados da documentação. Na primeira sonda
+real, o roteamento mandou o DeepSeek V4 Flash para a **OpenInference** e o
+alarme disparou. Estava errado: `/api/v1/endpoints/zdr` tem **816 endpoints de
+50 provedores**, e a OpenInference tem exatamente um — justamente aquele
+modelo. O `zdr: true` foi honrado; desatualizado estava o aplicativo. A lição
+não é completar a lista: **alarme falso é desligado na primeira semana**, e aí
+a defesa some. A lista passou a ser buscada da API, com a embutida só de
+reserva para quando não houver rede.
+
+**`net.fetch`, não o `fetch` do Node.** O primeiro usa a pilha do Chromium e
+respeita proxy do sistema e certificados do Windows; o segundo não. Numa
+máquina de vara atrás de proxy corporativo com inspeção TLS, o recurso
+funcionaria aqui e falharia lá, com erro de certificado que parece problema do
+OpenRouter. A exceção é a chamada ao backend local, que usa o `fetch` do Node
+de propósito — para o proxy não tentar rotear `127.0.0.1`.
+
+**A CSP precisa estar no HTML, não só no cabeçalho.** `onHeadersReceived` não é
+acionado de forma confiável para respostas `file://`, que é como a janela
+carrega empacotada. Só por cabeçalho, a política valeria em desenvolvimento e
+sumiria na versão instalada — a mesma classe do `z-sticky` que nunca gerou uma
+linha de CSS. As duas camadas existem: a `<meta>` do `index.html` é o chão.
+
+**Nada de compressão de contexto.** O plugin `context-compression` do OpenRouter
+trunca o **meio** do prompt quando ele não cabe, e a resposta sai confiante
+sobre metade do processo. Ele só é automático em endpoints de ≤8 mil tokens, e
+todos os modelos aceitos aqui têm 1 milhão — sem o plugin, prompt grande demais
+falha com erro, que é o desfecho certo. Não declarar nunca.
+
+**Sem RAG, e a medição justifica.** Os três documentos do corpus de acurácia
+somam 1.683.252 caracteres (~480 mil tokens) contra 1 milhão de contexto. Um
+índice vetorial de trechos de autos seria mais uma estrutura guardando dado
+pessoal — o que o Cofre custou tanto a justificar — para resolver um problema
+que não existe nesta escala.
+
+Conversas vivem só em memória e morrem com o app, pelo mesmo motivo.
+
 ## Pendências
 
 - **Janelas de texto em lote na detecção.** O laço do `anonymize` passa uma

@@ -1,4 +1,15 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from "electron";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  nativeTheme,
+  session,
+  /* O `net` do Electron (pilha do Chromium, respeita proxy do sistema) e o
+     `net` do Node (sockets, usado para achar porta livre) são coisas
+     diferentes com o mesmo nome. O alias evita a colisão e diz qual é qual. */
+  net as redeChromium,
+} from "electron";
 import { spawn, ChildProcess, execFile } from "child_process";
 import { promisify } from "util";
 import * as path from "path";
@@ -9,6 +20,11 @@ import * as os from "os";
 import { criarLeitorDeSaida } from "./saidaBackend";
 import * as cofre from "./cofre";
 import * as sessao from "./sessao";
+import * as segredos from "./segredos";
+import * as conversa from "./conversa";
+import * as openrouter from "./openrouter";
+import { MODELOS, atualizarProvedoresZdr } from "./catalogo";
+import type { Ocorrencia } from "./pseudonimos";
 
 const execFileP = promisify(execFile);
 
@@ -164,6 +180,8 @@ function createWindow(): void {
 
   const isDev = !app.isPackaged;
 
+  trancarRenderer(isDev);
+
   if (isDev) {
     mainWindow.loadURL(URL_DEV);
     mainWindow.webContents.openDevTools({ mode: "bottom" });
@@ -171,8 +189,70 @@ function createWindow(): void {
     mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
   }
 
+  /* Uma janela nova é uma saída para a internet que a CSP não cobre. Nada neste
+     aplicativo precisa abrir janela, então o pedido é negado sem exceção. */
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
+  /* Navegar para fora troca o documento inteiro por uma página remota, e aí a
+     política que vale passa a ser a dela. Só a origem que carregamos vale. */
+  mainWindow.webContents.on("will-navigate", (evento, destino) => {
+    const permitida = isDev ? URL_DEV : "file://";
+    if (!destino.startsWith(permitida)) evento.preventDefault();
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+}
+
+/**
+ * A jaula do renderer.
+ *
+ * Até a v1.3.0 este aplicativo não falava com a internet, e a ausência de
+ * política de segurança de conteúdo não custava nada. A conversa muda isso: a
+ * partir de agora existe uma saída, e ela precisa ser **uma só** — o processo
+ * principal, onde a verificação do que sai está implementada.
+ *
+ * `connect-src` restrito ao backend local é o que garante isso. Não é
+ * desconfiança do código do renderer; é tirar da mesa a possibilidade de um
+ * defeito futuro ali virar vazamento. Vale igual em desenvolvimento e em
+ * produção — só `script-src` e `style-src` afrouxam em dev, por causa do
+ * preâmbulo que o plugin do React injeta e do CSS que o Tailwind monta em
+ * tempo de execução.
+ *
+ * **Isto é o teto, não o chão.** `onHeadersReceived` não é acionado de forma
+ * confiável para respostas `file://`, que é exatamente como a janela carrega no
+ * aplicativo empacotado. Sem a `<meta http-equiv="Content-Security-Policy">` do
+ * `index.html`, a política existiria em desenvolvimento e sumiria justamente na
+ * versão instalada — que é a que importa.
+ */
+function trancarRenderer(isDev: boolean): void {
+  const local = "http://127.0.0.1:* http://localhost:*";
+  const vite = isDev ? " ws://localhost:5173 http://localhost:5173" : "";
+  const scripts = isDev ? "'self' 'unsafe-inline'" : "'self'";
+
+  const politica = [
+    "default-src 'self'",
+    `script-src ${scripts}`,
+    /* Atributo `style=` é bloqueado sem isto, e a tarja de redação depende
+       dele para receber a cor do tipo de entidade em tempo de execução. */
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    `connect-src 'self' ${local}${vite}`,
+    "object-src 'none'",
+    "frame-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join("; ");
+
+  session.defaultSession.webRequest.onHeadersReceived((detalhes, responder) => {
+    responder({
+      responseHeaders: {
+        ...detalhes.responseHeaders,
+        "Content-Security-Policy": [politica],
+      },
+    });
   });
 }
 
@@ -585,6 +665,107 @@ ipcMain.handle("cofre-apagar", (_e, id: string) => cofre.apagar(id));
 ipcMain.handle("cofre-esvaziar", () => cofre.esvaziar());
 ipcMain.handle("cofre-expurgar", (_e, dias: number) => cofre.expurgar(dias));
 
+/* ==========================================================================
+   Chave da API e conversa
+   ==========================================================================
+   Duas regras estruturais, e as duas são visíveis na lista de handlers abaixo:
+
+   1. **Nenhum canal devolve a chave.** `segredos.ler()` existe e é chamado
+      daqui, ao montar a requisição — mas não está ligado a `handle` nenhum. O
+      renderer só enxerga `resumo()`, que diz se há chave e mostra os últimos
+      quatro caracteres.
+
+   2. **Nenhum canal aceita texto para a conversa.** `chat-abrir` recebe ids do
+      cofre. O caminho "mandar texto arbitrário para a nuvem" não existe, do
+      mesmo jeito que `escopo_da_rota` no backend deixa rota não listada
+      inacessível por omissão. */
+
+ipcMain.handle("segredo-resumo", () => segredos.resumo());
+ipcMain.handle("segredo-guardar", (_e, chave: string) => segredos.guardar(chave));
+ipcMain.handle("segredo-apagar", () => segredos.apagar());
+
+function exigirChave(): string {
+  const chave = segredos.ler();
+  if (chave === null) {
+    throw new Error(
+      "não há chave da API guardada. Cole a sua em Ajustes para conversar."
+    );
+  }
+  return chave;
+}
+
+/**
+ * Detecta dado pessoal na pergunta digitada, contra o backend local.
+ *
+ * Usa o `fetch` do Node de propósito, e não o `net.fetch` que fala com a
+ * internet: este destino é `127.0.0.1`, e a pilha do Chromium poderia tentar
+ * roteá-lo por um proxy corporativo configurado na máquina.
+ *
+ * Pede **todas** as entidades (`entities: []` faz o motor procurar tudo), e não
+ * apenas as que o usuário marcou na receita. O filtro da receita é sobre o
+ * documento que ele vai arquivar; o que sai da máquina é mascarado no máximo
+ * que se sabe detectar.
+ */
+async function detectarNaPergunta(texto: string): Promise<Ocorrencia[]> {
+  const resposta = await fetch(`http://127.0.0.1:${backendPort}/anonymize`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Presidio-Token": tokenSessao,
+    },
+    body: JSON.stringify({
+      text: texto,
+      entities: [],
+      language: "pt",
+      politica_mascara: "placeholder",
+    }),
+  });
+
+  if (!resposta.ok) {
+    /* Detector mudo não é pergunta limpa: é pergunta não verificada. Deixar
+       passar aqui seria calar o alarme exatamente na situação que ele existe
+       para denunciar. */
+    throw new Error(
+      "não foi possível verificar a pergunta contra o motor de detecção " +
+        `(HTTP ${resposta.status}); nada foi enviado`
+    );
+  }
+
+  const corpo = (await resposta.json()) as { entities_found: Ocorrencia[] };
+  return corpo.entities_found ?? [];
+}
+
+ipcMain.handle("chat-modelos", () => MODELOS);
+ipcMain.handle("chat-abrir", (_e, ids: string[], modelo?: string) =>
+  conversa.abrir(ids, modelo)
+);
+ipcMain.handle("chat-estado", (_e, id: string) => conversa.estado(id));
+ipcMain.handle("chat-orcamento", (_e, id: string) => conversa.orcamento(id));
+ipcMain.handle("chat-previsualizar", (_e, id: string) =>
+  conversa.previsualizar(id)
+);
+ipcMain.handle("chat-cancelar", (_e, id: string) => conversa.cancelar(id));
+ipcMain.handle("chat-fechar", (_e, id: string) => conversa.fechar(id));
+
+/* Não devolve a resposta: dispara o envio e retorna. O renderer acompanha por
+   `chat-estado`, que é o mesmo idioma que o progresso de processamento já usa
+   (polling), e que aqui resolve um problema específico — um pseudônimo pode
+   chegar partido entre dois pedaços do stream, e re-hidratar o acumulado, em
+   vez do pedaço, faz o caso desaparecer. */
+ipcMain.handle("chat-perguntar", async (_e, id: string, pergunta: string) => {
+  const chave = exigirChave();
+  /* Recusa chega ao renderer por aqui, aguardada. O envio em si roda solto —
+     a resposta chega em pedaços e o renderer a acompanha por `chat-estado`. */
+  conversa.exigirPodeEnviar(id);
+  void conversa
+    .perguntar(id, pergunta, detectarNaPergunta, chave)
+    .catch((erro: unknown) => console.error("[chat] falha no envio:", erro));
+});
+
+ipcMain.handle("chat-sondar", async (_e, modelo: string) =>
+  openrouter.sondar(exigirChave(), modelo)
+);
+
 // App lifecycle
 app.whenReady().then(async () => {
   backendPort = await findAvailablePort(PYTHON_PORT);
@@ -593,6 +774,12 @@ app.whenReady().then(async () => {
   // Descoberta para programas locais: a porta é dinâmica e sem isto ninguém
   // de fora tem como achar o motor. Sem token dentro — ver `sessao.ts`.
   sessao.escrever(backendPort);
+
+  /* Atualiza a lista de provedores sem retenção a partir da fonte oficial. A
+     lista embutida é só reserva: cravada, ela envelhece e passa a acusar
+     provedor legítimo — e alarme falso é desligado na primeira semana, o que
+     destrói a defesa de verdade. Falha em silêncio; sem rede, a reserva vale. */
+  void atualizarProvedoresZdr((url) => redeChromium.fetch(url));
 
   /* O expurgo do cofre roda no **renderer**, não aqui.
      Havia um `cofre.expurgar(30)` neste ponto, com o prazo padrão cravado. Só

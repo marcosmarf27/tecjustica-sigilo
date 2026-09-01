@@ -32,6 +32,13 @@ interface ResultadoBackend {
   anonymized_text: string;
   entities_found: ProcessedFile["entitiesFound"];
   ocr?: ProcessedFile["ocr"];
+  /* `/processar/{job}/resultado` devolve o dicionário inteiro de
+     `engine.anonymize` (`server.py:409-429`), e estes dois já vinham junto —
+     eram descartados aqui por não estarem declarados. Só passam a importar
+     agora que o texto anonimizado pode sair da máquina: sem eles não há como
+     saber se o documento guardado é conversável. */
+  politica_mascara?: ProcessedFile["politicaMascara"];
+  valores_distintos?: ProcessedFile["valoresDistintos"];
 }
 
 interface DependenciasLote {
@@ -44,6 +51,12 @@ interface DependenciasLote {
     sinal: AbortSignal
   ) => Promise<ResultadoBackend>;
   extractText: (conteudo: string, formato: string) => Promise<string>;
+  /* O motor que estava no ar quando o lote rodou, lido do `/health`. Não vem do
+     resultado da anonimização — o backend não repete o modo em cada resposta —
+     e sem ele não há como saber, depois, se o documento foi mascarado com BERT
+     ou com o spaCy do fallback. Opcional porque a suíte monta as dependências à
+     mão; ausente vira procedência desconhecida, que é o efeito correto. */
+  modoNlp?: string;
 }
 
 export interface ResultadoLote {
@@ -72,7 +85,7 @@ export async function percorrerLote(
   entidades: EntityType[],
   politica: PoliticaMascara,
   controle: AbortController,
-  { despachar, processar, extractText }: DependenciasLote
+  { despachar, processar, extractText, modoNlp }: DependenciasLote
 ): Promise<ResultadoLote> {
   const processados: ProcessedFile[] = [];
   /* Nome **e** motivo: dizer só que falhou deixa quem opera sem pista do que
@@ -144,6 +157,14 @@ export async function percorrerLote(
           anonymizedContent: resultado.anonymized_text,
           entitiesFound: resultado.entities_found,
           ocr: resultado.ocr,
+          /* A procedência viaja junto com o texto desde aqui. Se ela ficasse
+             para ser reconstruída na hora de guardar, o que sobraria seria uma
+             dedução — e a política com que o backend de fato mascarou este
+             documento não é dedutível do resultado. */
+          politicaMascara: resultado.politica_mascara,
+          valoresDistintos: resultado.valores_distintos,
+          entidadesSolicitadas: entidades,
+          modoNlp,
         });
         concluido = true;
 

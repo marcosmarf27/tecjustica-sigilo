@@ -143,9 +143,42 @@ export interface AnonymizeResponse {
   anonymized_text: string;
   entities_found: EntityFound[];
   ocr?: InfoOcr;
+  /* O backend já devolve estes dois em `/processar/{job}/resultado`, que entrega
+     o dicionário inteiro de `engine.anonymize`. Estavam sendo descartados aqui,
+     porque até agora ninguém precisava saber em que condições o texto foi
+     mascarado — bastava exibi-lo. Ver `ProcedenciaDaAnonimizacao`. */
+  politica_mascara?: PoliticaMascara;
+  valores_distintos?: Record<string, number>;
 }
 
-export interface ProcessedFile {
+/**
+ * Em que condições este texto anonimizado foi produzido.
+ *
+ * Enquanto o resultado só era exibido para quem já tinha o documento original
+ * na mão, nada disso importava. Passa a importar quando o texto pode sair da
+ * máquina: os mesmos caracteres significam coisas diferentes conforme a
+ * política aplicada, as entidades pedidas e o motor que rodou.
+ *
+ * Todo campo é opcional porque o cofre tem documentos gravados antes disto
+ * existir. **Ausente significa desconhecido, e desconhecido recusa.** Assumir
+ * um padrão aqui seria repetir o erro de tratar ausência de informação como
+ * informação boa.
+ */
+export interface ProcedenciaDaAnonimizacao {
+  /** `placeholder` é a única que produz pseudônimo numerado e reversível. */
+  politicaMascara?: PoliticaMascara;
+  /** O `resumo()` do `Mascarador`: quantos valores distintos por tipo. */
+  valoresDistintos?: Record<string, number>;
+  /** `transformer` ou `spacy`. Documento anonimizado em modo degradado tem
+      recall materialmente pior, e é isso que sairia da máquina. */
+  modoNlp?: string;
+  /** O que foi PEDIDO, que não é o que foi encontrado. Um documento com
+      `LOCATION` desmarcado carrega endereços em claro no texto mascarado, e
+      `porTipo` não distingue "não pedi" de "não achei". */
+  entidadesSolicitadas?: EntityType[];
+}
+
+export interface ProcessedFile extends ProcedenciaDaAnonimizacao {
   originalName: string;
   originalPath: string;
   originalContent: string;

@@ -92,6 +92,15 @@ export function useBiblioteca(cofreLigado: boolean, diasDeExpurgo: number) {
           ocorrencias: arquivo.entitiesFound,
           caminhoOriginal: arquivo.originalPath,
           ocr: arquivo.ocr,
+          /* A procedência vai junto porque não é recuperável depois: nem a
+             política aplicada nem as entidades pedidas são dedutíveis do texto
+             mascarado, e o modo do motor já mudou quando alguém for perguntar.
+             Documento guardado sem estes campos não pode ser conversado — e é
+             melhor assim do que conversado sob suposição. */
+          politicaMascara: arquivo.politicaMascara,
+          valoresDistintos: arquivo.valoresDistintos,
+          modoNlp: arquivo.modoNlp,
+          entidadesSolicitadas: arquivo.entidadesSolicitadas,
         }
       );
 

@@ -30,6 +30,7 @@ export type NomeIcone =
   | "sol"
   | "lua"
   | "conexao"
+  | "conversa"
   | "olho"
   | "baixar";
 
@@ -72,6 +73,7 @@ const TRACADOS: Record<NomeIcone, string[]> = {
     "M10 14a5 5 0 007.1 0l3-3a5 5 0 00-7.1-7.1L11.5 5.4",
     "M14 10a5 5 0 00-7.1 0l-3 3a5 5 0 007.1 7.1l1.4-1.4",
   ],
+  conversa: ["M20 11.5a7.5 7.5 0 01-7.5 7.5H8l-5 3 1.4-4.2A7.5 7.5 0 1120 11.5z"],
   olho: [
     "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z",
     "M12 15a3 3 0 100-6 3 3 0 000 6z",

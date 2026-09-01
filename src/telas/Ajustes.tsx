@@ -4,6 +4,7 @@ import { Cartao, GrupoSegmentado, Botao, Selo, Dialogo } from "../ui";
 import type { Tema } from "../hooks/usePreferencias";
 import type { AvisoDeModo } from "../hooks/usePythonBackend";
 import { PainelDenyList } from "../componentes/PainelDenyList";
+import { PainelNuvem } from "../componentes/PainelNuvem";
 
 /**
  * Ajustes — os padrões que a Mesa usa, o tema, o cofre e o motor.
@@ -100,6 +101,8 @@ export function Ajustes({
             />
           </div>
         </Cartao>
+
+        <PainelNuvem />
 
         <Cartao titulo="Motor de anonimização">
           <div className="flex items-center justify-between gap-4">

@@ -68,6 +68,17 @@ export function reducer(estado: EstadoApp, acao: AcaoApp): EstadoApp {
         destino: estado.revisao?.origem === "biblioteca" ? "documentos" : "mesa",
       };
 
+    case "abrir-conversa":
+      return {
+        ...estado,
+        destino: "conversa",
+        conversaAberta: acao.ids,
+        revisao: null,
+      };
+
+    case "fechar-conversa":
+      return { ...estado, destino: "documentos", conversaAberta: null };
+
     case "avisar":
       return {
         ...estado,

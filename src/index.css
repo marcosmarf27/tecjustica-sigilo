@@ -1,8 +1,13 @@
-/* Fontes auto-hospedadas: nada é buscado na rede em tempo de execução.
-   O aplicativo promete não fazer nenhuma chamada externa, e um @import do
-   Google Fonts quebraria isso a cada abertura — além de deixar a interface
-   sem sua tipografia numa máquina de vara sem internet, caindo em silêncio
-   para system-ui.
+/* Fontes auto-hospedadas: nada é buscado na rede para desenhar a interface.
+   Um @import do Google Fonts faria a tela depender da internet a cada abertura
+   — deixando a interface sem sua tipografia numa máquina de vara sem conexão,
+   e caindo em silêncio para system-ui.
+
+   A partir da v1.4.0 o aplicativo pode fazer uma chamada externa: a conversa
+   com os autos anonimizados, quando o usuário configura uma chave. Ela sai do
+   processo principal, nunca daqui — a política de segurança de conteúdo em
+   `index.html` restringe o renderer ao backend local justamente para que esta
+   camada continue sem saída para a internet.
 
    São fontes **variáveis**: um arquivo por família cobre todo o intervalo de
    peso 100–900, contra os seis arquivos estáticos que estavam aqui antes.

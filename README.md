@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Anonimizador desktop de PII para textos jurídicos brasileiros.</strong><br/>
-  100% local · LGPD-friendly · feito para quem mexe com processo judicial todo dia.
+  Anonimização 100% local · LGPD-friendly · feito para quem mexe com processo judicial todo dia.
 </p>
 
 <p align="center">
@@ -30,6 +30,15 @@ Este projeto é **open source sob licença MIT**. Você pode:
 - ✅ **Compartilhar** com colegas que lidam com dados sensíveis — quanto mais gente usando anonimização local, melhor.
 
 Sem cadastro, sem assinatura, sem telemetria, sem pagar nada em momento nenhum.
+
+> **Sobre "100% local", a partir da v1.4.0.** A anonimização continua inteira
+> nesta máquina: nenhum documento sai daqui para ser anonimizado, e o aplicativo
+> não relata nada sobre você a ninguém. O que mudou é que existe agora um
+> recurso opcional — *Conversar com os autos* — que envia o **texto já
+> anonimizado** a um modelo de linguagem, com a sua chave e sob a sua escolha.
+> Ele vem desligado, exige uma credencial que você mesmo cola, mostra o texto
+> exato antes do primeiro envio e só usa provedores com política de retenção
+> zero. Sem chave configurada, o aplicativo segue sem falar com a internet.
 Se ajudar seu dia a dia, deixe uma ⭐ no repositório — é o único "pagamento" que o projeto aceita.
 
 ## Por que existe

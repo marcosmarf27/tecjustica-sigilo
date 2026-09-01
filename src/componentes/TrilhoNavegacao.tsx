@@ -41,6 +41,7 @@ interface TrilhoNavegacaoProps {
 const DESTINOS: { id: Destino; rotulo: string; icone: NomeIcone }[] = [
   { id: "mesa", rotulo: "Anonimizar", icone: "cadeado" },
   { id: "documentos", rotulo: "Documentos", icone: "arquivar" },
+  { id: "conversa", rotulo: "Conversar", icone: "conversa" },
   { id: "conexoes", rotulo: "Conexões", icone: "conexao" },
   { id: "ajustes", rotulo: "Ajustes", icone: "ajustes" },
 ];

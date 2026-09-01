@@ -10,6 +10,7 @@ import { ConsentimentoCofre } from "./componentes/ConsentimentoCofre";
 import { AprovacaoDePareamento } from "./componentes/AprovacaoDePareamento";
 import { Mesa } from "./telas/Mesa";
 import { Documentos } from "./telas/Documentos";
+import { Conversa } from "./telas/Conversa";
 import { Conexoes } from "./telas/Conexoes";
 import { Ajustes } from "./telas/Ajustes";
 import { Revisao } from "./telas/Revisao";
@@ -66,6 +67,17 @@ function Casca() {
     }
   }, [listarClientes]);
 
+  /* Se há chave da API guardada. Relido a cada troca de destino porque o
+     usuário pode acabar de colá-la em Ajustes e voltar para a conversa. O
+     valor é só a presença — a chave em si não atravessa a ponte. */
+  const [temChave, setTemChave] = useState(false);
+  useEffect(() => {
+    void window.electronAPI?.segredo
+      .resumo()
+      .then((r) => setTemChave(r.presente))
+      .catch(() => setTemChave(false));
+  }, [estado.destino]);
+
   /** Resultado à espera de decisão sobre guardar no cofre. */
   const [aguardandoConsentimento, setAguardandoConsentimento] = useState<
     ProcessedFile[] | null
@@ -77,7 +89,15 @@ function Casca() {
     [despachar]
   );
 
-  const { executar, cancelar } = useLote({ despachar, processar, extractText });
+  const { executar, cancelar } = useLote({
+    despachar,
+    processar,
+    extractText,
+    /* "unknown" e ausente querem dizer a mesma coisa — não sabemos com que
+       motor este documento foi mascarado — e ter dois jeitos de dizer isso
+       daria duas chances de alguém tratar só um deles. */
+    modoNlp: nlpMode === "unknown" ? undefined : nlpMode,
+  });
   const { salvarTodos, baixarUm } = useSalvamento({
     avisar,
     formato: prefs.formato,
@@ -246,6 +266,21 @@ function Casca() {
             expurgados={biblioteca.expurgados}
             aoAbrir={abrirDaBiblioteca}
             aoApagar={biblioteca.apagar}
+            aoConversar={(ids) => despachar({ tipo: "abrir-conversa", ids })}
+          />
+        );
+      case "conversa":
+        return (
+          <Conversa
+            ids={estado.conversaAberta}
+            temChave={temChave}
+            aoFechar={() => despachar({ tipo: "fechar-conversa" })}
+            aoIrParaDocumentos={() =>
+              despachar({ tipo: "ir-para", destino: "documentos" })
+            }
+            aoIrParaAjustes={() =>
+              despachar({ tipo: "ir-para", destino: "ajustes" })
+            }
           />
         );
       case "conexoes":
