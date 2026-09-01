@@ -1,6 +1,11 @@
 import { Fragment, type ReactNode } from "react";
 
-import { analisarBlocos, type Bloco, type Inline } from "../lib/markdown";
+import {
+  analisarBlocos,
+  partirPorRotulo,
+  type Bloco,
+  type Inline,
+} from "../lib/markdown";
 import { PseudonimoDesconhecido, PseudonimoReposto } from "./PseudonimoReposto";
 
 /**
@@ -28,8 +33,6 @@ import { PseudonimoDesconhecido, PseudonimoReposto } from "./PseudonimoReposto";
 
 /** Rótulo → nome real; `null` quando o pseudônimo não é desta conversa. */
 export type MapaDeNomes = Map<string, string | null>;
-
-const RE_ROTULO = /\[(\p{Lu}+(?:_\p{Lu}+)*)_(\d+)\]/gu;
 
 export function Markdown({
   texto,
@@ -267,29 +270,20 @@ function NoRender({ no, nomes }: { no: Inline; nomes: MapaDeNomes }) {
  * silêncio esconderia a invenção.
  */
 function repor(texto: string, nomes: MapaDeNomes): ReactNode {
-  RE_ROTULO.lastIndex = 0;
-  if (!RE_ROTULO.test(texto)) return texto;
+  const pedacos = partirPorRotulo(texto);
+  if (pedacos.length === 1 && pedacos[0].tipo === "texto") return texto;
 
-  const saida: ReactNode[] = [];
-  let cursor = 0;
+  return pedacos.map((p, i) => {
+    if (p.tipo === "texto") return p.texto;
 
-  for (const achado of texto.matchAll(RE_ROTULO)) {
-    const inicio = achado.index ?? 0;
-    if (inicio > cursor) saida.push(texto.slice(cursor, inicio));
-
-    const rotulo = achado[0];
-    const valor = nomes.get(rotulo);
-    saida.push(
-      valor === undefined || valor === null ? (
-        <PseudonimoDesconhecido key={inicio} rotulo={rotulo} />
-      ) : (
-        <PseudonimoReposto key={inicio} rotulo={rotulo} valor={valor} />
-      )
+    const valor = nomes.get(p.rotulo);
+    /* Sem valor, o rótulo fica à vista marcado como desconhecido. O modelo
+       pode citar `[PESSOA_9]` num processo de três pessoas: apagar em silêncio
+       esconderia a invenção, e trocar por um nome qualquer seria pior. */
+    return valor === undefined || valor === null ? (
+      <PseudonimoDesconhecido key={i} rotulo={p.rotulo} />
+    ) : (
+      <PseudonimoReposto key={i} rotulo={p.rotulo} valor={valor} />
     );
-
-    cursor = inicio + rotulo.length;
-  }
-
-  if (cursor < texto.length) saida.push(texto.slice(cursor));
-  return saida;
+  });
 }

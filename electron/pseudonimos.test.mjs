@@ -452,3 +452,34 @@ test("o arremate diz o que trocou, e uma vez por rótulo", () => {
     { valor: "Recife", rotulo: "[LOCAL_1]" },
   ]);
 });
+
+test("o primeiro rótulo do texto é reposto, não pulado", () => {
+  /* `RE_ROTULO` é constante de módulo com a flag `g`, e um `.test()` de atalho
+     em qualquer ponto deixaria `lastIndex` sujo para o `matchAll` seguinte —
+     que clona a regex copiando o índice. O primeiro rótulo de cada texto
+     passaria batido, e o modo de falha é mudo: a frase chega com `[PESSOA_1]`
+     no lugar do nome e continua parecendo uma resposta correta.
+
+     Aconteceu no renderer em 01/09/2026. Aqui o código está certo, e este
+     teste é o que impede a mesma economia de voltar por esta porta. */
+  const mapa = new MapaDeSessao();
+  mapa.rotularValor("PERSON", "Ana Lima");
+  mapa.rotularValor("PERSON", "Bruno Sá");
+
+  const trechos = reidratar("[PESSOA_1] processou [PESSOA_2].", mapa);
+
+  assert.deepEqual(trechos, [
+    { tipo: "reposto", rotulo: "[PESSOA_1]", valor: "Ana Lima" },
+    { tipo: "texto", texto: " processou " },
+    { tipo: "reposto", rotulo: "[PESSOA_2]", valor: "Bruno Sá" },
+    { tipo: "texto", texto: "." },
+  ]);
+});
+
+test("reidratar duas vezes seguidas dá o mesmo resultado", () => {
+  const mapa = new MapaDeSessao();
+  mapa.rotularValor("NUMERO_PROCESSO_CNJ", "0201848-86.2025.8.06.0303");
+  const texto = "consta [PROCESSO_1] nos autos";
+  assert.deepEqual(reidratar(texto, mapa), reidratar(texto, mapa));
+  assert.equal(reidratar(texto, mapa)[1].tipo, "reposto");
+});

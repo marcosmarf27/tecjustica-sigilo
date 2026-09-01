@@ -290,3 +290,46 @@ export function analisarInline(texto: string): Inline[] {
   despejar();
   return saida;
 }
+
+/* ------------------------------------------------------------------------ */
+
+/** Um pedaço de texto, ou um pseudônimo a repor. */
+export type Pedaco =
+  | { tipo: "texto"; texto: string }
+  | { tipo: "rotulo"; rotulo: string };
+
+/**
+ * Parte um texto nos pseudônimos que ele contém.
+ *
+ * Mora aqui, e não dentro do componente, porque é a peça que erra em silêncio:
+ * quando ela pula um rótulo, a tela mostra `[PESSOA_1]` em vez do nome. Nada
+ * estoura, ninguém é avisado, e a resposta continua parecendo correta — só sem
+ * o nome de uma das pessoas.
+ *
+ * **A regex é criada a cada chamada, de propósito.** Com a flag `g`, uma regex
+ * de módulo carrega `lastIndex` entre chamadas, e `String.matchAll` clona o
+ * objeto **copiando esse índice**. Um `.test()` de atalho antes do laço — que é
+ * o que a primeira versão fazia — deixava `lastIndex` depois do primeiro match,
+ * e a varredura começava dali: **o primeiro pseudônimo de cada trecho ficava
+ * cru**, os demais eram repostos. Custa uma compilação de regex por trecho e
+ * elimina a classe inteira.
+ */
+export function partirPorRotulo(texto: string): Pedaco[] {
+  const re = /\[(\p{Lu}+(?:_\p{Lu}+)*)_(\d+)\]/gu;
+  const pedacos: Pedaco[] = [];
+  let cursor = 0;
+
+  for (const achado of texto.matchAll(re)) {
+    const inicio = achado.index ?? 0;
+    if (inicio > cursor) {
+      pedacos.push({ tipo: "texto", texto: texto.slice(cursor, inicio) });
+    }
+    pedacos.push({ tipo: "rotulo", rotulo: achado[0] });
+    cursor = inicio + achado[0].length;
+  }
+
+  if (cursor < texto.length) {
+    pedacos.push({ tipo: "texto", texto: texto.slice(cursor) });
+  }
+  return pedacos;
+}

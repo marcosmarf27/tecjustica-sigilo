@@ -68,7 +68,16 @@ const ROTULO_ENTIDADE: Record<string, string> = {
   CONTA_BANCARIA: "CONTA",
 };
 
-/** Um rótulo no texto: `[PESSOA_1]`. `ENDEREÇO` tem cedilha, daí `\p{Lu}`. */
+/**
+ * Um rótulo no texto: `[PESSOA_1]`. `ENDEREÇO` tem cedilha, daí `\p{Lu}`.
+ *
+ * **Nunca chame `.test()` ou `.exec()` nesta constante.** Com a flag `g`, os
+ * dois avançam `lastIndex`, e `String.matchAll` clona a regex **copiando esse
+ * índice** — a varredura seguinte começaria depois do primeiro match e pularia
+ * o primeiro rótulo do texto. Só `matchAll` e `replace` são seguros aqui, e é
+ * só o que se usa. O mesmo atalho custou um defeito no renderer em 01/09/2026:
+ * o primeiro pseudônimo de cada trecho chegava cru à tela, sem nada estourar.
+ */
 const RE_ROTULO = /\[(\p{Lu}+(?:_\p{Lu}+)*)_(\d+)\]/gu;
 
 export function rotuloDe(tipo: string): string {

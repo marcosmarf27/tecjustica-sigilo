@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { analisarBlocos, analisarInline, type Inline } from "./markdown";
+import {
+  analisarBlocos,
+  analisarInline,
+  partirPorRotulo,
+  type Inline,
+} from "./markdown";
 
 /**
  * O parser existe para um gerador só: o modelo respondendo sobre autos.
@@ -167,6 +172,64 @@ describe("sublinhado não estraga snake_case", () => {
     expect(analisarInline("**Juízo:**Vara")).toEqual([
       { tipo: "forte", filhos: [{ tipo: "texto", texto: "Juízo:" }] },
       { tipo: "texto", texto: "Vara" },
+    ]);
+  });
+});
+
+describe("partir o texto nos pseudônimos", () => {
+  test("o PRIMEIRO rótulo do texto também é encontrado", () => {
+    /* O bug que este teste existe para impedir, visto em 01/09/2026: um
+       `RE.test()` de atalho antes do laço avançava o `lastIndex` da regex
+       global, e `matchAll` clona o objeto COPIANDO esse índice. A varredura
+       começava depois do primeiro match e o primeiro pseudônimo de cada trecho
+       chegava cru à tela.
+
+       O modo de falha é benigno — mostra o pseudônimo em vez do nome, nunca o
+       contrário — e por isso mesmo é silencioso: a resposta continua parecendo
+       correta, só sem o nome de uma das pessoas. */
+    expect(partirPorRotulo("[PESSOA_1] processou [PESSOA_2].")).toEqual([
+      { tipo: "rotulo", rotulo: "[PESSOA_1]" },
+      { tipo: "texto", texto: " processou " },
+      { tipo: "rotulo", rotulo: "[PESSOA_2]" },
+      { tipo: "texto", texto: "." },
+    ]);
+  });
+
+  test("chamar duas vezes dá o mesmo resultado", () => {
+    /* A regex não pode guardar posição entre chamadas: cada nó de texto da
+       resposta passa por aqui, um atrás do outro. */
+    const texto = "consta [PROCESSO_1] nos autos";
+    expect(partirPorRotulo(texto)).toEqual(partirPorRotulo(texto));
+    expect(partirPorRotulo(texto)).toContainEqual({
+      tipo: "rotulo",
+      rotulo: "[PROCESSO_1]",
+    });
+  });
+
+  test("texto sem rótulo volta inteiro, num pedaço só", () => {
+    expect(partirPorRotulo("nada aqui")).toEqual([
+      { tipo: "texto", texto: "nada aqui" },
+    ]);
+  });
+
+  test("rótulo com cedilha é reconhecido", () => {
+    /* `ENDEREÇO` tem cedilha, e uma classe `[A-Z]` o perderia. */
+    expect(partirPorRotulo("mora em [ENDEREÇO_3]")).toContainEqual({
+      tipo: "rotulo",
+      rotulo: "[ENDEREÇO_3]",
+    });
+  });
+
+  test("dois rótulos colados, sem texto no meio", () => {
+    expect(partirPorRotulo("[CPF_1][CPF_2]")).toEqual([
+      { tipo: "rotulo", rotulo: "[CPF_1]" },
+      { tipo: "rotulo", rotulo: "[CPF_2]" },
+    ]);
+  });
+
+  test("colchete que não é rótulo fica como texto", () => {
+    expect(partirPorRotulo("veja [nota 3] adiante")).toEqual([
+      { tipo: "texto", texto: "veja [nota 3] adiante" },
     ]);
   });
 });
