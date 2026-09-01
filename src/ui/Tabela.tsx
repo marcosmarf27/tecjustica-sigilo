@@ -15,7 +15,9 @@ import type { ReactNode } from "react";
 
 export interface ColunaTabela<L> {
   chave: string;
-  cabecalho: string;
+  /** Texto, ou um controle: numa tabela com seleção, "marcar todos" pertence
+      ao cabeçalho da própria coluna de seleção, não solto acima da tabela. */
+  cabecalho: ReactNode;
   /** Alinha à direita e aplica `tabular-nums`. */
   numerica?: boolean;
   /** Não deixa a coluna encolher — para a de ações. */
@@ -58,7 +60,7 @@ export function Tabela<L>({
                 key={coluna.chave}
                 scope="col"
                 className={[
-                  "px-4 py-2 font-mono text-2xs font-medium tracking-wide",
+                  "px-3 py-2 font-mono text-2xs font-medium tracking-wide",
                   "text-text-tertiary uppercase",
                   coluna.numerica ? "text-right" : "",
                   coluna.estreita ? "w-px whitespace-nowrap" : "",
@@ -97,7 +99,7 @@ export function Tabela<L>({
                 <td
                   key={coluna.chave}
                   className={[
-                    "px-4 py-3 text-sm text-text",
+                    "px-3 py-3 text-sm text-text",
                     coluna.numerica ? "text-right font-mono tabular-nums" : "",
                     coluna.estreita ? "w-px whitespace-nowrap" : "",
                   ].join(" ")}

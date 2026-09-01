@@ -324,7 +324,14 @@ function Casca() {
         clientesConectados={estadoMotor === "pronto" ? clientes.length : null}
       />
 
-      <main className="flex flex-1 flex-col overflow-hidden">{conteudo()}</main>
+      {/* `min-w-0` porque um item flex tem `min-width: auto` e não encolhe
+          abaixo do próprio conteúdo. Hoje sobra espaço (o main mede 1316 e a
+          tabela pede 1086), mas sem isto uma tabela mais larga — outra coluna,
+          uma janela menor — empurraria o main para fora em vez de deixar o
+          `overflow-x-auto` da Tabela rolar por dentro. */}
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {conteudo()}
+      </main>
 
       {/* Na casca, não na tela de Conexões: quem roda `tecjustica-sigilo
           conectar` olha para a janela, que pode estar em qualquer destino. */}

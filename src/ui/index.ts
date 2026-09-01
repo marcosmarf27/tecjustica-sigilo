@@ -19,6 +19,7 @@ export { Dialogo } from "./Dialogo";
 export { GrupoSegmentado } from "./GrupoSegmentado";
 export { Icone, type NomeIcone } from "./Icone";
 export { Marcacao } from "./Marcacao";
+export { Marcador } from "./Marcador";
 export { Popover } from "./Popover";
 export { Selo } from "./Selo";
 export { Tabela, type ColunaTabela } from "./Tabela";

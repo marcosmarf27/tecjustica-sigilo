@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { pastasDe } from "../hooks/useBiblioteca";
-import { Botao, Cartao, Carimbo, Campo, Selo, Tabela, Dialogo } from "../ui";
+import { Botao, Cartao, Carimbo, Campo, Marcador, Selo, Tabela, Dialogo } from "../ui";
 import type { ColunaTabela } from "../ui";
 import { rotuloDaEntidade, corDaEntidade } from "../types";
 
@@ -65,6 +65,16 @@ export function Documentos({
 
   const pastas = useMemo(() => pastasDe(itens), [itens]);
 
+  /* Nomes que aparecem mais de uma vez. Processar o mesmo arquivo duas vezes é
+     comum e legítimo — o que não é aceitável é a biblioteca mostrar duas linhas
+     idênticas sem dizer que são homônimas, deixando a diferença por conta de
+     quem lê a data em letra miúda. */
+  const homonimos = useMemo(() => {
+    const conta = new Map<string, number>();
+    for (const i of itens) conta.set(i.nome, (conta.get(i.nome) ?? 0) + 1);
+    return new Map([...conta].filter(([, n]) => n > 1));
+  }, [itens]);
+
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return itens.filter((i) => {
@@ -82,16 +92,44 @@ export function Documentos({
   const colunas: ColunaTabela<EntradaDoCofre>[] = [
     {
       chave: "marcar",
-      cabecalho: "",
+      /* "Marcar todos" mora aqui, no alto da própria coluna — era um texto
+         solto acima da tabela, sem afordância nenhuma. */
+      cabecalho: (
+        <Marcador
+          marcado={visiveis.length > 0 && visiveis.every((i) => marcados.has(i.id))}
+          parcial={
+            visiveis.some((i) => marcados.has(i.id)) &&
+            !visiveis.every((i) => marcados.has(i.id))
+          }
+          aoAlternar={() =>
+            setMarcados((atuais) =>
+              visiveis.every((i) => atuais.has(i.id))
+                ? new Set()
+                : new Set(visiveis.map((i) => i.id))
+            )
+          }
+          rotulo="Marcar todos os documentos visíveis"
+        />
+      ),
       estreita: true,
       render: (i) => (
-        <input
-          type="checkbox"
-          checked={marcados.has(i.id)}
-          onChange={() => alternar(i.id)}
-          aria-label={`Selecionar ${i.nome} para conversar`}
-          className="size-3.5 accent-[var(--esferografica)]"
-        />
+        /* A célula inteira é o alvo, não só os 17 px do quadrado. Com a linha
+           clicável para abrir, um alvo pequeno faz a pessoa abrir o documento
+           quando queria marcá-lo — testado, e acontece na primeira tentativa.
+           O padding negativo devolve a área que a célula já ocupava. */
+        <div
+          className="-m-3 cursor-pointer p-3"
+          onClick={(e) => {
+            e.stopPropagation();
+            alternar(i.id);
+          }}
+        >
+          <Marcador
+            marcado={marcados.has(i.id)}
+            aoAlternar={() => alternar(i.id)}
+            rotulo={`Marcar ${i.nome}`}
+          />
+        </div>
       ),
     },
     {
@@ -100,20 +138,31 @@ export function Documentos({
       render: (i) => (
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            {i.paginasComErro > 0 ? (
+            {/* O carimbo marca a EXCEÇÃO. Antes ele saía em toda linha com o
+                texto "Anonimiz" — abreviação truncada de um estado que todo
+                documento da biblioteca tem, já que só entram aqui os que foram
+                anonimizados. Um selo presente em 100% das linhas não informa
+                nada, e este ocupava justamente a largura que faltava para a
+                coluna de ações. A regra está escrita no próprio `Carimbo.tsx`:
+                cor reservada ao grave perde o efeito se aparecer sempre. */}
+            {i.paginasComErro > 0 && (
               /* Página que precisava de OCR e não voltou. O texto dela não está
                  no resultado — quem revisa precisa saber antes de assinar. */
               <Carimbo tom="perigo">
                 {`${i.paginasComErro} falha${i.paginasComErro > 1 ? "s" : ""}`}
               </Carimbo>
-            ) : (
-              <Carimbo>Anonimiz</Carimbo>
             )}
             <span className="truncate text-sm text-text">{i.nome}</span>
           </div>
           <p className="mt-1 font-mono text-2xs text-text-tertiary">
             {i.cnj ?? "Avulsos"} · {dataCurta(i.gravadoEm)}
             {i.totalPaginas > 0 && ` · fls. 1–${i.totalPaginas}`}
+            {homonimos.has(i.nome) && (
+              <span className="text-accent">
+                {" "}
+                · {homonimos.get(i.nome)} com este nome
+              </span>
+            )}
           </p>
         </div>
       ),
@@ -144,9 +193,21 @@ export function Documentos({
       chave: "acoes",
       cabecalho: "",
       estreita: true,
+      /* A linha inteira abre o documento — é o gesto que as pessoas tentam
+         antes de procurar o botão. O botão fica assim mesmo: linha clicável é
+         atalho para quem descobre, não substituto de um alvo visível.
+
+         Apagar precisa de `stopPropagation` porque é destrutivo e não pode
+         herdar a área de clique de "abrir". */
       render: (i) => (
         <div className="flex gap-1.5">
-          <Botao tamanho="mini" onClick={() => aoAbrir(i)}>
+          <Botao
+            tamanho="mini"
+            onClick={(e) => {
+              e.stopPropagation();
+              aoAbrir(i);
+            }}
+          >
             Abrir
           </Botao>
           <Botao
@@ -154,7 +215,10 @@ export function Documentos({
             tipo="discreto"
             icone="lixeira"
             aria-label={`Apagar ${i.nome}`}
-            onClick={() => setParaApagar(i)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setParaApagar(i);
+            }}
           />
         </div>
       ),
@@ -163,7 +227,11 @@ export function Documentos({
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-5 px-8 py-8">
+      {/* Mais larga que as outras telas de propósito. As demais são de
+          leitura e ficam em `max-w-2xl`, na medida de uma coluna de texto;
+          esta é de varredura, com cinco colunas para comparar. Em `max-w-4xl`
+          a coluna de ações caía para fora e o botão "Abrir" saía cortado. */}
+      <div className="mx-auto max-w-6xl space-y-5 px-8 py-8">
         <div className="flex items-end justify-between gap-4">
           <h1 className="font-mono text-xl font-semibold tracking-tight text-text">
             Documentos
@@ -217,7 +285,7 @@ export function Documentos({
                     : "text-text-tertiary hover:bg-surface-hover",
                 ].join(" ")}
               >
-                Todos
+                Todos <span className="opacity-60">{itens.length}</span>
               </button>
               {pastas.map((p) => (
                 <button
@@ -231,47 +299,14 @@ export function Documentos({
                       : "text-text-tertiary hover:bg-surface-hover",
                   ].join(" ")}
                 >
-                  {p}
+                  {p}{" "}
+                  <span className="opacity-60">
+                    {p === "Avulsos"
+                      ? itens.filter((i) => !i.cnj).length
+                      : itens.filter((i) => i.cnj === p).length}
+                  </span>
                 </button>
               ))}
-            </div>
-
-            {/* A barra de conversa só aparece quando há o que conversar. O
-                atalho de marcar tudo importa porque a pasta É o processo: com
-                o filtro num CNJ, "marcar os visíveis" seleciona os autos
-                inteiros, que é como a pergunta interessante costuma ser feita
-                — uma peça sozinha raramente responde. */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() =>
-                  setMarcados((atuais) =>
-                    visiveis.every((i) => atuais.has(i.id))
-                      ? new Set()
-                      : new Set(visiveis.map((i) => i.id))
-                  )
-                }
-                className="min-h-6 rounded px-2 py-1 font-mono text-2xs tracking-wide text-text-tertiary hover:bg-surface-hover hover:text-text-secondary"
-              >
-                {visiveis.length > 0 && visiveis.every((i) => marcados.has(i.id))
-                  ? "Desmarcar todos"
-                  : "Marcar os visíveis"}
-              </button>
-
-              {marcados.size > 0 && (
-                <>
-                  <span className="font-mono text-2xs text-text-tertiary">
-                    {marcados.size} marcado{marcados.size > 1 ? "s" : ""}
-                  </span>
-                  <Botao
-                    tamanho="mini"
-                    tipo="primario"
-                    icone="conversa"
-                    onClick={() => aoConversar([...marcados])}
-                  >
-                    Conversar
-                  </Botao>
-                </>
-              )}
             </div>
 
             <Cartao semPreenchimento>
@@ -280,6 +315,7 @@ export function Documentos({
                 colunas={colunas}
                 linhas={visiveis}
                 chaveDaLinha={(i) => i.id}
+                aoAbrir={aoAbrir}
                 vazio={
                   busca
                     ? "Nenhum documento com esse termo."
@@ -290,7 +326,32 @@ export function Documentos({
           </>
         )}
 
-        <Dialogo
+  
+      {/* Presa ao rodapé da área rolável: com trinta documentos na lista, quem
+          marca o vigésimo não deveria ter de subir até o topo para agir. Só
+          existe quando há seleção — barra de ação vazia é ruído permanente. */}
+      {marcados.size > 0 && (
+        <div className="sticky bottom-0 -mx-8 mt-2 border-t border-border-subtle bg-surface/95 px-8 py-3 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            <span className="font-mono text-2xs uppercase tracking-wide text-text-secondary">
+              {marcados.size} documento{marcados.size > 1 ? "s" : ""} para conversar
+            </span>
+            <button
+              onClick={() => setMarcados(new Set())}
+              className="font-mono text-2xs text-text-tertiary underline-offset-2 hover:text-text-secondary hover:underline"
+            >
+              limpar
+            </button>
+            <div className="ml-auto">
+              <Botao tipo="primario" icone="conversa" onClick={() => aoConversar([...marcados])}>
+                Conversar
+              </Botao>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Dialogo
           aberto={paraApagar !== null}
           aoFechar={() => setParaApagar(null)}
           titulo="Apagar do cofre"
