@@ -103,7 +103,9 @@ export function segmentar(texto: string, entidades: EntityFound[]): Segmento[] {
 interface RevisaoProps {
   aoSalvarTodos: () => void;
   aoBaixarArquivo: (arquivo: ProcessedFile) => void;
-  aoRejeitarDeteccao: (entidade: EntityFound) => void;
+  /* Recebe o índice porque a rejeição reescreve ESTE documento; sem ele o
+     App teria de adivinhar qual dos arquivos do lote está aberto. */
+  aoRejeitarDeteccao: (entidade: EntityFound, indiceArquivo: number) => void;
 }
 
 export function Revisao({
@@ -488,7 +490,7 @@ export function Revisao({
             <Botao
               tipo="perigo"
               onClick={() => {
-                if (aRejeitar) aoRejeitarDeteccao(aRejeitar);
+                if (aRejeitar) aoRejeitarDeteccao(aRejeitar, indiceArquivo);
                 setARejeitar(null);
               }}
             >

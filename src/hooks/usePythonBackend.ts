@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   AnonymizeResponse,
+  EntityFound,
   EntityType,
   PoliticaMascara,
 } from "../types";
@@ -382,6 +383,38 @@ export function usePythonBackend() {
     []
   );
 
+  /**
+   * Reescreve o texto mascarado a partir de uma lista de ocorrências revisada.
+   *
+   * Não é reprocessamento: nenhum modelo roda do outro lado. A detecção já
+   * aconteceu e o que muda é um item de uma lista — reanalisar custaria minutos
+   * para chegar ao mesmo texto.
+   */
+  const remascarar = useCallback(
+    async (
+      texto: string,
+      entidades: EntityFound[],
+      politica: string
+    ): Promise<{ anonymized_text: string; entities_found: EntityFound[] }> => {
+      const res = await comTimeout(
+        `${baseRef.current}/remascarar`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: texto,
+            entities: entidades,
+            politica_mascara: politica,
+          }),
+        },
+        TIMEOUT_RAPIDO_MS
+      );
+      if (!res.ok) throw new Error("Não foi possível reaplicar as máscaras");
+      return res.json();
+    },
+    []
+  );
+
   /** A deny-list inteira, para a tela de Ajustes listar e filtrar. */
   const buscarDenyList = useCallback(async (): Promise<
     Record<string, string[]>
@@ -478,6 +511,7 @@ export function usePythonBackend() {
     extractText,
     reconectar,
     adicionarNaDenyList,
+    remascarar,
     buscarDenyList,
     gravarDenyList,
     listarClientes,

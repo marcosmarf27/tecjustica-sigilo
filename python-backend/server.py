@@ -20,7 +20,7 @@ import clientes
 import documentos
 import jobs
 import ocr_engine
-from engine import get_engine
+from engine import PresidioEngine, get_engine
 from config_loader import get_raw_deny_list, save_deny_list
 from jobs import Job, registro
 from mask_config import POLITICA_PADRAO, POLITICAS
@@ -147,6 +147,26 @@ class EntityFound(BaseModel):
 class AnonymizeResponse(BaseModel):
     anonymized_text: str
     entities_found: list[EntityFound]
+
+
+class RemascararRequest(BaseModel):
+    """
+    Reaplica máscaras sobre ocorrências que a interface já decidiu.
+
+    `entities` são as que devem ser mascaradas — a lista completa MENOS o que o
+    revisor rejeitou. Não é um pedido de detecção: nada aqui roda o NER.
+    """
+
+    text: str
+    entities: list[EntityFound]
+    politica_mascara: str = POLITICA_PADRAO
+
+
+class RemascararResponse(BaseModel):
+    anonymized_text: str
+    entities_found: list[EntityFound]
+    politica_mascara: str
+    valores_distintos: dict[str, int]
 
 
 class ExtractTextRequest(BaseModel):
@@ -278,6 +298,37 @@ def anonymize(req: AnonymizeRequest):
         entities_found=[
             EntityFound(**e) for e in result["entities_found"]
         ],
+    )
+
+
+@app.post("/remascarar", response_model=RemascararResponse)
+def remascarar(req: RemascararRequest):
+    """
+    Reescreve o texto mascarado a partir de uma lista de ocorrências revisada.
+
+    A revisão precisa disto para que "Não é PII" tenha efeito no documento
+    aberto. Sem a rota, a única forma de tirar um falso positivo era reprocessar
+    — minutos de CPU para chegar ao mesmo texto, já que a detecção não muda.
+
+    Vale notar o que a rota NÃO faz: ela não decide o que é dado pessoal, e não
+    consulta a deny-list. Recebe a lista e aplica. Quem escolhe é a interface, e
+    a permanência do "nunca mascare este termo" continua sendo a deny-list, que
+    vale para os documentos seguintes.
+    """
+    try:
+        resultado = PresidioEngine.remascarar(
+            text=req.text,
+            entidades=[e.model_dump() for e in req.entities],
+            politica_mascara=req.politica_mascara,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return RemascararResponse(
+        anonymized_text=resultado["anonymized_text"],
+        entities_found=[EntityFound(**e) for e in resultado["entities_found"]],
+        politica_mascara=resultado["politica_mascara"],
+        valores_distintos=resultado["valores_distintos"],
     )
 
 

@@ -191,3 +191,145 @@ def test_politicas_sem_numero_nao_distinguem_pessoas(politica):
     assert "_1]" not in saida and "_2]" not in saida
     if politica == "total":
         assert saida == "******** ouviu *******."
+
+
+# --- Retirar uma ocorrência da lista ---------------------------------------
+#
+# `remascarar` existe para o "Não é PII" da revisão: o revisor aponta um falso
+# positivo e o documento aberto precisa refletir isso na hora. Reprocessar
+# custaria minutos para chegar ao mesmo texto, porque a detecção não muda — o
+# que muda é um item de uma lista já decidida.
+
+
+def entidades(texto: str, *spans):
+    """As ocorrências no formato que a rota recebe da interface."""
+    return [
+        {"type": tipo, "text": texto[ini:fim], "start": ini, "end": fim, "score": s}
+        for ini, fim, tipo, s in spans
+    ]
+
+
+def test_remascarar_devolve_o_mesmo_texto_que_a_deteccao_original():
+    """
+    A garantia de base: com a lista intacta, remascarar é indistinguível de
+    aplicar as máscaras no fluxo normal. Sem isso, "desfazer uma detecção"
+    mudaria o documento inteiro por efeito colateral.
+    """
+    texto = "ANA LIMA e BRUNO SÁ assinaram; ANA LIMA compareceu."
+    spans = [
+        em(texto, "ANA LIMA", "PERSON"),
+        em(texto, "BRUNO SÁ", "PERSON"),
+        em(texto, "ANA LIMA", "PERSON", 1),
+    ]
+
+    saida = PresidioEngine.remascarar(
+        text=texto, entidades=entidades(texto, *spans)
+    )
+
+    assert saida["anonymized_text"] == mascarar(texto, spans)
+    assert saida["valores_distintos"] == {"PERSON": 2}
+
+
+def test_tirar_uma_ocorrencia_renumera_as_seguintes():
+    """
+    Os números seguem a ordem de leitura, então tirar a primeira pessoa promove
+    a segunda a `[PESSOA_1]`. Manter o número antigo deixaria um buraco na
+    sequência — e a conferência que a conversa faz sobre o texto
+    (`pseudonimos.conferir`) recusa o documento com buraco, o que transformaria
+    um "não é PII" em "este documento não pode mais ser conversado".
+    """
+    texto = "ANA LIMA e BRUNO SÁ assinaram."
+    todas = entidades(
+        texto, em(texto, "ANA LIMA", "PERSON"), em(texto, "BRUNO SÁ", "PERSON")
+    )
+
+    saida = PresidioEngine.remascarar(text=texto, entidades=todas[1:])
+
+    assert saida["anonymized_text"] == "ANA LIMA e [PESSOA_1] assinaram."
+    assert saida["valores_distintos"] == {"PERSON": 1}
+
+
+def test_remascarar_sem_nenhuma_ocorrencia_devolve_o_texto_intacto():
+    texto = "Nada aqui é dado pessoal."
+    saida = PresidioEngine.remascarar(text=texto, entidades=[])
+    assert saida["anonymized_text"] == texto
+    assert saida["entities_found"] == []
+
+
+def test_remascarar_recusa_ocorrencias_sobrepostas():
+    """
+    `_aplicar_mascaras` substitui de trás para frente e pressupõe spans
+    disjuntos: sobrepostos, ele corrompe o texto **em silêncio**, produzindo um
+    documento que parece anonimizado e não está. A recusa é a diferença entre
+    um erro visível e um vazamento.
+    """
+    texto = "ANA LIMA assinou."
+    cruzados = entidades(
+        texto, (0, 8, "PERSON", 0.9), (4, 12, "PERSON", 0.9)
+    )
+
+    with pytest.raises(ValueError):
+        PresidioEngine.remascarar(text=texto, entidades=cruzados)
+
+
+def test_remascarar_recusa_span_fora_do_texto():
+    texto = "ANA LIMA assinou."
+    with pytest.raises(ValueError):
+        PresidioEngine.remascarar(
+            text=texto, entidades=entidades(texto, (0, 999, "PERSON", 0.9))
+        )
+
+
+def test_rota_remascarar_responde_sem_o_motor_carregado():
+    """
+    A rota não pode depender do NER estar de pé.
+
+    É o que separa "reaplicar máscaras" de "reprocessar": tirar um falso
+    positivo de uma lista já decidida não é trabalho de modelo nenhum. Se um dia
+    alguém trocar o `PresidioEngine.remascarar` estático por
+    `get_engine().remascarar`, este teste passa a carregar 2,5 GB de BERT para
+    reescrever uma linha — e é aqui que isso aparece.
+
+    Também confere o contrato HTTP, que os testes acima não veem: os spans
+    atravessam o Pydantic como `EntityFound` nos dois sentidos.
+    """
+    import os
+
+    from fastapi.testclient import TestClient
+
+    import server
+
+    texto = "ANA LIMA e BRUNO SÁ assinaram."
+    resposta = TestClient(server.app).post(
+        "/remascarar",
+        headers={"X-Presidio-Token": os.environ["PRESIDIO_TOKEN"]},
+        json={
+            "text": texto,
+            "entities": entidades(texto, em(texto, "BRUNO SÁ", "PERSON")),
+            "politica_mascara": "placeholder",
+        },
+    )
+
+    assert resposta.status_code == 200, resposta.text
+    assert resposta.json()["anonymized_text"] == "ANA LIMA e [PESSOA_1] assinaram."
+
+
+def test_rota_remascarar_recusa_lista_incoerente():
+    """400, não 500: o pedido é que está errado, e quem chamou precisa saber."""
+    import os
+
+    from fastapi.testclient import TestClient
+
+    import server
+
+    texto = "ANA LIMA assinou."
+    resposta = TestClient(server.app).post(
+        "/remascarar",
+        headers={"X-Presidio-Token": os.environ["PRESIDIO_TOKEN"]},
+        json={
+            "text": texto,
+            "entities": entidades(texto, (0, 8, "PERSON", 0.9), (4, 12, "PERSON", 0.9)),
+        },
+    )
+
+    assert resposta.status_code == 400

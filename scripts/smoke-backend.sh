@@ -48,7 +48,7 @@ caminhos = set(server.app.openapi()["paths"])
 
 exigidas = {
     # As que a interface usa. Quebrar qualquer uma trava o aplicativo.
-    "/health", "/ocr", "/processar", "/anonymize",
+    "/health", "/ocr", "/processar", "/anonymize", "/remascarar",
     # A API local. Sem elas, a CLI, uma extensão e o MCP levam 404 no aplicativo
     # instalado, enquanto em desenvolvimento tudo funciona — porque ali se roda
     # do diretório de origem, e não da cópia empacotada.

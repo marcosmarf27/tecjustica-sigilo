@@ -12,6 +12,7 @@ formato.
 """
 
 import os
+import re
 
 import pytest
 
@@ -110,3 +111,62 @@ def test_texto_com_credencial_e_aceito(cliente, cabecalho):
     )
     assert resposta.status_code == 200
     assert "job_id" in resposta.json()
+
+
+# --- A regra, e não mais os exemplos dela ----------------------------------
+
+
+def test_toda_rota_menos_health_exige_o_token(cliente):
+    """
+    Varre o OpenAPI em vez de listar rotas à mão.
+
+    "Rota nova nasce atrás do token" é regra do projeto, e até aqui era testada
+    por amostragem: `/processar`, `/anonymize` e a deny-list tinham teste cada
+    uma, e as demais dependiam de alguém lembrar de acrescentar mais um. Quem
+    esquecesse não veria falha nenhuma — a rota desprotegida passa em todos os
+    outros testes.
+
+    Um 403 é a única resposta aceitável. Repare que 404 e 422 seriam
+    REPROVAÇÕES: as duas significam que a requisição atravessou a autenticação
+    e chegou ao roteamento ou à validação do corpo.
+
+    `app.openapi()` e não `app.routes`: o FastAPI atual guarda um
+    `_IncludedRouter` sem `path` no lugar das rotas de router incluído, então
+    varrer `app.routes` não enxergaria nada de `/v1`.
+    """
+    # As duas exceções são de descoberta, e cada uma existe por um motivo
+    # escrito: `/health` é como a interface sabe que o backend subiu, e
+    # `/v1/info` é o cartão de visita que um cliente lê ANTES de pedir
+    # pareamento — sem ele, "porta respondeu 200" seria a única prova de
+    # identidade, e a porta volta ao pool quando o app morre sem passar pelo
+    # `before-quit`. Nenhuma das duas toca documento.
+    #
+    # As duas de pareamento não podem exigir token pelo motivo mais simples:
+    # são a única forma de obter um. A defesa delas é outra — código de seis
+    # caracteres conferido nos dois lados por uma pessoa, e token entregue uma
+    # vez só.
+    #
+    # A lista é branca de propósito: uma rota pública nova reprova aqui até
+    # alguém escrever por que ela pode ser pública.
+    PUBLICAS = {"/health", "/v1/info", "/v1/parear", "/v1/parear/{pedido_id}"}
+
+    caminhos = cliente.app.openapi()["paths"]
+    verificadas = 0
+
+    for caminho, metodos in caminhos.items():
+        if caminho in PUBLICAS:
+            continue
+        # Parâmetro de caminho vira um valor qualquer: o que se mede é a
+        # autenticação, que acontece antes de o valor significar coisa alguma.
+        alvo = re.sub(r"\{[^}]+\}", "1", caminho)
+        for metodo in metodos:
+            resposta = cliente.request(metodo.upper(), alvo, json={})
+            assert resposta.status_code == 403, (
+                f"{metodo.upper()} {caminho} respondeu {resposta.status_code} "
+                f"sem credencial; deveria ser 403"
+            )
+            verificadas += 1
+
+    # Se o OpenAPI vier vazio por alguma mudança de versão, o laço acima passa
+    # sem testar nada e o arquivo inteiro vira decoração.
+    assert verificadas >= 10, f"só {verificadas} rotas verificadas"

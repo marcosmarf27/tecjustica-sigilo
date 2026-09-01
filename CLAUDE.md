@@ -761,6 +761,101 @@ que não existe nesta escala.
 
 Conversas vivem só em memória e morrem com o app, pelo mesmo motivo.
 
+### A trava bloqueava o próprio produto (01/09/2026)
+
+A primeira conversa real não saiu: `um valor do tipo "LOCATION" apareceu no que
+seria enviado (posição 1209)`. Nenhuma das camadas estava com defeito — a trava
+achou mesmo o que disse ter achado. O erro era de escopo, e em dois lugares.
+
+**A trava varria texto que o próprio aplicativo escreve.** A instrução do
+sistema fala em "documento", "peça" e termina em "Responda em português do
+Brasil". Basta o motor ter rotulado uma dessas palavras como `LOCATION` em
+qualquer ponto do processo para ela entrar na lista de proibidos e a trava
+encontrá-la ali. Medido: `"Brasil"` bloqueia na posição 1066, dentro da
+instrução. Uma trava que dispara sobre a própria frase é desligada na primeira
+semana, e aí não há trava nenhuma. `verificarSaida` passou a aceitar **regiões
+isentas**, definidas pela ocorrência literal de uma constante do programa —
+nada que o usuário forneça cai dentro delas. O teste que importa é o negativo:
+o mesmo valor **fora** da região continua bloqueando.
+
+**E o resíduo da anonimização derrubava a conversa inteira.** O backend numera
+pseudônimos por **valor** e substitui por **span**: reconhecido "FORTALEZA" nas
+posições 10 e 500 e perdido na 900, o texto anonimizado carrega a terceira em
+claro. É o resíduo que o gate mede — 2 escapes em 3.615 — e que até aqui só
+importava para quem lia o documento. Recusar por causa dele é a resposta certa
+para um vazamento e a errada para este caso: o dado já estava no arquivo que o
+usuário guardou, e ele não tem o que fazer com a recusa.
+
+`pseudonimos.arrematar` fecha em vez de recusar: toda aparição de um valor **já
+reconhecido como entidade** vira o rótulo que aquele valor já tem. Vale para os
+documentos, para a pergunta e para o histórico — a resposta do modelo é texto
+que ninguém controla e volta a sair no turno seguinte.
+
+Isto **não** é o "varredor de resíduo" descartado acima, e a distinção é a que
+decide se funciona: aquele rodaria o motor outra vez e, por definição, não
+acharia o que ele já não achou. Este não detecta nada — usa a decisão que o
+motor já tomou e completa a aplicação dela. O que sai para a nuvem fica mais
+anonimizado que o arquivo guardado, nunca menos.
+
+Dois detalhes que custaram teste:
+
+- **O arremate roda depois de todos os `incorporar`**, com o mapa completo. Peça
+  a peça, um nome que o detector só pegou na procuração continuaria em claro na
+  petição — e é entre peças que o resíduo mora, porque cada uma foi analisada
+  sozinha.
+- **A busca acontece na forma comparável e o recorte no texto real**, o que
+  exige guardar de onde veio cada caractere (`normalizarComIndice`). Deduzir o
+  deslocamento por contagem falha exatamente onde a normalização mexeu no
+  comprimento: acento e espaço duplo, as duas coisas que o OCR mais produz.
+
+O arremate e a trava têm de concordar sobre o que conta como valor e onde
+começa uma palavra. Por isso `MINIMO_VERIFICAVEL` e `ehLetraOuDigito` moram na
+trava e são importados, e por isso existe o teste "o que o arremate fecha, a
+trava não encontra". Divergindo, o arremate declara ter fechado e a trava
+bloqueia mesmo assim — sem conserto possível pela interface.
+
+**Um documento recusado não derruba mais a conversa inteira.** Quem seleciona
+doze peças e tem uma antiga no meio ficava sem nada, sem saber qual tirar. A
+peça recusada sai da seleção com o motivo na tela; ela continua sem sair da
+máquina, que é o que a recusa protege.
+
+### "Não é PII" não fazia nada visível
+
+O botão gravava na deny-list e avisava "processe de novo para ver o efeito" —
+sobre um documento aberto, com a ocorrência ainda na lista e a tarja ainda no
+texto. O revisor clicava, nada mudava, e clicava de novo.
+
+Reprocessar para isso custaria minutos de CPU e chegaria ao **mesmo texto**: a
+detecção não muda, muda um item de uma lista já decidida. Daí `POST
+/remascarar`, que recebe a lista revisada e só reescreve a saída. Três coisas a
+respeitar nela:
+
+- **É estática (`PresidioEngine.remascarar`) e não chama `get_engine()`.**
+  Tirar um falso positivo de uma lista já decidida não é trabalho de NLP, e a
+  rota funciona com o motor subindo ou fora do ar. Trocar por
+  `get_engine().remascarar` carregaria 2,5 GB de BERT para reescrever uma linha.
+- **A numeração é recalculada do zero.** Tirar a terceira pessoa renumera a
+  quarta; deixar buraco na sequência faz `pseudonimos.conferir` recusar o
+  documento, e um "não é PII" viraria "este documento não pode mais ser
+  conversado".
+- **Spans sobrepostos são recusados com 400.** `_aplicar_mascaras` substitui de
+  trás para frente e pressupõe disjunção: sobrepostos, ele corrompe o texto em
+  silêncio e produz um documento que parece anonimizado e não está.
+
+Todas as aparições do termo saem juntas, porque a deny-list é por termo. Um
+falso positivo que o motor repetiu quarenta vezes — e ele repete, via
+`_propagar_nomes` — exigiria quarenta cliques para o efeito que a gravação já
+teve.
+
+**Rota nova nasce atrás do token, e agora isso é testado por varredura.** Era
+testado por amostragem: `/processar`, `/anonymize` e a deny-list tinham um
+teste cada, e as demais dependiam de alguém lembrar. Quem esquecesse não veria
+falha nenhuma. `test_toda_rota_menos_health_exige_o_token` percorre
+`app.openapi()["paths"]` e exige 403 — **404 e 422 reprovam**, porque as duas
+significam que a requisição atravessou a autenticação. As públicas são quatro e
+estão numa lista branca com o motivo escrito: `/health`, `/v1/info` e as duas
+de `/v1/parear`, que não podem exigir token porque são a única forma de obter um.
+
 ## Pendências
 
 - **Janelas de texto em lote na detecção.** O laço do `anonymize` passa uma

@@ -24,6 +24,7 @@ import {
   MapaDeSessao,
   type Ocorrencia,
   type Trecho,
+  arrematar,
   incorporar,
   pareceMascaradoComPlaceholder,
   prepararPergunta,
@@ -108,7 +109,7 @@ export function abrir(ids: string[], modelo = MODELO_PADRAO): EstadoDaConversa {
 
   const mapa = new MapaDeSessao();
   const documentos: { id: string; nome: string }[] = [];
-  const textos: string[] = [];
+  const incorporados: string[] = [];
   const proibidos: Proibido[] = [];
   const avisos: Aviso[] = [];
 
@@ -121,11 +122,33 @@ export function abrir(ids: string[], modelo = MODELO_PADRAO): EstadoDaConversa {
       throw new Error(`documento ${id} não está mais no cofre`);
     }
 
-    exigirConversavel(entrada.nome, conteudo);
-    avisos.push(...avisarSobre(entrada.nome, conteudo));
+    /* Documento que não pode conversar sai da seleção; a conversa continua com
+       os outros. Derrubar tudo por causa de um era falha fechada demais: quem
+       escolhe doze peças e tem uma antiga no meio ficava sem nada, sem saber
+       qual tirar. A peça recusada continua sem sair da máquina, que é o que a
+       recusa protege. */
+    const recusa = motivoDeRecusa(entrada.nome, conteudo);
+    if (recusa !== null) {
+      avisos.push({ grave: true, texto: recusa });
+      continue;
+    }
 
     const ocorrencias = (conteudo.ocorrencias ?? []) as Ocorrencia[];
-    textos.push(incorporar(conteudo.textoAnonimizado, ocorrencias, mapa));
+    let texto: string;
+    try {
+      texto = incorporar(conteudo.textoAnonimizado, ocorrencias, mapa);
+    } catch (erro) {
+      avisos.push({
+        grave: true,
+        texto:
+          `"${entrada.nome}" ficou de fora: ` +
+          (erro instanceof Error ? erro.message : String(erro)),
+      });
+      continue;
+    }
+
+    avisos.push(...avisarSobre(entrada.nome, conteudo));
+    incorporados.push(texto);
     documentos.push({ id, nome: entrada.nome });
 
     /* Tudo que não pode aparecer no que sai. Os valores reais das ocorrências,
@@ -138,10 +161,54 @@ export function abrir(ids: string[], modelo = MODELO_PADRAO): EstadoDaConversa {
       proibidos.push({ tipo: oc.type, valor: oc.text });
     }
     proibidos.push({ tipo: "nome do arquivo", valor: entrada.nome });
-    if (entrada.cnj) proibidos.push({ tipo: "número do processo", valor: entrada.cnj });
+    if (entrada.cnj) {
+      proibidos.push({ tipo: "número do processo", valor: entrada.cnj });
+      /* O CNJ entra no mapa mesmo quando o motor não o detectou no texto, para
+         que o arremate feche as aparições que sobraram. É uma das 14 entidades
+         mascaradas e o identificador mais forte da lista — um processo tem
+         número único, e o número leva ao processo inteiro no PJe. Se ficasse
+         só entre os proibidos, uma aparição perdida bloquearia a conversa sem
+         dar ao usuário nada que ele pudesse fazer a respeito. */
+      mapa.rotularValor("NUMERO_PROCESSO_CNJ", entrada.cnj);
+    }
     if (conteudo.caminhoOriginal) {
       proibidos.push({ tipo: "caminho do arquivo", valor: conteudo.caminhoOriginal });
     }
+  }
+
+  if (documentos.length === 0) {
+    throw new Error(
+      avisos.length > 0
+        ? `nenhum dos documentos selecionados pode ser conversado. ${avisos[0].texto}`
+        : "nenhum documento selecionado"
+    );
+  }
+
+  /* O arremate só agora, com o mapa completo. Rodando peça a peça, um nome que
+     o detector só reconheceu na procuração continuaria em claro na petição —
+     e é justamente entre peças que o resíduo aparece, porque cada uma foi
+     analisada sozinha. */
+  const textos: string[] = [];
+  const fechados: Record<string, number> = {};
+  for (const bruto of incorporados) {
+    const arremate = arrematar(bruto, mapa);
+    textos.push(arremate.texto);
+    for (const [tipo, quantidade] of Object.entries(arremate.fechados)) {
+      fechados[tipo] = (fechados[tipo] ?? 0) + quantidade;
+    }
+  }
+
+  const totalFechado = Object.values(fechados).reduce((a, b) => a + b, 0);
+  if (totalFechado > 0) {
+    avisos.push({
+      grave: false,
+      texto:
+        `${totalFechado} ${totalFechado === 1 ? "aparição" : "aparições"} de ` +
+        `dado já reconhecido ${totalFechado === 1 ? "continuava" : "continuavam"} ` +
+        `em claro no texto guardado (${resumirTipos(fechados)}) e ` +
+        `${totalFechado === 1 ? "foi mascarada" : "foram mascaradas"} antes do ` +
+        `envio. O arquivo no cofre não foi alterado.`,
+    });
   }
 
   const conversa: Conversa = {
@@ -179,25 +246,45 @@ export function abrir(ids: string[], modelo = MODELO_PADRAO): EstadoDaConversa {
  * pelo texto — que resolve o caso que importa (recusar o que veio mascarado com
  * asteriscos) e é declarada como inferência na mensagem.
  */
-function exigirConversavel(nome: string, conteudo: cofre.ConteudoParaConversa) {
+function motivoDeRecusa(
+  nome: string,
+  conteudo: cofre.ConteudoParaConversa
+): string | null {
   const declarada = conteudo.politicaMascara;
 
   if (declarada !== undefined && declarada !== "placeholder") {
-    throw new Error(
-      `"${nome}" foi anonimizado com a política "${declarada}", que substitui ` +
-        `os dados por asteriscos em vez de pseudônimos numerados. Não há como ` +
-        `distinguir duas pessoas nesse texto. Reprocesse com a política ` +
-        `"placeholder" para conversar sobre ele.`
+    return (
+      `"${nome}" ficou de fora: foi anonimizado com a política "${declarada}", ` +
+      `que substitui os dados por asteriscos em vez de pseudônimos numerados. ` +
+      `Não há como distinguir duas pessoas nesse texto. Reprocesse com a ` +
+      `política "placeholder" para conversar sobre ele.`
     );
   }
 
   if (declarada === undefined && !pareceMascaradoComPlaceholder(conteudo.textoAnonimizado)) {
-    throw new Error(
-      `"${nome}" foi guardado antes de a conversa existir e não registra com ` +
-        `que política foi mascarado; o texto também não tem pseudônimos ` +
-        `numerados. Reprocesse o documento para conversar sobre ele.`
+    return (
+      `"${nome}" ficou de fora: foi guardado antes de a conversa existir e não ` +
+      `registra com que política foi mascarado; o texto também não tem ` +
+      `pseudônimos numerados. Reprocesse o documento para conversar sobre ele.`
     );
   }
+
+  return null;
+}
+
+/**
+ * "LOCAL ×2, PESSOA ×1".
+ *
+ * Em maiúscula porque é o mesmo vocabulário que o usuário vê dentro do texto
+ * (`[LOCAL_1]`), e sem plural em português porque "local" faz "locais" e
+ * "endereço" faz "endereços": flexionar rótulo técnico dá mais chance de erro
+ * do que de clareza.
+ */
+function resumirTipos(fechados: Record<string, number>): string {
+  return Object.entries(fechados)
+    .sort((a, b) => b[1] - a[1])
+    .map(([tipo, n]) => `${tipo} ×${n}`)
+    .join(", ");
 }
 
 /** O que o usuário precisa saber antes de perguntar, mas não impede a conversa. */
@@ -292,10 +379,15 @@ function montarMensagens(
   const anteriores: openrouter.Mensagem[] = conversa.turnos.map((t) => ({
     role: t.papel === "usuario" ? "user" : "assistant",
     /* O histórico volta com os pseudônimos, não com os nomes repostos: o que
-       trafegou foi o pseudônimo, e é ele que o modelo já viu. */
-    content: t.trechos
-      .map((p) => (p.tipo === "texto" ? p.texto : p.rotulo))
-      .join(""),
+       trafegou foi o pseudônimo, e é ele que o modelo já viu.
+
+       Passa pelo arremate porque a resposta do modelo é texto que ninguém
+       controla: ele pode ter escrito por extenso um valor que aparecia em claro
+       no documento, e no turno seguinte esse texto volta a sair daqui. */
+    content: arrematar(
+      t.trechos.map((p) => (p.tipo === "texto" ? p.texto : p.rotulo)).join(""),
+      conversa.mapa
+    ).texto,
   }));
 
   return [
@@ -351,7 +443,13 @@ export async function perguntar(
     const ocorrencias = await detectar(pergunta);
     const preparada = prepararPergunta(pergunta, ocorrencias, conversa.mapa);
 
-    const mensagens = montarMensagens(conversa, preparada.texto);
+    /* O detector pega o que é dado pessoal numa frase solta; o arremate pega o
+       que já se sabe ser dado pessoal NESTE processo. São coisas diferentes, e
+       a segunda é a que importa aqui: uma cidade que o detector ignora numa
+       pergunta de dez palavras já está mascarada dentro dos autos, e sair em
+       claro na pergunta desfaria isso. */
+    const fechada = arrematar(preparada.texto, conversa.mapa);
+    const mensagens = montarMensagens(conversa, fechada.texto);
     const modelo = modeloPorId(conversa.modelo);
     if (!modelo) throw new Error(`modelo desconhecido: ${conversa.modelo}`);
 
@@ -361,13 +459,24 @@ export async function perguntar(
         mensagens,
         esforcoDeRaciocinio: "low",
       }),
-      conversa.proibidos
+      conversa.proibidos,
+      /* A instrução é constante nossa e fala em "documento", "peça" e
+         "português do Brasil". Basta o motor ter rotulado uma dessas palavras
+         como LOCATION em qualquer ponto do processo para a trava encontrá-la
+         aqui e recusar tudo — um bloqueio sobre texto que o próprio aplicativo
+         escreveu, que não diz nada sobre o usuário. Aconteceu na primeira
+         conversa real. */
+      [INSTRUCAO]
     );
 
     conversa.turnos.push({
       papel: "usuario",
-      trechos: reidratar(preparada.texto, conversa.mapa),
-      trocas: preparada.trocas,
+      trechos: reidratar(fechada.texto, conversa.mapa),
+      /* As duas listas, porque as duas mexeram no que o usuário digitou: o
+         detector achou dado pessoal na frase, e o arremate reconheceu valores
+         que já eram dado pessoal neste processo. Mostrar só a primeira deixaria
+         a segunda como uma alteração silenciosa do texto de outra pessoa. */
+      trocas: [...preparada.trocas, ...fechada.trocas],
     });
 
     conversa.cancelador = new AbortController();

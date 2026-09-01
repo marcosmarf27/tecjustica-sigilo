@@ -31,6 +31,25 @@ import type { ClientePareado } from "./hooks/usePythonBackend";
  * sempre montado.
  */
 
+/**
+ * Dois termos são o mesmo para efeito da deny-list.
+ *
+ * Espelha `normalize` de `python-backend/config_loader.py`: é ele que decide se
+ * o termo gravado casa com a detecção. Comparando de outro jeito aqui, a lista
+ * sairia da tela e a máscara continuaria — ou o contrário.
+ */
+function mesmoTermo(a: string, b: string): boolean {
+  const forma = (t: string) =>
+    t
+      .normalize("NFD")
+      .replace(/\p{Mn}/gu, "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(" ");
+  return forma(a) === forma(b);
+}
+
 function Casca() {
   const {
     status,
@@ -41,6 +60,7 @@ function Casca() {
     extractText,
     reconectar,
     adicionarNaDenyList,
+    remascarar,
     buscarDenyList,
     gravarDenyList,
     listarClientes,
@@ -206,21 +226,90 @@ function Casca() {
     [biblioteca, avisar, despachar]
   );
 
+  /**
+   * "Não é PII": tira o termo da anonimização agora e para sempre.
+   *
+   * São dois efeitos, e antes só havia o segundo. A deny-list vale dos
+   * próximos documentos em diante, e o aviso mandava "processar de novo para
+   * ver o efeito" — sobre um documento aberto, com a ocorrência ainda na lista
+   * e a tarja ainda no texto. O revisor clicava, nada mudava, e clicava outra
+   * vez.
+   *
+   * Reprocessar para isso custaria minutos de CPU e chegaria ao mesmo texto: a
+   * detecção não muda, muda um item da lista. `/remascarar` reescreve só a
+   * saída, sem NER.
+   *
+   * Todas as aparições do termo saem juntas, e não só a linha clicada, porque é
+   * assim que a deny-list funciona — ela é por termo. Um falso positivo que o
+   * motor repetiu quarenta vezes exigiria quarenta cliques para o mesmo efeito
+   * que a gravação já teve.
+   */
   const rejeitarDeteccao = useCallback(
-    async (entidade: EntityFound) => {
+    async (entidade: EntityFound, indiceArquivo: number) => {
       try {
         await adicionarNaDenyList(entidade.type, entidade.text);
-        avisar(
-          `"${entidade.text}" não será mais mascarado. Processe de novo para ver o efeito.`
-        );
       } catch (erro) {
         avisar(
           `Não foi possível gravar a exceção: ${erro instanceof Error ? erro.message : "erro desconhecido"}`,
           "erro"
         );
+        return;
+      }
+
+      const arquivo = estado.revisao?.arquivos[indiceArquivo];
+      if (!arquivo) {
+        avisar(`"${entidade.text}" não será mais mascarado.`);
+        return;
+      }
+
+      const restantes = arquivo.entitiesFound.filter(
+        (e) => !(e.type === entidade.type && mesmoTermo(e.text, entidade.text))
+      );
+      const saindo = arquivo.entitiesFound.length - restantes.length;
+
+      try {
+        const refeito = await remascarar(
+          arquivo.originalContent,
+          restantes,
+          /* A política com que ESTE documento foi mascarado, não a preferência
+             de agora: remascarar com outra reescreveria o documento inteiro
+             por efeito colateral de um clique em uma linha. */
+          arquivo.politicaMascara ?? prefs.politica
+        );
+
+        despachar({
+          tipo: "substituir-em-revisao",
+          indice: indiceArquivo,
+          arquivo: {
+            ...arquivo,
+            anonymizedContent: refeito.anonymized_text,
+            entitiesFound: refeito.entities_found,
+          },
+        });
+
+        avisar(
+          saindo === 1
+            ? `"${entidade.text}" saiu da lista e não será mais mascarado.`
+            : `"${entidade.text}" saiu da lista (${saindo} ocorrências) e não será mais mascarado.`
+        );
+      } catch (erro) {
+        /* A exceção já está gravada: vale dos próximos documentos em diante. O
+           que falhou foi atualizar o que está aberto, e dizer isso é diferente
+           de dizer que nada aconteceu. */
+        avisar(
+          `A exceção foi gravada, mas este documento não pôde ser atualizado: ${erro instanceof Error ? erro.message : "erro desconhecido"}`,
+          "erro"
+        );
       }
     },
-    [adicionarNaDenyList, avisar]
+    [
+      adicionarNaDenyList,
+      avisar,
+      despachar,
+      estado.revisao,
+      prefs.politica,
+      remascarar,
+    ]
   );
 
   const estadoMotor =

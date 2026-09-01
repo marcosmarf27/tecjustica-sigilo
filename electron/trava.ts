@@ -68,11 +68,16 @@ function normalizar(texto: string): string {
  * caracteres não é pego por esta trava. Na prática não existe — nome, CPF, CEP,
  * OAB e telefone são todos bem maiores — mas a defesa é essa, e não outra.
  */
-const MINIMO_VERIFICAVEL = 3;
+export const MINIMO_VERIFICAVEL = 3;
 
 /** Caractere que faz parte de uma palavra, para efeito de fronteira. */
-function ehLetraOuDigito(c: string | undefined): boolean {
+export function ehLetraOuDigito(c: string | undefined): boolean {
   return c !== undefined && /[\p{L}\p{N}]/u.test(c);
+}
+
+/** O quanto de um valor conta para o mínimo: só letra e dígito. */
+export function pesoVerificavel(valor: string): number {
+  return valor.replace(/[^\p{L}\p{N}]/gu, "").length;
 }
 
 /**
@@ -82,25 +87,71 @@ function ehLetraOuDigito(c: string | undefined): boolean {
  * chamado "Ana" bloquearia qualquer corpo que contivesse "Fernanda", e uma
  * trava que dispara sempre é desligada na primeira semana.
  */
-export function verificarSaida(corpo: string, proibidos: Proibido[]): void {
+export function verificarSaida(
+  corpo: string,
+  proibidos: Proibido[],
+  isentas: string[] = []
+): void {
   const alvo = normalizar(corpo);
+  const trechosIsentos = localizarIsentas(alvo, isentas);
 
   for (const { tipo, valor } of proibidos) {
     const agulha = normalizar(valor).trim();
-    if (agulha.replace(/[^\p{L}\p{N}]/gu, "").length < MINIMO_VERIFICAVEL) {
-      continue;
-    }
+    if (pesoVerificavel(agulha) < MINIMO_VERIFICAVEL) continue;
 
     let de = alvo.indexOf(agulha);
     while (de !== -1) {
+      const ate = de + agulha.length;
       const antes = alvo[de - 1];
-      const depois = alvo[de + agulha.length];
-      if (!ehLetraOuDigito(antes) && !ehLetraOuDigito(depois)) {
+      const depois = alvo[ate];
+      if (
+        !ehLetraOuDigito(antes) &&
+        !ehLetraOuDigito(depois) &&
+        !dentroDeAlguma(de, ate, trechosIsentos)
+      ) {
         throw new VazamentoBloqueadoError(tipo, de);
       }
       de = alvo.indexOf(agulha, de + 1);
     }
   }
+}
+
+/**
+ * Os trechos do corpo que são texto constante do próprio aplicativo.
+ *
+ * A instrução do sistema fala em "documento", "peça" e termina em "português do
+ * Brasil". Basta o motor rotular qualquer uma dessas palavras como `LOCATION`
+ * em algum ponto do processo — e ele rotula — para que ela entre na lista de
+ * proibidos e a trava a encontre **no nosso próprio texto**, que não veio do
+ * usuário e não revela nada sobre ele.
+ *
+ * Foi o que aconteceu na primeira conversa real: bloqueio na posição 1066, um
+ * "Brasil" escrito por nós. Uma trava que dispara sobre o texto que ela mesma
+ * escreveu é desligada na primeira semana, e aí não há trava nenhuma.
+ *
+ * Isentar é seguro porque a região é definida pela ocorrência **literal** de uma
+ * constante do programa: nada que o usuário forneça cai dentro dela.
+ */
+function localizarIsentas(alvo: string, isentas: string[]): [number, number][] {
+  const trechos: [number, number][] = [];
+  for (const isenta of isentas) {
+    const agulha = normalizar(isenta).trim();
+    if (agulha.length === 0) continue;
+    let de = alvo.indexOf(agulha);
+    while (de !== -1) {
+      trechos.push([de, de + agulha.length]);
+      de = alvo.indexOf(agulha, de + agulha.length);
+    }
+  }
+  return trechos;
+}
+
+function dentroDeAlguma(
+  de: number,
+  ate: number,
+  trechos: [number, number][]
+): boolean {
+  return trechos.some(([inicio, fim]) => de >= inicio && ate <= fim);
 }
 
 /**
@@ -122,9 +173,10 @@ export interface CorpoVerificado {
 
 export function carimbar(
   corpo: unknown,
-  proibidos: Proibido[]
+  proibidos: Proibido[],
+  isentas: string[] = []
 ): CorpoVerificado {
   const json = JSON.stringify(corpo);
-  verificarSaida(json, proibidos);
+  verificarSaida(json, proibidos, isentas);
   return { json } as unknown as CorpoVerificado;
 }

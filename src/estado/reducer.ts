@@ -61,6 +61,14 @@ export function reducer(estado: EstadoApp, acao: AcaoApp): EstadoApp {
     case "abrir-revisao":
       return { ...estado, revisao: acao.revisao, progresso: null };
 
+    case "substituir-em-revisao": {
+      if (!estado.revisao) return estado;
+      const arquivos = estado.revisao.arquivos.map((a, i) =>
+        i === acao.indice ? acao.arquivo : a
+      );
+      return { ...estado, revisao: { ...estado.revisao, arquivos } };
+    }
+
     case "fechar-revisao":
       return {
         ...estado,

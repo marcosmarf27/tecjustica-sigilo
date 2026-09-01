@@ -20,9 +20,11 @@ import {
   incorporar,
   normalizar,
   pareceMascaradoComPlaceholder,
+  arrematar,
   prepararPergunta,
   reidratar,
 } from "../dist-electron/pseudonimos.js";
+import { verificarSaida } from "../dist-electron/trava.js";
 
 /** Ocorrência com os campos que o backend devolve. */
 function oc(type, text, start) {
@@ -286,4 +288,167 @@ test("reconhece o texto que pode entrar numa conversa", () => {
   assert.equal(pareceMascaradoComPlaceholder("J**** d* S**** assinou."), false);
   assert.equal(pareceMascaradoComPlaceholder("************* assinou."), false);
   assert.equal(pareceMascaradoComPlaceholder("[ITEM_1] na tabela."), false);
+});
+
+// --- O arremate: fechar o que o motor deixou passar ------------------------
+//
+// O backend numera por VALOR e substitui por SPAN. Um valor reconhecido numa
+// posição e perdido noutra sai em claro do documento que se chama anonimizado,
+// e a trava então recusa a conversa inteira por causa dele.
+
+test("aparição que o detector perdeu é fechada com o rótulo que o valor já tem", () => {
+  const mapa = new MapaDeSessao();
+  /* O detector achou FORTALEZA uma vez; o texto tem duas. */
+  const texto = incorporar(
+    "Comarca de [LOCAL_1]. Feito em FORTALEZA, 3 de março.",
+    [oc("LOCATION", "Fortaleza", 11)],
+    mapa
+  );
+
+  const { texto: fechado, fechados } = arrematar(texto, mapa);
+
+  assert.ok(!/FORTALEZA/i.test(fechado), "a segunda aparição saiu");
+  assert.equal(fechado, "Comarca de [LOCAL_1]. Feito em [LOCAL_1], 3 de março.");
+  assert.deepEqual(fechados, { LOCAL: 1 });
+});
+
+test("o arremate ignora acento e caixa, como o motor faz ao numerar", () => {
+  const mapa = new MapaDeSessao();
+  const texto = incorporar(
+    "[PESSOA_1] compareceu. Intimado joao da silva.",
+    [oc("PERSON", "João da Silva", 0)],
+    mapa
+  );
+
+  assert.equal(
+    arrematar(texto, mapa).texto,
+    "[PESSOA_1] compareceu. Intimado [PESSOA_1]."
+  );
+});
+
+test("valor curto é deixado quieto — o mesmo limite que a trava usa", () => {
+  /* Fechar valores de duas letras encheria o texto de rótulos onde não há
+     dado nenhum. A trava também os ignora, então os dois lados concordam. */
+  const mapa = new MapaDeSessao();
+  const texto = incorporar("[LOCAL_1] e mais nada.", [oc("LOCATION", "Sé", 0)], mapa);
+  assert.equal(arrematar(texto, mapa).texto, "[LOCAL_1] e mais nada.");
+});
+
+test("o arremate respeita fronteira de palavra", () => {
+  const mapa = new MapaDeSessao();
+  /* "Ana" não pode transformar "Fernanda" em "Fern[PESSOA_1]da". */
+  const texto = incorporar(
+    "[PESSOA_1] e Fernanda Souza discutiram. Ana assinou.",
+    [oc("PERSON", "Ana", 0)],
+    mapa
+  );
+
+  const { texto: fechado } = arrematar(texto, mapa);
+  assert.ok(fechado.includes("Fernanda Souza"), "não comeu o meio da palavra");
+  assert.ok(fechado.endsWith("[PESSOA_1] assinou."));
+});
+
+test("o valor mais longo fecha primeiro, e o curto não o parte", () => {
+  const mapa = new MapaDeSessao();
+  const texto = incorporar(
+    "[PESSOA_1] e [PESSOA_2]. Depois, João da Silva falou.",
+    [oc("PERSON", "João da Silva", 0), oc("PERSON", "João", 15)],
+    mapa
+  );
+
+  /* Fechando "João" antes, "João da Silva" viraria "[PESSOA_2] da Silva" —
+     dois rótulos para a mesma pessoa e um sobrenome em claro. */
+  assert.ok(arrematar(texto, mapa).texto.endsWith("Depois, [PESSOA_1] falou."));
+});
+
+test("o arremate não encosta num rótulo já posto", () => {
+  const mapa = new MapaDeSessao();
+  /* Valor que por acaso casa com o miolo de um rótulo. */
+  const texto = incorporar("[LOCAL_1] fica longe.", [oc("LOCATION", "local", 0)], mapa);
+  assert.equal(arrematar(texto, mapa).texto, "[LOCAL_1] fica longe.");
+});
+
+test("um nome visto só na segunda peça é fechado também na primeira", () => {
+  /* É o ganho que a numeração por documento não entrega: cada peça foi
+     analisada sozinha, e o resíduo mora justamente entre elas. */
+  const mapa = new MapaDeSessao();
+  const peca1 = incorporar(
+    "Consta [PESSOA_1]. Também assinou Marta Rocha.",
+    [oc("PERSON", "Carlos Dias", 7)],
+    mapa
+  );
+  const peca2 = incorporar(
+    "Procuração de [PESSOA_1].",
+    [oc("PERSON", "Marta Rocha", 14)],
+    mapa
+  );
+
+  assert.ok(arrematar(peca1, mapa).texto.endsWith("Também assinou [PESSOA_2]."));
+  assert.equal(arrematar(peca2, mapa).texto, "Procuração de [PESSOA_2].");
+});
+
+test("espaço duplo entre as palavras não faz o valor escapar", () => {
+  /* OCR produz espaço duplo o tempo todo, e é onde o casamento ingênuo falha. */
+  const mapa = new MapaDeSessao();
+  const texto = incorporar(
+    "[PESSOA_1] veio. Depois Ana  Beatriz  Lima saiu.",
+    [oc("PERSON", "Ana Beatriz Lima", 0)],
+    mapa
+  );
+  assert.equal(arrematar(texto, mapa).texto, "[PESSOA_1] veio. Depois [PESSOA_1] saiu.");
+});
+
+test("texto sem resíduo passa intacto e não conta nada", () => {
+  const mapa = new MapaDeSessao();
+  const texto = incorporar("[PESSOA_1] e [CPF_1].", [
+    oc("PERSON", "Ana Lima", 0),
+    oc("CPF_BR", "111.444.777-35", 13),
+  ], mapa);
+
+  const { texto: fechado, fechados } = arrematar(texto, mapa);
+  assert.equal(fechado, texto);
+  assert.deepEqual(fechados, {});
+});
+
+// --- A junta entre o arremate e a trava ------------------------------------
+
+test("o que o arremate fecha, a trava não encontra", () => {
+  /* É a propriedade que sustenta o recurso inteiro: se as duas normalizações
+     divergirem, o arremate declara ter fechado e a trava bloqueia mesmo assim
+     — e o usuário fica sem conversa e sem explicação. */
+  const mapa = new MapaDeSessao();
+  const ocorrencias = [
+    oc("PERSON", "João da Silva", 0),
+    oc("LOCATION", "Fortaleza", 30),
+  ];
+  const bruto = incorporar(
+    "[PESSOA_1] mora em [LOCAL_1].\n" +
+      "JOÃO DA SILVA, residente em fortaleza, comparece.\n" +
+      "Assina: joão  da  silva.",
+    ocorrencias,
+    mapa
+  );
+
+  const { texto: fechado } = arrematar(bruto, mapa);
+  const proibidos = ocorrencias.map((o) => ({ tipo: o.type, valor: o.text }));
+
+  assert.doesNotThrow(() => verificarSaida(JSON.stringify({ fechado }), proibidos));
+});
+
+test("o arremate diz o que trocou, e uma vez por rótulo", () => {
+  /* Ele mexe no texto que o usuário digitou. Alterar a frase de alguém sem
+     mostrar o quê é como o produto perde quem assina o documento. */
+  const mapa = new MapaDeSessao();
+  const texto = incorporar(
+    "[PESSOA_1] processou em [LOCAL_1]. Ana Lima e Ana Lima outra vez, em Recife.",
+    [oc("PERSON", "Ana Lima", 0), oc("LOCATION", "Recife", 24)],
+    mapa
+  );
+
+  const { trocas } = arrematar(texto, mapa);
+
+  assert.deepEqual(trocas, [
+    { valor: "Ana Lima", rotulo: "[PESSOA_1]" },
+    { valor: "Recife", rotulo: "[LOCAL_1]" },
+  ]);
 });

@@ -609,6 +609,75 @@ class PresidioEngine:
         }
 
     @staticmethod
+    def remascarar(
+        text: str,
+        entidades: list[dict],
+        politica_mascara: str = POLITICA_PADRAO,
+    ) -> dict:
+        """
+        Reaplica as máscaras a partir de uma lista de ocorrências já decidida.
+
+        É estático de propósito: não toca o analisador, então funciona com o
+        motor ainda subindo ou fora do ar. Tirar um falso positivo de uma lista
+        já decidida não é trabalho de NLP.
+
+        Não detecta nada: recebe os spans prontos e só reescreve o texto. Existe
+        porque a revisão precisa desfazer uma detecção **naquele documento,
+        agora** — o usuário aponta um falso positivo e espera vê-lo sair da
+        lista, não ler que o efeito vem no próximo processamento.
+
+        Reprocessar seria a resposta óbvia e custaria minutos por documento para
+        chegar ao mesmo texto: a decisão de quem é entidade já foi tomada, e o
+        que muda é um item da lista.
+
+        A numeração é recalculada do zero, e tem de ser: os placeholders são
+        numerados por ordem de leitura, então tirar a terceira pessoa do
+        documento renumera a quarta. Deixar buraco na sequência quebraria a
+        conferência que a conversa faz sobre o texto (`pseudonimos.conferir`).
+        """
+        spans = sorted(
+            (
+                (
+                    int(e["start"]),
+                    int(e["end"]),
+                    str(e["type"]),
+                    float(e.get("score", 1.0)),
+                )
+                for e in entidades
+            ),
+            key=lambda s: s[0],
+        )
+
+        # `_aplicar_mascaras` exige spans disjuntos: sobrepostos, a substituição
+        # de trás para frente corrompe o texto em silêncio. Quem chama monta a
+        # lista tirando itens de uma que já era disjunta — mas isso é premissa
+        # sobre o chamador, e premissa sobre chamador é o que se confere aqui.
+        anterior = 0
+        for ini, fim, _, _ in spans:
+            if fim <= ini or ini < anterior or fim > len(text):
+                raise ValueError(
+                    "as ocorrências precisam ser disjuntas e caber no texto"
+                )
+            anterior = fim
+
+        mascarador = Mascarador(politica_mascara)
+        return {
+            "anonymized_text": PresidioEngine._aplicar_mascaras(text, spans, mascarador),
+            "entities_found": [
+                {
+                    "type": tipo,
+                    "text": text[ini:fim],
+                    "start": ini,
+                    "end": fim,
+                    "score": round(score, 2),
+                }
+                for ini, fim, tipo, score in spans
+            ],
+            "politica_mascara": politica_mascara,
+            "valores_distintos": mascarador.resumo(),
+        }
+
+    @staticmethod
     def _propagar_nomes(
         texto: str, brutos: list[tuple[int, int, str, float]]
     ) -> list[tuple[int, int, str, float]]:

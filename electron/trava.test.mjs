@@ -119,3 +119,51 @@ test("a mensagem de erro nomeia o tipo, nunca o valor", () => {
     assert.ok(!erro.message.includes("Ana Lima"));
   }
 });
+
+// --- Texto que o próprio aplicativo escreve --------------------------------
+//
+// A trava dispara sobre um valor proibido onde quer que ele esteja no corpo, e
+// isso inclui a instrução do sistema — que fala em "documento", "peça" e
+// termina em "português do Brasil". Basta o motor ter rotulado uma dessas
+// palavras como LOCATION em algum ponto do processo para a conversa inteira
+// ser recusada por causa de uma frase nossa.
+//
+// Aconteceu na primeira conversa real, em 01/09/2026: bloqueio na posição
+// 1066, dentro da instrução. Uma trava que dispara sobre o texto que ela mesma
+// escreveu é desligada na primeira semana, e aí não há trava nenhuma.
+
+const INSTRUCAO_FALSA = "Responda sobre cada documento em português do Brasil.";
+
+test("valor que só aparece na instrução do sistema não bloqueia", () => {
+  const corpo = { messages: [{ role: "system", content: INSTRUCAO_FALSA }] };
+  assert.doesNotThrow(() =>
+    carimbar(corpo, [{ tipo: "LOCATION", valor: "Brasil" }], [INSTRUCAO_FALSA])
+  );
+});
+
+test("o mesmo valor FORA da isenção continua bloqueando", () => {
+  /* A isenção vale para a região, não para o valor: é o que a separa de uma
+     lista de exceções que aos poucos esvazia a trava. */
+  const corpo = {
+    messages: [
+      { role: "system", content: INSTRUCAO_FALSA },
+      { role: "user", content: "domiciliado no Brasil, à rua tal" },
+    ],
+  };
+  assert.throws(
+    () => carimbar(corpo, [{ tipo: "LOCATION", valor: "Brasil" }], [INSTRUCAO_FALSA]),
+    VazamentoBloqueadoError
+  );
+});
+
+test("isentar não abre a porta para o texto original", () => {
+  /* A mutação que esta trava existe para pegar: trocar `textoAnonimizado` por
+     `textoOriginal` na montagem. A isenção não pode salvá-la. */
+  const corpo = {
+    messages: [
+      { role: "system", content: INSTRUCAO_FALSA },
+      { role: "user", content: "## Documento 1\n\nAna Lima, CPF 111.444.777-35" },
+    ],
+  };
+  assert.throws(() => carimbar(corpo, PROIBIDOS, [INSTRUCAO_FALSA]), VazamentoBloqueadoError);
+});

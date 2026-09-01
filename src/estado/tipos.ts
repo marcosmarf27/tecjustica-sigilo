@@ -102,6 +102,11 @@ export type AcaoApp =
   | { tipo: "encerrar-lote" }
   | { tipo: "abrir-revisao"; revisao: RevisaoAberta }
   | { tipo: "fechar-revisao" }
+  /* Troca um documento em revisão pela versão sem a detecção que o revisor
+     rejeitou. O documento é substituído inteiro, e não só a lista: o texto
+     mascarado tem de acompanhar, senão a ocorrência some da tela e continua
+     tarjada no arquivo que o usuário salva. */
+  | { tipo: "substituir-em-revisao"; indice: number; arquivo: ProcessedFile }
   | { tipo: "avisar"; mensagem: string; tipoAviso?: "sucesso" | "erro" }
   | { tipo: "abrir-conversa"; ids: string[] }
   | { tipo: "fechar-conversa" }
