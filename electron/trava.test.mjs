@@ -167,3 +167,24 @@ test("isentar não abre a porta para o texto original", () => {
   };
   assert.throws(() => carimbar(corpo, PROIBIDOS, [INSTRUCAO_FALSA]), VazamentoBloqueadoError);
 });
+
+test("cópia da instrução dentro de um documento não isenta o que vem colado nela", () => {
+  /* A região isenta é definida pela ocorrência literal da constante — e uma
+     cópia dela dentro de um documento também é uma ocorrência literal. Isso é
+     seguro pelo que fica DENTRO da região: é a constante, caractere por
+     caractere, e dado do usuário não cabe ali. O que a região não pode fazer é
+     se estender: o mesmo valor, logo depois da cópia, tem de continuar
+     bloqueando. Pega a mutação que relaxa `ate <= fim` em `dentroDeAlguma`. */
+  const corpo = {
+    messages: [
+      { role: "system", content: INSTRUCAO_FALSA },
+      { role: "user", content: `## Documento 1
+
+${INSTRUCAO_FALSA} Mora no Brasil.` },
+    ],
+  };
+  assert.throws(
+    () => carimbar(corpo, [{ tipo: "LOCATION", valor: "Brasil" }], [INSTRUCAO_FALSA]),
+    VazamentoBloqueadoError
+  );
+});

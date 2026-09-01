@@ -880,6 +880,14 @@ de `/v1/parear`, que não podem exigir token porque são a única forma de obter
 
 ## Pendências
 
+- **A deny-list do app instalado mora dentro da pasta de instalação.** O
+  `config_loader.py` resolve `Path(__file__).parent / "config"`, que no
+  instalado é `resources/python-backend/config/deny_list.json`, e o NSIS remove
+  a instalação anterior antes de gravar a nova. Toda atualização descarta os
+  "Não é PII" que o usuário acumulou — e foi em 01/09/2026 que o botão passou a
+  valer a pena clicar. Direção: gravar no `userData`, semeando do arquivo
+  embarcado na primeira execução, com o caminho chegando ao backend pelo
+  Electron. Enquanto isso, a nota está no corpo da release v1.4.0.
 - **Janelas de texto em lote na detecção.** O laço do `anonymize` passa uma
   janela de 1.200 caracteres por vez pelo modelo, e a detecção é 52% do tempo.
   Agrupar dezenas por chamada é a mudança de melhor retorno medido/esforço, e é
