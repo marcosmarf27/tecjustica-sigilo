@@ -847,6 +847,13 @@ falso positivo que o motor repetiu quarenta vezes — e ele repete, via
 `_propagar_nomes` — exigiria quarenta cliques para o efeito que a gravação já
 teve.
 
+**Em desenvolvimento, o clique grava no repositório.** O caminho da deny-list é
+relativo ao módulo (`Path(__file__).parent / "config"`), então o app em dev
+escreve em `python-backend/config/deny_list.json` — o arquivo versionado. Testar
+o botão num município ("Ocara", 01/09/2026) commitou a política de nunca mais
+mascarar aquela cidade, e foi parar no `origin/main` num `git add` de rotina.
+Antes de commitar, `git diff python-backend/config/`.
+
 **E o conserto só ficou de pé com `cofre.atualizar`.** O cofre é gravado assim
 que o processamento termina (`App.tsx`, logo depois de `abrir-revisao`),
 **antes** de qualquer revisão. Sem regravar, rejeitar um falso positivo
