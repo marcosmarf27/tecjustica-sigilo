@@ -175,6 +175,15 @@ export function useBiblioteca(cofreLigado: boolean, diasDeExpurgo: number) {
         anonymizedContent: conteudo.textoAnonimizado,
         entitiesFound: conteudo.ocorrencias as ProcessedFile["entitiesFound"],
         ocr: conteudo.ocr as ProcessedFile["ocr"],
+        /* A procedência viaja junto. Sem ela, rejeitar uma detecção num
+           documento reaberto remascarava com a preferência DE AGORA: guardado
+           em "placeholder" com a preferência em "total", um clique numa linha
+           trocava todos os pseudônimos por asteriscos — e o cofre continuava
+           declarando "placeholder". */
+        politicaMascara: conteudo.politicaMascara as ProcessedFile["politicaMascara"],
+        modoNlp: conteudo.modoNlp,
+        entidadesSolicitadas:
+          conteudo.entidadesSolicitadas as ProcessedFile["entidadesSolicitadas"],
       };
     },
     []

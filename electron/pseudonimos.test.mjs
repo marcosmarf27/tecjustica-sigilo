@@ -483,3 +483,38 @@ test("reidratar duas vezes seguidas dá o mesmo resultado", () => {
   assert.deepEqual(reidratar(texto, mapa), reidratar(texto, mapa));
   assert.equal(reidratar(texto, mapa)[1].tipo, "reposto");
 });
+
+// ---------------------------------------------------------------------------
+// Três achados da revisão de 01/09/2026, nenhum deles vazamento, todos do
+// tipo que produz texto errado sem estourar nada.
+
+test("o arremate fecha o CPF que o OCR colou no rótulo", () => {
+  /* Mesma regra de fronteira da trava: letra encostada em dígito é fronteira. */
+  const mapa = new MapaDeSessao();
+  mapa.rotularValor("CPF_BR", "111.444.777-35");
+  assert.equal(arrematar("CPF111.444.777-35 do autor", mapa).texto, "CPF[CPF_1] do autor");
+});
+
+test("acento em forma decomposta não sobra em cima do rótulo", () => {
+  /* "José" pode chegar como "Jose" + U+0301 (NFD), que é como alguns PDFs
+     escrevem. A normalização apaga a marca; o recorte tem de apagá-la do texto
+     real também, senão sai "[PESSOA_1]\u0301", com o acento sobre o rótulo. */
+  const mapa = new MapaDeSessao();
+  mapa.rotularValor("PERSON", "José");
+  assert.equal(arrematar("Jose\u0301 assinou.", mapa).texto, "[PESSOA_1] assinou.");
+});
+
+test("documento recusado não reserva rótulo no mapa", () => {
+  /* A primeira peça é recusada — uma ocorrência, rótulo [PESSOA_2] sem
+     [PESSOA_1]. A segunda, válida, tem de nascer em [PESSOA_1]: a conferência
+     roda antes de o mapa ser tocado. */
+  const mapa = new MapaDeSessao();
+  assert.throws(
+    () => incorporar("[PESSOA_2] assinou.", [oc("PERSON", "Ana Lima", 0)], mapa),
+    DocumentoIncompativelError
+  );
+  assert.equal(
+    incorporar("[PESSOA_1] compareceu.", [oc("PERSON", "Bruno Costa", 0)], mapa),
+    "[PESSOA_1] compareceu."
+  );
+});

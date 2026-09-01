@@ -778,6 +778,27 @@ isentas**, definidas pela ocorrência literal de uma constante do programa —
 nada que o usuário forneça cai dentro delas. O teste que importa é o negativo:
 o mesmo valor **fora** da região continua bloqueando.
 
+**E a isenção não funcionava no aplicativo — só no teste.** A trava verifica o
+corpo **serializado**, e o JSON reescreve o texto: quebra de linha vira `
+`
+(dois caracteres), aspas viram `\"`, barra vira `\`. A instrução real tem
+parágrafos; a do teste tinha uma linha. `localizarIsentas` procurava a
+constante crua no JSON, nunca a achava, e a trava seguia bloqueando "Brasil"
+na posição 1037 — o mesmo defeito que a isenção existia para consertar, com
+83 testes verdes. Achado pelo Codex em revisão, no mesmo dia, e reproduzido
+por sonda antes de mexer. O efeito inverso também valia: um proibido com aspas
+ou barra (`"Zé" Lima`, caminho de arquivo) atravessava. `carimbar` agora
+escapa proibidos e isenções como o JSON escaparia (`escaparComoJson`), e o
+teste usa uma instrução com parágrafos. A lição de método: **o teste que
+prova a correção tem de usar a entrada real, ou uma com a mesma forma** —
+uma constante de fachada com a forma errada prova a forma errada.
+
+Do mesmo lote de revisão: a fronteira de palavra exigia não-alfanumérico dos
+dois lados, e `CPF111.444.777-35` — o OCR come o espaço o tempo todo — passava
+pelo arremate **e** pela trava, que usam a mesma regra. Fronteira agora é
+**troca de classe** (`ehFronteira`): letra encostada em dígito é fronteira,
+letra em letra não ("Fernanda" continua não contendo "Ana").
+
 **E o resíduo da anonimização derrubava a conversa inteira.** O backend numera
 pseudônimos por **valor** e substitui por **span**: reconhecido "FORTALEZA" nas
 posições 10 e 500 e perdido na 900, o texto anonimizado carrega a terceira em

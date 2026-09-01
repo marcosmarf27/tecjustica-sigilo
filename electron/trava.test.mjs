@@ -188,3 +188,56 @@ ${INSTRUCAO_FALSA} Mora no Brasil.` },
     VazamentoBloqueadoError
   );
 });
+
+// ---------------------------------------------------------------------------
+// O corpo verificado é o JSON, e a serialização reescreve o texto: quebra de
+// linha vira `\n` (dois caracteres), aspas viram `\"`, barra vira `\\`. Tanto
+// os proibidos quanto as isenções precisam ser procurados nessa forma. Não
+// eram, e o efeito foi nas duas direções — descoberto em revisão em
+// 01/09/2026, no mesmo dia em que a isenção foi escrita.
+
+const INSTRUCAO_COM_PARAGRAFOS =
+  "Você lê autos anonimizados.\n\nRegras:\n- Cite a peça.\n\nResponda em português do Brasil.";
+
+test("a isenção funciona com a instrução real, que tem parágrafos", () => {
+  /* A isenção procurava a constante crua e nunca a encontrava no JSON: passava
+     no teste de uma linha e bloqueava no aplicativo, na posição 1037. */
+  const corpo = { messages: [{ role: "system", content: INSTRUCAO_COM_PARAGRAFOS }] };
+  assert.doesNotThrow(() =>
+    carimbar(corpo, [{ tipo: "LOCATION", valor: "Brasil" }], [INSTRUCAO_COM_PARAGRAFOS])
+  );
+});
+
+test("valor com aspas ou barra invertida não atravessa o JSON", () => {
+  /* Na direção oposta: `"Zé" Lima` e um caminho de arquivo, procurados na
+     forma crua, atravessavam. */
+  const corpoAspas = { messages: [{ role: "user", content: 'consta "Zé" Lima nos autos' }] };
+  assert.throws(
+    () => carimbar(corpoAspas, [{ tipo: "PERSON", valor: '"Zé" Lima' }]),
+    VazamentoBloqueadoError
+  );
+
+  const caminho = "C:\\Users\\ana\\autos\\peticao.pdf";
+  const corpoCaminho = { messages: [{ role: "user", content: `arquivo em ${caminho}` }] };
+  assert.throws(
+    () => carimbar(corpoCaminho, [{ tipo: "caminho do arquivo", valor: caminho }]),
+    VazamentoBloqueadoError
+  );
+});
+
+test("CPF colado numa letra tem fronteira: letra e dígito são classes diferentes", () => {
+  /* "CPF111.444.777-35" é o que o OCR produz quando come o espaço. A regra
+     antiga exigia não-alfanumérico dos dois lados e deixava passar — pela
+     trava e pelo arremate, que usam a mesma regra. */
+  assert.throws(
+    () =>
+      verificarSaida("CPF111.444.777-35 do autor", [
+        { tipo: "CPF_BR", valor: "111.444.777-35" },
+      ]),
+    VazamentoBloqueadoError
+  );
+  /* E "Fernanda" continua não contendo "Ana": letra colada em letra. */
+  assert.doesNotThrow(() =>
+    verificarSaida("Fernanda assinou.", [{ tipo: "PERSON", valor: "Ana" }])
+  );
+});

@@ -660,6 +660,20 @@ class PresidioEngine:
                 )
             anterior = fim
 
+        # A geometria pode estar certa e apontar para o lugar errado: um span
+        # dentro dos limites cujo `text` declarado não é o que está ali mascara
+        # outro trecho e deixa o valor de verdade em claro. `entities_found`
+        # sempre carrega `text == text[start:end]` (é assim que o motor o
+        # monta), então divergência é pedido corrompido, não caso legítimo. A
+        # mensagem não repete o valor: erro que ecoa o dado é vazamento.
+        for e in entidades:
+            declarado = e.get("text")
+            if declarado is not None and text[int(e["start"]) : int(e["end"])] != declarado:
+                raise ValueError(
+                    "uma ocorrência declara um texto diferente do que há em "
+                    f"start/end (tipo {e.get('type')})"
+                )
+
         mascarador = Mascarador(politica_mascara)
         return {
             "anonymized_text": PresidioEngine._aplicar_mascaras(text, spans, mascarador),

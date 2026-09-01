@@ -127,6 +127,11 @@ function Casca() {
   /** Guarda o lote no cofre, contando o que falhou em vez de silenciar. */
   /** Caminho do arquivo → id no cofre, para o que foi guardado nesta sessão. */
   const idsNoCofre = useRef(new Map<string, string>());
+  /* A gravação em andamento. Rejeitar uma detecção precisa esperá-la: a
+     revisão abre antes de o cofre responder, e um clique rápido não achava id
+     nenhum — a tela ficava limpa e a gravação pendente terminava guardando a
+     versão com o falso positivo. */
+  const gravacaoPendente = useRef<Promise<unknown> | null>(null);
 
   const guardarNoCofre = useCallback(
     async (arquivos: ProcessedFile[]) => {
@@ -206,7 +211,7 @@ function Casca() {
     /* Três caminhos: cofre ligado guarda direto; nunca perguntado levanta o
        consentimento; recusado antes não repete a pergunta a cada documento. */
     if (prefs.cofreLigado) {
-      guardarNoCofre(resultado.processados);
+      gravacaoPendente.current = guardarNoCofre(resultado.processados);
     } else if (!prefs.cofrePerguntado && biblioteca.disponivel) {
       setAguardandoConsentimento(resultado.processados);
     }
@@ -312,6 +317,7 @@ function Casca() {
            qualquer revisão. Sem regravar aqui, a lista ficaria limpa na tela e
            o cofre guardaria a versão com o falso positivo — e é do cofre que a
            conversa lê. */
+        await gravacaoPendente.current;
         const idNoCofre =
           estado.revisao?.idNoCofre ?? idsNoCofre.current.get(arquivo.originalPath);
         const noCofre = idNoCofre
@@ -473,7 +479,7 @@ function Casca() {
           definirPref("cofreLigado", true);
           definirPref("cofrePerguntado", true);
           setAguardandoConsentimento(null);
-          if (arquivos) guardarNoCofre(arquivos);
+          if (arquivos) gravacaoPendente.current = guardarNoCofre(arquivos);
         }}
         aoRecusar={() => {
           definirPref("cofrePerguntado", true);

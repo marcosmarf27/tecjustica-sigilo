@@ -27,11 +27,7 @@
    arremate fechar com um critério e a trava medir com outro vira bloqueio numa
    ponta sem conserto na outra. `trava.ts` também é puro, então nada de
    `electron` entra por esta porta. */
-import {
-  MINIMO_VERIFICAVEL,
-  ehLetraOuDigito,
-  pesoVerificavel,
-} from "./trava";
+import { MINIMO_VERIFICAVEL, ehFronteira, pesoVerificavel } from "./trava";
 
 /** Uma ocorrência detectada, como o backend devolve em `entities_found`. */
 export interface Ocorrencia {
@@ -228,8 +224,8 @@ export function incorporar(
   /* Numeração local do documento, para saber de qual rótulo local estamos
      falando; e a tradução dele para o rótulo global. */
   const contagemLocal = new Map<string, Map<string, number>>();
-  const traducao = new Map<string, string>();
   const esperados: string[] = [];
+  const locais: { rotuloLocal: string; oc: Ocorrencia }[] = [];
 
   for (const oc of ordenadas) {
     const rotulo = rotuloDe(oc.type);
@@ -249,12 +245,22 @@ export function incorporar(
 
     const rotuloLocal = `[${rotulo}_${local}]`;
     esperados.push(rotuloLocal);
+    locais.push({ rotuloLocal, oc });
+  }
+
+  /* Conferir ANTES de tocar no mapa: um documento recusado não pode deixar
+     rótulos reservados para trás. Deixava — e a peça seguinte, válida, nascia
+     com [PESSOA_2] para a sua primeira pessoa, sem [PESSOA_1] em lugar nenhum
+     do que sai. Não vazava nada; numerava errado, que é o defeito que este
+     módulo existe para não ter. */
+  conferir(textoAnonimizado, esperados);
+
+  const traducao = new Map<string, string>();
+  for (const { rotuloLocal, oc } of locais) {
     if (!traducao.has(rotuloLocal)) {
       traducao.set(rotuloLocal, mapa.rotularValor(oc.type, oc.text));
     }
   }
-
-  conferir(textoAnonimizado, esperados);
   return traduzir(textoAnonimizado, traducao);
 }
 
@@ -382,8 +388,8 @@ function cabe(
   reservado: Uint8Array,
   rotulos: [number, number][]
 ): boolean {
-  if (ehLetraOuDigito(alvo.texto[de - 1])) return false;
-  if (ehLetraOuDigito(alvo.texto[ate])) return false;
+  if (!ehFronteira(alvo.texto[de - 1], chave[0])) return false;
+  if (!ehFronteira(alvo.texto[ate], chave[chave.length - 1])) return false;
   for (let k = de; k < ate; k++) if (reservado[k]) return false;
 
   const inicioReal = alvo.inicio[de];
@@ -433,6 +439,14 @@ function normalizarComIndice(texto: string): TextoNormalizado {
         .normalize("NFD")
         .replace(/\p{Mn}/gu, "")
         .toLowerCase();
+      if (norm.length === 0) {
+        /* Caractere que a normalização apaga inteiro — uma marca combinante
+           solta, como o acento de "Jose\u0301" escrito em forma decomposta.
+           Ele pertence ao caractere anterior: sem estender o término, o
+           recorte parava antes do acento e a saída era "[PESSOA_1]\u0301",
+           com o acento pousado sobre o rótulo. */
+        if (termino.length > 0) termino[termino.length - 1] = fim;
+      }
       for (const c of norm) {
         chars.push(c);
         inicio.push(i);

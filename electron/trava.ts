@@ -75,6 +75,30 @@ export function ehLetraOuDigito(c: string | undefined): boolean {
   return c !== undefined && /[\p{L}\p{N}]/u.test(c);
 }
 
+function ehDigito(c: string | undefined): boolean {
+  return c !== undefined && /\p{N}/u.test(c);
+}
+
+/**
+ * Há fronteira de palavra entre o vizinho e a borda do valor?
+ *
+ * Fronteira é troca de classe, não só ausência de letra. "CPF111.444.777-35"
+ * — o OCR cola o rótulo no número o tempo todo — tem fronteira entre o F e o
+ * 1, porque letra e dígito são classes diferentes. A regra antiga exigia
+ * não-alfanumérico dos dois lados e deixava esse CPF passar pelas DUAS
+ * barreiras, arremate e trava, já que as duas usam a mesma regra (é por isso
+ * que ela mora aqui e é importada lá). "Fernanda" continua não contendo "Ana":
+ * letra colada em letra não é fronteira.
+ */
+export function ehFronteira(
+  vizinho: string | undefined,
+  borda: string | undefined
+): boolean {
+  if (!ehLetraOuDigito(vizinho)) return true;
+  if (!ehLetraOuDigito(borda)) return true;
+  return ehDigito(vizinho) !== ehDigito(borda);
+}
+
 /** O quanto de um valor conta para o mínimo: só letra e dígito. */
 export function pesoVerificavel(valor: string): number {
   return valor.replace(/[^\p{L}\p{N}]/gu, "").length;
@@ -105,8 +129,8 @@ export function verificarSaida(
       const antes = alvo[de - 1];
       const depois = alvo[ate];
       if (
-        !ehLetraOuDigito(antes) &&
-        !ehLetraOuDigito(depois) &&
+        ehFronteira(antes, agulha[0]) &&
+        ehFronteira(depois, agulha[agulha.length - 1]) &&
         !dentroDeAlguma(de, ate, trechosIsentos)
       ) {
         throw new VazamentoBloqueadoError(tipo, de);
@@ -177,6 +201,27 @@ export function carimbar(
   isentas: string[] = []
 ): CorpoVerificado {
   const json = JSON.stringify(corpo);
-  verificarSaida(json, proibidos, isentas);
+  verificarSaida(
+    json,
+    proibidos.map((p) => ({ ...p, valor: escaparComoJson(p.valor) })),
+    isentas.map(escaparComoJson)
+  );
   return { json } as unknown as CorpoVerificado;
+}
+
+/**
+ * O valor do jeito que ele aparece DENTRO do JSON.
+ *
+ * O corpo verificado é o serializado, e a serialização reescreve: quebra de
+ * linha vira `\n` (dois caracteres), aspas viram `\"`, barra vira `\\`. Um
+ * valor procurado na forma crua não casa com a forma escrita. Dois efeitos, um
+ * em cada direção: um proibido com aspas ou barra (nome entre aspas, caminho
+ * de arquivo) atravessava a trava; e a instrução do sistema, que tem
+ * parágrafos, **nunca** era localizada como região isenta — a isenção passava
+ * no teste, que usava uma instrução de uma linha, e não no aplicativo.
+ * Descoberto em revisão em 01/09/2026, no mesmo dia em que a isenção foi
+ * escrita. O teste agora usa uma instrução com quebras.
+ */
+function escaparComoJson(valor: string): string {
+  return JSON.stringify(valor).slice(1, -1);
 }

@@ -333,3 +333,21 @@ def test_rota_remascarar_recusa_lista_incoerente():
     )
 
     assert resposta.status_code == 400
+
+def test_remascarar_recusa_ocorrencia_cujo_texto_nao_bate_com_o_span():
+    """
+    Geometria válida apontando para o lugar errado: o span cabe no texto e não
+    se sobrepõe a nada, mas o `text` declarado não é o que está ali. Aceitar
+    mascararia "xx" e deixaria "ANA LIMA" em claro num documento que se chama
+    anonimizado. Achado em revisão em 01/09/2026.
+    """
+    texto = "ANA LIMA xx"
+    errada = [{"type": "PERSON", "text": "ANA LIMA", "start": 9, "end": 11, "score": 0.9}]
+    with pytest.raises(ValueError):
+        PresidioEngine.remascarar(texto, errada)
+
+    # E a mensagem não ecoa o valor: erro que repete o dado é vazamento.
+    try:
+        PresidioEngine.remascarar(texto, errada)
+    except ValueError as erro:
+        assert "ANA LIMA" not in str(erro)
