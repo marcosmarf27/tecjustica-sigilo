@@ -90,13 +90,13 @@ export class BarreiraDeErro extends Component<Props, Estado> {
           <div className="mt-4 flex gap-2">
             <button
               onClick={this.copiar}
-              className="min-h-6 rounded-lg border border-border-subtle px-3 py-1.5 font-mono text-2xs tracking-wide text-text uppercase hover:bg-surface-hover"
+              className="min-h-9 rounded-md border border-border bg-surface px-3.5 py-2 font-mono text-sm font-medium text-text hover:bg-surface-hover"
             >
               Copiar o erro
             </button>
             <button
               onClick={() => window.location.reload()}
-              className="min-h-6 rounded-lg bg-accent px-3 py-1.5 font-mono text-2xs tracking-wide text-on-accent uppercase"
+              className="min-h-9 rounded-md bg-accent px-3.5 py-2 font-mono text-sm font-medium text-on-accent hover:bg-accent-hover"
             >
               Recarregar
             </button>

@@ -196,16 +196,7 @@ export function Revisao({
                 <button
                   onClick={() => irParaOcorrencia(indiceGlobal)}
                   className="min-w-0 flex-1 text-left"
-                >
-                  <Selo tom="entidade" cor={corDaEntidade(entidade.type)}>
-                    {rotuloDaEntidade(entidade.type)}
-                  </Selo>
-                  <span className="mt-1 block truncate font-mono text-xs text-text">
-                    {entidade.text}
-                  </span>
-                  <span className="font-mono text-2xs text-text-tertiary">
-                    confiança {Math.round(entidade.score * 100)}%
-                  </span>
+                ><span className="flex items-center gap-2">  <Selo tom="entidade" cor={corDaEntidade(entidade.type)}>    {rotuloDaEntidade(entidade.type)}  </Selo>  <span className="font-mono text-2xs text-text-tertiary">    {Math.round(entidade.score * 100)}%  </span></span><span className="mt-1 block truncate font-mono text-xs text-text">  {entidade.text}</span>
                 </button>
                 <Botao
                   tamanho="mini"
@@ -255,10 +246,10 @@ export function Revisao({
                     role="tab"
                     aria-selected={i === indiceSeguro}
                     onClick={() => setIndiceArquivo(i)}
-                    className={`shrink-0 rounded px-2.5 py-1 font-mono text-2xs whitespace-nowrap transition-colors ${
+                    className={`min-h-7 shrink-0 rounded-md px-3 py-1 font-mono text-xs whitespace-nowrap transition-colors duration-[120ms] ${
                       i === indiceSeguro
-                        ? "bg-accent text-on-accent"
-                        : "text-text-tertiary hover:text-text-secondary"
+                        ? "bg-surface text-text shadow-sm"
+                        : "text-text-tertiary hover:text-text"
                     }`}
                   >
                     {f.originalName}
@@ -356,10 +347,10 @@ export function Revisao({
           <button
             onClick={() => setTipoFiltrado(null)}
             aria-pressed={tipoFiltrado === null}
-            className={`min-h-6 rounded-full px-2.5 py-1 font-mono text-2xs transition-colors ${
+            className={`min-h-7 rounded-full border px-3 py-1 font-mono text-xs transition-colors duration-[120ms] ${
               tipoFiltrado === null
-                ? "bg-accent text-on-accent"
-                : "text-text-tertiary hover:text-text-secondary"
+                ? "border-border bg-surface text-text shadow-sm"
+                : "border-transparent text-text-secondary hover:bg-surface-hover hover:text-text"
             }`}
           >
             Todas
@@ -374,7 +365,7 @@ export function Revisao({
                   key={tipo}
                   onClick={() => setTipoFiltrado(ativo ? null : tipo)}
                   aria-pressed={ativo}
-                  className="inline-flex min-h-6 items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-2xs transition-colors"
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs transition-colors duration-[120ms]"
                   style={{
                     backgroundColor: ativo
                       ? cor

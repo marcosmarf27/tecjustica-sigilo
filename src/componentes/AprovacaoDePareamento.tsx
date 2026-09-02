@@ -112,8 +112,8 @@ export function AprovacaoDePareamento({
         de anonimização desta máquina.
       </p>
 
-      <p className="mt-3 font-mono text-2xs tracking-wide text-text-tertiary uppercase">
-        Confira se este código é o mesmo que o programa mostrou
+      <p className="mt-3 font-mono text-xs text-text-secondary">
+        Confira se este código é o mesmo que o programa mostrou:
       </p>
       <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.3em] text-accent tabular-nums">
         {pedido?.codigo}
