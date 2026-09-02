@@ -899,6 +899,50 @@ significam que a requisição atravessou a autenticação. As públicas são qua
 estão numa lista branca com o motivo escrito: `/health`, `/v1/info` e as duas
 de `/v1/parear`, que não podem exigir token porque são a única forma de obter um.
 
+## A repaginação de 02/09/2026
+
+O desenho está em [`docs/design-system.md`](docs/design-system.md). O que
+custou caro descobrir fica aqui.
+
+**A caixa alta era o "veio".** Cor, fonte e paleta continuam as mesmas da
+v1.3.0; o que fazia a interface parecer um painel de terminal era `uppercase
+tracking-wide` em todo botão, título e item de menu. Trocar por caixa baixa
+nas primitivas (`Botao`, `Cartao`, `GrupoSegmentado`, `Tabela`, `Campo`,
+`Dialogo`) rendeu mais do que qualquer mudança de layout, e custou uma hora.
+Caixa alta com entreletra ficou reservada a rótulo de seção com 12px ou
+menos. Antes de redesenhar uma tela, conferir se o problema não é só esse.
+
+**A moldura da janela é do aplicativo.** `titleBarStyle: "hidden"` +
+`titleBarOverlay` no `main.ts` tiram a barra do sistema e deixam só os três
+controles no canto; `BarraDeTitulo` (40px, `-webkit-app-region: drag`) faz o
+resto. Duas armadilhas: a cor da moldura é pintada pelo Electron, fora do
+CSS, então `aplicarTema` lê `--papel-fundo` e `--toner` do `:root` já pintado
+e manda por IPC (`barra-de-titulo`, que só aceita hexadecimal de seis
+dígitos) — sem isso, trocar o tema deixa a moldura na cor antiga; e os
+controles cobrem os últimos ~140px da faixa, então nada pode morar ali. O
+menu nativo ficou em `autoHideMenuBar` (volta pelo Alt), porque `View →
+Toggle DevTools` ainda serve em desenvolvimento.
+
+**A conversa morria ao trocar de tela.** `useConversa` fechava a conversa no
+desmonte, e `Conversa` desmonta a cada navegação — ir aos Ajustes trocar o
+modelo e voltar apagava pergunta e resposta. Com `Ctrl+1…5` isso ficou a um
+toque. Agora um registro de módulo guarda `{chave, id}` e a tela retoma por
+`chat.estado(id)` quando a seleção e o modelo são os mesmos; quem fecha é a
+próxima seleção diferente. O custo é a conversa ficar viva na memória do
+processo principal até isso acontecer — é texto, não é dado pessoal em claro,
+e o mapa de pseudônimos já vivia lá de qualquer jeito.
+
+**O modelo escolhido nos Ajustes não era usado.** `chat.abrir(ids, modelo?)`
+aceitava o parâmetro, o preload o repassava, e o renderer nunca o mandava: a
+escolha valia só para o teste da chave. Virou preferência (`modeloDaNuvem`)
+lida pela `Conversa`. Checar a ponta que consome, não só a que oferece.
+
+**Fotografar o app pelo PowerShell exige `SetProcessDPIAware()`** (já estava
+na memória) **e não pode depender do título da janela**: depois de
+`setTitleBarOverlay` o `MainWindowTitle` do processo veio vazio e o script
+parou de achar a janela. Procurar por `MainWindowHandle -ne 0` entre os
+processos `electron`. E `SendKeys` só digita no campo se o clique cair
+**dentro** do `<textarea>` — o preenchimento da moldura em volta não conta.
 ## Pendências
 
 - **A deny-list do app instalado mora dentro da pasta de instalação.** O
