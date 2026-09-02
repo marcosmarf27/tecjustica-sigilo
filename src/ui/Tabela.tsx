@@ -83,6 +83,11 @@ export function Tabela<L>({
               onKeyDown={
                 aoAbrir
                   ? (e) => {
+                      /* Só quando a LINHA tem o foco. Enter ou Espaço num
+                         controle de dentro dela (o marcador, "Abrir",
+                         "Apagar") sobe até aqui, e sem esta guarda marcar
+                         um documento pelo teclado também o abria. */
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         aoAbrir(linha);

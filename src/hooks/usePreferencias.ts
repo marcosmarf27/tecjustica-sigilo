@@ -124,6 +124,14 @@ export function usePreferencias() {
   // O tema é o único que precisa alcançar o DOM fora do React.
   useEffect(() => {
     aplicarTema(prefs.tema);
+    if (prefs.tema !== "sistema") return;
+    /* "Seguir o sistema" com o app aberto: o CSS acompanha sozinho pelo
+       `@media`, mas a moldura da janela é pintada fora do CSS e precisa ser
+       avisada de novo quando o Windows troca de tema. */
+    const midia = window.matchMedia("(prefers-color-scheme: dark)");
+    const aoMudar = () => aplicarTema("sistema");
+    midia.addEventListener("change", aoMudar);
+    return () => midia.removeEventListener("change", aoMudar);
   }, [prefs.tema]);
 
   useEffect(() => {

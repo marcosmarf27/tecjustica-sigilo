@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import { Botao } from "./Botao";
 
@@ -43,6 +43,9 @@ export function Dialogo({
   largo = false,
 }: DialogoProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  /* Um id por instância: vários diálogos convivem no DOM fechados, e o mesmo
+     `aria-labelledby` em todos deixava a referência ambígua. */
+  const idTitulo = useId();
 
   useEffect(() => {
     const el = ref.current;
@@ -81,11 +84,11 @@ export function Dialogo({
         "bg-surface p-0 text-text shadow-lg",
         "backdrop:bg-[rgb(22_24_29/0.55)]",
       ].join(" ")}
-      aria-labelledby="titulo-dialogo"
+      aria-labelledby={idTitulo}
     >
       <div className="border-b border-border-subtle px-5 py-3.5">
         <h2
-          id="titulo-dialogo"
+          id={idTitulo}
           className="font-mono text-sm font-semibold text-text"
         >
           {titulo}

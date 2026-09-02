@@ -23,13 +23,29 @@ export function EscolhaDePolitica({
   aoMudar,
   horizontal = false,
 }: EscolhaDePoliticaProps) {
+  /* Padrão de radiogroup: Tab entra uma vez, as setas trocam a opção e levam
+     o foco junto. */
+  const aoTeclar = (e: React.KeyboardEvent<HTMLButtonElement>, indice: number) => {
+    const passo =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (passo === 0) return;
+    e.preventDefault();
+    const proximo = (indice + passo + POLITICAS_MASCARA.length) % POLITICAS_MASCARA.length;
+    aoMudar(POLITICAS_MASCARA[proximo].id);
+    (e.currentTarget.parentElement?.children[proximo] as HTMLElement | undefined)?.focus();
+  };
+
   return (
     <div
       role="radiogroup"
       aria-label="Como substituir o dado encontrado"
       className={horizontal ? "grid grid-cols-3 gap-2" : "space-y-1"}
     >
-      {POLITICAS_MASCARA.map((opcao) => {
+      {POLITICAS_MASCARA.map((opcao, indice) => {
         const ativa = opcao.id === valor;
         return (
           <button
@@ -37,6 +53,8 @@ export function EscolhaDePolitica({
             type="button"
             role="radio"
             aria-checked={ativa}
+            tabIndex={ativa ? 0 : -1}
+            onKeyDown={(e) => aoTeclar(e, indice)}
             onClick={() => aoMudar(opcao.id)}
             className={[
               "w-full rounded-lg border p-3 text-left transition-colors duration-[120ms]",

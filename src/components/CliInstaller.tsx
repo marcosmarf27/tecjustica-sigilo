@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Botao, Cartao, LinhaDeAjuste, Selo } from "../ui";
 
@@ -30,14 +30,21 @@ export function CliInstaller({ showToast }: Props) {
 
   const api = window.electronAPI?.cli;
 
+  /* `showToast` chega recriada a cada render do pai. Se ela fosse dependência
+     de `refresh`, um status que falha mostraria o aviso, o aviso re-renderizaria
+     o pai, e o efeito abaixo consultaria o status de novo — em ciclo enquanto
+     o IPC falhasse. A referência quebra o laço sem perder a função atual. */
+  const avisar = useRef(showToast);
+  avisar.current = showToast;
+
   const refresh = useCallback(async () => {
     if (!api) return;
     try {
       setStatus(await api.status());
     } catch (err) {
-      showToast(`Erro lendo status: ${err}`, "error");
+      avisar.current(`Erro lendo status: ${err}`, "error");
     }
-  }, [api, showToast]);
+  }, [api]);
 
   useEffect(() => {
     refresh();

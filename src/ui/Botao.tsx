@@ -72,6 +72,10 @@ export function Botao({
   children,
   className = "",
   disabled,
+  /* `button`, não o `submit` que o HTML assume dentro de um formulário: um
+     "Cancelar" ao lado de "Guardar" submetia o formulário que devia
+     descartar. Quem envia diz `type="submit"` de propósito. */
+  type = "button",
   ...resto
 }: BotaoProps) {
   const glifo = icone ? (
@@ -91,6 +95,7 @@ export function Botao({
         className,
       ].join(" ")}
       disabled={disabled}
+      type={type}
       {...resto}
     >
       {!iconeAoFim && glifo}

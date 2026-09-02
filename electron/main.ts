@@ -665,7 +665,8 @@ ipcMain.handle(
   "barra-de-titulo",
   (_evento, cores: { fundo?: unknown; simbolo?: unknown }) => {
     const hex = /^#[0-9a-f]{6}$/i;
-    if (!mainWindow || typeof cores?.fundo !== "string" || typeof cores?.simbolo !== "string") return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (typeof cores?.fundo !== "string" || typeof cores?.simbolo !== "string") return;
     if (!hex.test(cores.fundo) || !hex.test(cores.simbolo)) return;
     mainWindow.setTitleBarOverlay({
       color: cores.fundo,

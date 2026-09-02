@@ -51,34 +51,54 @@ export function useConversa(ids: string[] | null, modelo?: string | null) {
     }
 
     let cancelado = false;
-    setErro(null);
     const chave = chaveDe(ids, modelo);
+    const retomavel = viva !== null && viva.chave === chave;
 
-    /* Mesma seleção de antes: retoma em vez de reabrir. Se o processo
-       principal não a conhece mais (o app reiniciou), cai para abrir. */
-    const retomar = viva && viva.chave === chave ? api.estado(viva.id) : Promise.resolve(null);
-
+    /* Seleção nova: a tela esvazia antes de abrir. Sem isso, uma abertura que
+       falha deixava os turnos da conversa anterior desenhados sobre um id que
+       já não existia — campo habilitado, pergunta indo para lugar nenhum. */
+    if (!retomavel) setEstado(null);
+    setErro(null);
     setAbrindo(true);
-    retomar
-      .catch(() => null)
-      .then((existente) => {
-        if (existente) return existente;
+
+    (async () => {
+      let aberta: EstadoDaConversa | null = null;
+
+      /* Mesma seleção de antes: retoma em vez de reabrir. Se o processo
+         principal não a conhece mais (o app reiniciou), cai para abrir. */
+      if (retomavel && viva) {
+        aberta = await api.estado(viva.id).catch(() => null);
+        /* Cada `await` é um ponto em que a seleção pode ter mudado por baixo.
+           Continuar depois de cancelado fecharia a conversa de outra
+           seleção — a que a tela mostra agora. */
+        if (cancelado) return;
+      }
+
+      if (!aberta) {
         if (viva) {
-          void api.fechar(viva.id);
+          if (viva.chave !== chave) void api.fechar(viva.id);
           viva = null;
         }
-        return api.abrir(ids, modelo ?? undefined);
+        aberta = await api.abrir(ids, modelo ?? undefined);
+        if (cancelado) {
+          /* Aberta tarde demais: já existe outra seleção (ou a tela sumiu).
+             Fechar agora é o que impede a conversa órfã no processo principal
+             — inclusive na dupla montagem do StrictMode em desenvolvimento. */
+          void api.fechar(aberta.id);
+          return;
+        }
+      }
+
+      viva = { chave, id: aberta.id };
+      idRef.current = aberta.id;
+      setEstado(aberta);
+    })()
+      .catch((e: unknown) => {
+        if (!cancelado) setErro(e instanceof Error ? e.message : String(e));
       })
-      .then((aberta) => {
-        if (cancelado) return;
-        viva = { chave, id: aberta.id };
-        idRef.current = aberta.id;
-        setEstado(aberta);
-      })
-      .catch((e: unknown) =>
-        setErro(e instanceof Error ? e.message : String(e))
-      )
-      .finally(() => !cancelado && setAbrindo(false));
+      .finally(() => {
+        if (!cancelado) setAbrindo(false);
+      });
 
     return () => {
       cancelado = true;
@@ -106,7 +126,10 @@ export function useConversa(ids: string[] | null, modelo?: string | null) {
   const perguntar = useCallback(async (pergunta: string) => {
     const api = window.electronAPI?.chat;
     const id = idRef.current;
-    if (!api || !id) return;
+    if (!api || !id) {
+      setErro("a conversa não está aberta; escolha os documentos de novo");
+      return;
+    }
 
     setErro(null);
     try {

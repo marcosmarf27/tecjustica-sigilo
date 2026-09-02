@@ -35,7 +35,7 @@ export function GrupoSegmentado<T extends string>({
   rotulo,
   className = "",
 }: GrupoSegmentadoProps<T>) {
-  const aoTeclar = (evento: React.KeyboardEvent, indice: number) => {
+  const aoTeclar = (evento: React.KeyboardEvent<HTMLButtonElement>, indice: number) => {
     const passo =
       evento.key === "ArrowRight" || evento.key === "ArrowDown"
         ? 1
@@ -47,6 +47,10 @@ export function GrupoSegmentado<T extends string>({
     // Circular: da última volta para a primeira, como manda o padrão.
     const proximo = (indice + passo + opcoes.length) % opcoes.length;
     onChange(opcoes[proximo].valor);
+    /* O foco acompanha a seleção: o item que acabou de ficar ativo é o único
+       com `tabIndex` 0, e sem isto o foco ficava num botão que já saiu da
+       ordem de Tab. */
+    (evento.currentTarget.parentElement?.children[proximo] as HTMLElement | undefined)?.focus();
   };
 
   return (

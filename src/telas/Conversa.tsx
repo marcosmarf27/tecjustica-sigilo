@@ -183,7 +183,7 @@ export function Conversa({
 
   const semDocumentos = ids === null || ids.length === 0;
   const bloqueada = estado?.comprometida ?? false;
-  const podeEnviar = temChave && !semDocumentos && !bloqueada && !abrindo;
+  const podeEnviar = temChave && !semDocumentos && !bloqueada && !abrindo && estado !== null;
   const avisos = estado?.avisos ?? [];
   const graves = avisos.filter((a) => a.grave);
   const leves = avisos.filter((a) => !a.grave);
