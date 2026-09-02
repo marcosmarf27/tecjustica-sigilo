@@ -175,9 +175,7 @@ export function Revisao({
   const painelOcorrencias = (
     <>
       <div className="border-b border-border-subtle px-4 py-3">
-        <h2 className="font-mono text-2xs font-semibold tracking-wide text-text uppercase">
-          O que foi encontrado
-        </h2>
+        <h2 className="font-mono text-sm font-semibold text-text">O que foi encontrado</h2>
         <p className="mt-1 text-xs leading-normal text-text-tertiary">
           Confira cada item. O que não for dado pessoal pode ser liberado — e
           deixa de ser mascarado daqui em diante.
@@ -352,7 +350,7 @@ export function Revisao({
 
         {/* Filtro por tipo */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 font-mono text-2xs tracking-wide text-text-tertiary uppercase">
+          <span className="mr-1 font-mono text-xs text-text-tertiary">
             {total} {total === 1 ? "ocorrência" : "ocorrências"}
           </span>
           <button

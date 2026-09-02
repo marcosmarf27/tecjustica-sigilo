@@ -1,9 +1,10 @@
 import { forwardRef } from "react";
 import type { ReactNode } from "react";
 import { useApp } from "../estado/AppEstado";
-import { ALL_ENTITIES, POLITICAS_MASCARA, corDaEntidade } from "../types";
-import type { EntityType } from "../types";
+import { ALL_ENTITIES, POLITICAS_MASCARA } from "../types";
 import { Popover, Botao, Icone } from "../ui";
+import { GradeDeEntidades } from "./GradeDeEntidades";
+import { EscolhaDePolitica } from "./EscolhaDePolitica";
 
 /**
  * A receita — a configuração escrita como uma frase.
@@ -50,83 +51,6 @@ const Trecho = forwardRef<
   );
 });
 
-/** Painel de entidades — a lógica de seleção do antigo `EntityConfig`. */
-function PainelEntidades({
-  selecionadas,
-  aoMudar,
-}: {
-  selecionadas: EntityType[];
-  aoMudar: (e: EntityType[]) => void;
-}) {
-  const todas = selecionadas.length === ALL_ENTITIES.length;
-
-  return (
-    <div className="w-[320px]">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-mono text-2xs tracking-wide text-text-tertiary uppercase">
-          {selecionadas.length} de {ALL_ENTITIES.length}
-        </span>
-        <Botao
-          tamanho="mini"
-          tipo="discreto"
-          onClick={() => aoMudar(todas ? [] : ALL_ENTITIES.map((e) => e.id))}
-        >
-          {todas ? "Nenhuma" : "Todas"}
-        </Botao>
-      </div>
-
-      <div className="grid grid-cols-2 gap-1">
-        {ALL_ENTITIES.map((entidade) => {
-          const ativa = selecionadas.includes(entidade.id);
-          const cor = corDaEntidade(entidade.id);
-          return (
-            <button
-              key={entidade.id}
-              type="button"
-              role="checkbox"
-              aria-checked={ativa}
-              onClick={() =>
-                aoMudar(
-                  ativa
-                    ? selecionadas.filter((e) => e !== entidade.id)
-                    : [...selecionadas, entidade.id]
-                )
-              }
-              className={[
-                "flex min-h-6 items-center gap-2 rounded px-2 py-1.5 text-left",
-                "font-mono text-2xs transition-colors duration-[120ms]",
-                ativa
-                  ? "text-text"
-                  : "text-text-tertiary hover:bg-surface-hover",
-              ].join(" ")}
-              style={
-                ativa
-                  ? { backgroundColor: `color-mix(in srgb, ${cor} 10%, transparent)` }
-                  : undefined
-              }
-            >
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: ativa ? cor : "var(--pauta-forte)",
-                }}
-              />
-              {entidade.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {selecionadas.length === 0 && (
-        <p role="alert" className="mt-2 text-2xs text-danger">
-          Sem nenhum tipo escolhido não há o que mascarar.
-        </p>
-      )}
-    </div>
-  );
-}
-
 export function Receita() {
   const { prefs, definirPref } = useApp();
 
@@ -165,10 +89,12 @@ export function Receita() {
         rotulo="Tipos de dado a mascarar"
         gatilho={(p) => <Trecho {...p}>{rotuloEntidades}</Trecho>}
       >
-        <PainelEntidades
-          selecionadas={prefs.entidades}
-          aoMudar={(e) => definirPref("entidades", e)}
-        />
+        <div className="w-[320px]">
+          <GradeDeEntidades
+            selecionadas={prefs.entidades}
+            aoMudar={(e) => definirPref("entidades", e)}
+          />
+        </div>
       </Popover>{" "}
       com{" "}
       <Popover
@@ -177,38 +103,11 @@ export function Receita() {
           <Trecho {...p}>{politica?.titulo.toLowerCase() ?? prefs.politica}</Trecho>
         )}
       >
-        <div className="w-[300px] space-y-1">
-          {POLITICAS_MASCARA.map((opcao) => {
-            const ativa = opcao.id === prefs.politica;
-            return (
-              <button
-                key={opcao.id}
-                type="button"
-                role="radio"
-                aria-checked={ativa}
-                onClick={() => definirPref("politica", opcao.id)}
-                className={[
-                  "w-full rounded-md border p-2.5 text-left transition-colors duration-[120ms]",
-                  ativa
-                    ? "border-accent bg-accent-muted"
-                    : "border-transparent hover:bg-surface-hover",
-                ].join(" ")}
-              >
-                <span className="font-mono text-2xs font-semibold tracking-wide text-text uppercase">
-                  {opcao.titulo}
-                </span>
-                {/* O exemplo concreto é o que faz a escolha ser informada: a
-                    diferença entre as três é a diferença entre um documento que
-                    pode circular e um que ainda permite reidentificar alguém. */}
-                <code className="mt-1 block rounded bg-surface-sunken px-1.5 py-1 font-mono text-2xs text-text-secondary">
-                  {opcao.exemplo}
-                </code>
-                <span className="mt-1 block text-2xs leading-normal text-text-tertiary">
-                  {opcao.descricao}
-                </span>
-              </button>
-            );
-          })}
+        <div className="w-[300px]">
+          <EscolhaDePolitica
+            valor={prefs.politica}
+            aoMudar={(p) => definirPref("politica", p)}
+          />
         </div>
       </Popover>
       , salvar em{" "}

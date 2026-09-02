@@ -21,8 +21,8 @@ export function MotorCarregando({ modoNlp }: { modoNlp: string }) {
           /* `animate-pulse-soft` em vez de rotação: um cadeado girando sugere
              um relógio, não um carregamento. */
         />
-        <h2 className="mt-4 font-mono text-sm font-semibold tracking-wide text-text uppercase">
-          Carregando motor de anonimização
+        <h2 className="mt-4 font-mono text-base font-semibold text-text">
+          Carregando o motor de anonimização
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-text-tertiary">
           {modoNlp === "transformer"
@@ -49,7 +49,7 @@ export function MotorComFalha({ aoTentarDeNovo }: { aoTentarDeNovo: () => void }
     <div className="flex flex-1 items-center justify-center px-8">
       <div className="animate-fade-in text-center" role="alert">
         <Icone nome="alerta" tamanho={28} className="mx-auto text-danger" />
-        <h2 className="mt-4 font-mono text-sm font-semibold tracking-wide text-danger uppercase">
+        <h2 className="mt-4 font-mono text-base font-semibold text-danger">
           O motor de anonimização não respondeu
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-text-tertiary">

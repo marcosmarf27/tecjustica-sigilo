@@ -24,11 +24,11 @@ interface SeloProps {
 }
 
 const POR_TOM: Record<Exclude<TomSelo, "entidade">, string> = {
-  neutro: "text-text-tertiary bg-surface-sunken",
+  neutro: "text-text-secondary bg-surface-sunken",
   acao: "text-accent bg-accent-muted",
-  perigo: "text-danger bg-transparent",
-  atencao: "text-warning bg-transparent",
-  deferido: "text-success bg-transparent",
+  perigo: "text-danger bg-danger/10",
+  atencao: "text-warning bg-warning/10",
+  deferido: "text-success bg-success/10",
 };
 
 export function Selo({
@@ -44,7 +44,7 @@ export function Selo({
     <span
       className={[
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5",
-        "font-mono text-2xs font-medium tracking-wide whitespace-nowrap",
+        "font-mono text-2xs font-medium whitespace-nowrap",
         porEntidade ? "" : POR_TOM[tom as Exclude<TomSelo, "entidade">],
         className,
       ].join(" ")}

@@ -43,12 +43,10 @@ export function Cartao({
         <header className="flex items-start justify-between gap-3 border-b border-border-subtle px-4 py-3">
           <div className="min-w-0">
             {titulo && (
-              <h2 className="font-mono text-xs font-semibold tracking-wide text-text uppercase">
-                {titulo}
-              </h2>
+              <h2 className="font-mono text-sm font-semibold text-text">{titulo}</h2>
             )}
             {descricao && (
-              <p className="mt-1 text-xs text-text-tertiary">{descricao}</p>
+              <p className="mt-0.5 text-xs leading-normal text-text-tertiary">{descricao}</p>
             )}
           </div>
           {acao && <div className="shrink-0">{acao}</div>}

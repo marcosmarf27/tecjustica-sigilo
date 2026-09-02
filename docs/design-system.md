@@ -21,6 +21,23 @@ Num revisor de tarjas, confundir o texto do aplicativo com o texto do documento
 conferir uma legenda. A distinção de fonte torna isso impossível de relance, sem
 depender de cor nem de borda.
 
+### A mono fala em caixa baixa
+
+Até 02/09/2026 todo botão, título de cartão, item do trilho e opção de grupo
+segmentado saía em **caixa alta com entreletra larga**. Era o que fazia a
+interface parecer um painel de terminal de dez anos atrás — mais do que
+qualquer cor ou fonte. A regra agora:
+
+| | caixa | onde |
+|---|---|---|
+| Botão, título, item de menu, opção | **baixa**, `text-sm`/`text-xs` | em toda parte |
+| Rótulo pequeno de seção ("eyebrow") | alta, `tracking-wide`, ≤ 12px | raro: sinalização, não fala |
+
+A voz continua sendo a mono; ela só parou de gritar. `Botao`, `Cartao`,
+`GrupoSegmentado`, `Tabela`, `Campo`, `Dialogo` e o trilho aplicam a regra por
+construção — uma tela nova não tem como voltar à caixa alta sem escrever a
+classe à mão.
+
 | Papel | Fonte | Por quê |
 |---|---|---|
 | Leitura | **Petrona Variable** | Serifa da Omnibus-Type, fundição latino-americana, desenhada para texto em português |
@@ -181,7 +198,52 @@ sendo carimbado. Todo o resto é 120 ms de hover e foco.
 ## Primitivas
 
 `src/ui/` — `Botao`, `Cartao`, `Campo`, `Selo`, `GrupoSegmentado`, `Tabela`,
-`Dialogo`, `Popover`, `Carimbo`, `Tarja`, `Marcacao`, `Icone`.
+`Dialogo`, `Popover`, `Carimbo`, `Tarja`, `Marcacao`, `Marcador`, `Icone`, e as
+que chegaram com a repaginação de 02/09/2026: `CabecalhoDeTela`,
+`LinhaDeAjuste`, `Interruptor`, `Tecla`, `Vazio`.
+
+### A casca
+
+A janela nasce sem a moldura do sistema (`titleBarStyle: "hidden"` +
+`titleBarOverlay` no `main.ts`): o Electron desenha só os três controles no
+canto e o aplicativo desenha o resto — `BarraDeTitulo`, uma faixa de 40px com
+a marca à esquerda e o nome da tela ao centro, arrastável por
+`-webkit-app-region: drag`. A cor da moldura acompanha o tema: `aplicarTema`
+lê `--papel-fundo` e `--toner` do `:root` já pintado e manda por
+`janela.pintarBarra`, de modo que a fonte da verdade continua sendo o
+`tokens.css`. O menu nativo (File, Edit, View…) fica escondido
+(`autoHideMenuBar`) e volta pelo Alt.
+
+O trilho tem 240px, itens em `text-sm` com ícone de 16px, o ativo marcado por
+folha sobre o trilho **e** por uma barra de 2px na cor de ação, e os atalhos
+`Ctrl+1…5` escritos como `Tecla` ao lado do rótulo, visíveis só no hover. O
+rodapé de estado do motor continua lá, como cartão — é segurança, não enfeite.
+
+### O padrão de tela
+
+Todo destino começa com `CabecalhoDeTela`: título em mono, uma linha de
+contexto (uma contagem, um estado — nunca um parágrafo) e as ações à direita.
+Antes cada tela inventava o seu, e mesmas coisas em posições diferentes
+ensinam que cada tela é um lugar novo.
+
+### Ajustes em duas colunas
+
+Índice fixo à esquerda (acompanha a rolagem por `IntersectionObserver`),
+seções à direita. Cada ajuste é uma `LinhaDeAjuste`: nome em mono, explicação
+em serifa, controle à direita — ou embaixo, com `empilhado`, quando precisa
+da largura. Booleano é `Interruptor`; três ou mais opções é `GrupoSegmentado`.
+"Ligado / Desligado" em grupo segmentado, que era o padrão, ocupava o espaço de
+três opções para dizer uma coisa binária.
+
+### A conversa
+
+Coluna centrada de `max-w-3xl`, campo preso ao rodapé numa moldura
+`rounded-2xl` que acende inteira no foco, os documentos escolhidos como chips
+dentro dela e o botão de enviar redondo, só ícone (`Botao circular`). A
+escolha dos documentos mora na própria tela (`SeletorDeDocumentos`): o que sai
+dali são ids do cofre, pela mesma ação que Documentos despacha. Cada resposta
+leva o selo "S" à esquerda para os turnos se distinguirem de relance; o turno
+do usuário é balão à direita.
 
 Antes desta camada, cada tela montava seus próprios botões e cartões com classes
 soltas — dois botões com a mesma função tinham alturas diferentes, e o mesmo SVG

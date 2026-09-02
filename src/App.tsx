@@ -4,7 +4,8 @@ import { useLote, mensagemDoLote } from "./hooks/useLote";
 import { useSalvamento } from "./hooks/useSalvamento";
 import { useBiblioteca } from "./hooks/useBiblioteca";
 import { ProvedorEstado, useApp } from "./estado/AppEstado";
-import { TrilhoNavegacao } from "./componentes/TrilhoNavegacao";
+import { DESTINOS, TrilhoNavegacao } from "./componentes/TrilhoNavegacao";
+import { BarraDeTitulo } from "./componentes/BarraDeTitulo";
 import { MotorCarregando, MotorComFalha } from "./componentes/PainelMotor";
 import { ConsentimentoCofre } from "./componentes/ConsentimentoCofre";
 import { AprovacaoDePareamento } from "./componentes/AprovacaoDePareamento";
@@ -356,6 +357,25 @@ function Casca() {
     if (estadoMotor === "pronto") recarregarClientes();
   }, [estadoMotor, recarregarClientes]);
 
+  /* Ctrl+1…5 navegam entre os destinos, na ordem do trilho. `keydown` na
+     janela, e não no trilho, porque o atalho tem de valer com o foco em
+     qualquer lugar — inclusive dentro do campo da conversa. */
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > DESTINOS.length) return;
+      e.preventDefault();
+      despachar({ tipo: "ir-para", destino: DESTINOS[n - 1].id });
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [despachar]);
+
+  const tituloDaTela = estado.revisao
+    ? "Revisão"
+    : (DESTINOS.find((d) => d.id === estado.destino)?.titulo ?? "");
+
   /* A revisão sobrepõe o destino; fora dela, o destino manda. Carregamento e
      erro do motor só bloqueiam a Mesa: Ajustes, Documentos e Conexões
      continuam úteis enquanto o motor sobe ou depois que ele falha. */
@@ -381,6 +401,11 @@ function Casca() {
             aoAnonimizar={anonimizar}
             aoCancelar={cancelar}
             motorPronto={estadoMotor === "pronto"}
+            recentes={[...biblioteca.itens]
+              .sort((a, b) => b.gravadoEm.localeCompare(a.gravadoEm))
+              .slice(0, 5)}
+            aoAbrirRecente={abrirDaBiblioteca}
+            aoVerTodos={() => despachar({ tipo: "ir-para", destino: "documentos" })}
           />
         );
       case "documentos":
@@ -393,17 +418,17 @@ function Casca() {
             aoAbrir={abrirDaBiblioteca}
             aoApagar={biblioteca.apagar}
             aoConversar={(ids) => despachar({ tipo: "abrir-conversa", ids })}
+            aoIrParaMesa={() => despachar({ tipo: "ir-para", destino: "mesa" })}
           />
         );
       case "conversa":
         return (
           <Conversa
             ids={estado.conversaAberta}
+            documentos={biblioteca.itens}
+            aoEscolherDocumentos={(ids) => despachar({ tipo: "abrir-conversa", ids })}
             temChave={temChave}
-            aoFechar={() => despachar({ tipo: "fechar-conversa" })}
-            aoIrParaDocumentos={() =>
-              despachar({ tipo: "ir-para", destino: "documentos" })
-            }
+            modelo={prefs.modeloDaNuvem}
             aoIrParaAjustes={() =>
               despachar({ tipo: "ir-para", destino: "ajustes" })
             }
@@ -440,7 +465,9 @@ function Casca() {
   };
 
   return (
-    <div className="flex h-screen bg-bg">
+    <div className="flex h-screen flex-col bg-bg">
+      <BarraDeTitulo titulo={tituloDaTela} />
+      <div className="flex min-h-0 flex-1">
       <TrilhoNavegacao
         destino={estado.destino}
         aoNavegar={(destino) => despachar({ tipo: "ir-para", destino })}
@@ -458,6 +485,7 @@ function Casca() {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {conteudo()}
       </main>
+      </div>
 
       {/* Na casca, não na tela de Conexões: quem roda `tecjustica-sigilo
           conectar` olha para a janela, que pode estar em qualquer destino. */}

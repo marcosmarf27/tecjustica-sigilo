@@ -81,16 +81,13 @@ export function ProcessingView({
           )}
         </div>
 
-        <h2
-          className="font-mono text-sm font-semibold tracking-wide text-text uppercase"
-          aria-live="polite"
-        >
+        <h2 className="font-mono text-base font-semibold text-text" aria-live="polite">
           {concluido ? "Finalizando…" : phase}
         </h2>
 
         <div className="mt-4 rounded-lg border border-border-subtle bg-surface px-4 py-3 text-left">
           {total > 0 && (
-            <div className="flex items-center justify-between font-mono text-2xs tracking-wide uppercase">
+            <div className="flex items-center justify-between font-mono text-xs">
               <span className="text-text-tertiary">Progresso</span>
               <span className="text-text tabular-nums">
                 {current} de {total}

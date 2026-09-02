@@ -17,7 +17,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const INTERVALO_MS = 120;
 
-export function useConversa(ids: string[] | null) {
+/**
+ * A conversa aberta sobrevive à navegação.
+ *
+ * Ela vive no processo principal; o que esta tela guarda é só o id. Antes, sair
+ * para os Ajustes (para trocar o modelo, por exemplo) e voltar fechava a
+ * conversa e abria outra do zero — a pergunta e a resposta sumiam. Com os
+ * atalhos Ctrl+1…5 isso acontecia a um toque de distância.
+ *
+ * Agora a conversa só é fechada quando a seleção de documentos (ou o modelo)
+ * muda, ou quando o aplicativo fecha. Mesma seleção, mesma conversa.
+ */
+let viva: { chave: string; id: string } | null = null;
+
+function chaveDe(ids: string[], modelo: string | null | undefined): string {
+  return `${modelo ?? ""}|${ids.join(",")}`;
+}
+
+export function useConversa(ids: string[] | null, modelo?: string | null) {
   const [estado, setEstado] = useState<EstadoDaConversa | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [abrindo, setAbrindo] = useState(false);
@@ -34,16 +51,27 @@ export function useConversa(ids: string[] | null) {
     }
 
     let cancelado = false;
-    setAbrindo(true);
     setErro(null);
+    const chave = chaveDe(ids, modelo);
 
-    api
-      .abrir(ids)
-      .then((aberta) => {
-        if (cancelado) {
-          void api.fechar(aberta.id);
-          return;
+    /* Mesma seleção de antes: retoma em vez de reabrir. Se o processo
+       principal não a conhece mais (o app reiniciou), cai para abrir. */
+    const retomar = viva && viva.chave === chave ? api.estado(viva.id) : Promise.resolve(null);
+
+    setAbrindo(true);
+    retomar
+      .catch(() => null)
+      .then((existente) => {
+        if (existente) return existente;
+        if (viva) {
+          void api.fechar(viva.id);
+          viva = null;
         }
+        return api.abrir(ids, modelo ?? undefined);
+      })
+      .then((aberta) => {
+        if (cancelado) return;
+        viva = { chave, id: aberta.id };
         idRef.current = aberta.id;
         setEstado(aberta);
       })
@@ -54,11 +82,11 @@ export function useConversa(ids: string[] | null) {
 
     return () => {
       cancelado = true;
-      const id = idRef.current;
+      /* Não fecha: a conversa fica viva no processo principal para quando
+         a tela voltar. Quem fecha é a próxima seleção diferente. */
       idRef.current = null;
-      if (id) void api.fechar(id);
     };
-  }, [ids]);
+  }, [ids, modelo]);
 
   /* Sonda só enquanto há resposta chegando. Parado, não custa nada. */
   useEffect(() => {

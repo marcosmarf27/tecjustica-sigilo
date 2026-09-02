@@ -40,6 +40,8 @@ export interface Preferencias {
   cofrePerguntado: boolean;
   /** Dias até o expurgo automático do cofre. */
   diasDeExpurgo: number;
+  /** Modelo da conversa, por id do catálogo. `null` = o padrão do catálogo. */
+  modeloDaNuvem: string | null;
 }
 
 const CHAVE = "tecjustica-sigilo-prefs";
@@ -54,6 +56,7 @@ export const PREFERENCIAS_PADRAO: Preferencias = {
   cofreLigado: false,
   cofrePerguntado: false,
   diasDeExpurgo: 30,
+  modeloDaNuvem: null,
 };
 
 /**
@@ -69,6 +72,19 @@ export function aplicarTema(tema: Tema) {
   const raiz = document.documentElement;
   if (tema === "sistema") raiz.removeAttribute("data-tema");
   else raiz.setAttribute("data-tema", tema);
+
+  /* A moldura da janela (barra de título e controles) é pintada pelo
+     Electron, fora do CSS. Depois que o tema entra, lê-se do próprio `:root`
+     as duas cores que ela precisa — assim a fonte da verdade continua sendo o
+     `tokens.css`, e "seguir o sistema" também chega à moldura. */
+  requestAnimationFrame(() => {
+    const estilo = getComputedStyle(raiz);
+    const fundo = estilo.getPropertyValue("--papel-fundo").trim();
+    const simbolo = estilo.getPropertyValue("--toner").trim();
+    if (fundo && simbolo) {
+      void window.electronAPI?.janela?.pintarBarra({ fundo, simbolo }).catch(() => {});
+    }
+  });
 }
 
 function ler(): Preferencias {

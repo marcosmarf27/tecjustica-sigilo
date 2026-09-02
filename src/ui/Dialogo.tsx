@@ -29,6 +29,8 @@ interface DialogoProps {
    * explícita — consentimento do cofre, aprovação de pareamento.
    */
   obrigatorio?: boolean;
+  /** Para conteúdo em lista — nomes de arquivo truncavam em 32rem. */
+  largo?: boolean;
 }
 
 export function Dialogo({
@@ -38,6 +40,7 @@ export function Dialogo({
   children,
   acoes,
   obrigatorio = false,
+  largo = false,
 }: DialogoProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -72,7 +75,9 @@ export function Dialogo({
         if (!obrigatorio && e.target === ref.current) aoFechar();
       }}
       className={[
-        "m-auto w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-border",
+        largo
+          ? "m-auto w-[min(44rem,calc(100vw-2rem))] rounded-xl border border-border-subtle"
+          : "m-auto w-[min(32rem,calc(100vw-2rem))] rounded-xl border border-border-subtle",
         "bg-surface p-0 text-text shadow-lg",
         "backdrop:bg-[rgb(22_24_29/0.55)]",
       ].join(" ")}
@@ -81,7 +86,7 @@ export function Dialogo({
       <div className="border-b border-border-subtle px-5 py-3.5">
         <h2
           id="titulo-dialogo"
-          className="font-mono text-xs font-semibold tracking-wide text-text uppercase"
+          className="font-mono text-sm font-semibold text-text"
         >
           {titulo}
         </h2>

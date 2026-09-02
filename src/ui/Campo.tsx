@@ -37,7 +37,7 @@ export function Campo({
     <div className={className}>
       <label
         htmlFor={id}
-        className="mb-1.5 block font-mono text-2xs font-medium tracking-wide text-text-secondary uppercase"
+        className="mb-1.5 block font-mono text-xs font-medium text-text-secondary"
       >
         {rotulo}
       </label>

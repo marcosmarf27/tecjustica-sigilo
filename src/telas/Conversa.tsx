@@ -1,15 +1,42 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useConversa } from "../hooks/useConversa";
 import { Markdown, type MapaDeNomes } from "../componentes/Markdown";
-import { Botao, Cartao, Dialogo, Selo } from "../ui";
+import { SeletorDeDocumentos } from "../componentes/SeletorDeDocumentos";
+import { Botao, Dialogo, Icone, Selo, Tecla } from "../ui";
+
+/**
+ * Conversar com os autos — a tela de chat.
+ *
+ * ## O que mudou de lugar
+ *
+ * Antes, conversar exigia ir a Documentos, marcar, clicar em "Conversar" e
+ * chegar aqui. A escolha dos documentos agora mora **nesta** tela: os nomes
+ * ficam em chips acima do campo de pergunta, e um botão abre a lista do cofre
+ * para trocar. O contrato com o processo principal não mudou — o que viaja
+ * continua sendo id do cofre, nunca texto.
+ *
+ * A explicação sobre o que sai da máquina saiu dos Ajustes e veio para a
+ * abertura da conversa, que é onde ela muda uma decisão: quem cola uma chave
+ * já decidiu usar o recurso; quem está prestes a enviar é quem precisa ler.
+ *
+ * ## O campo está sempre à vista
+ *
+ * Como em qualquer chat que a pessoa já use: a área de texto fica presa ao
+ * rodapé, a conversa rola por cima. O estado vazio ocupa o meio com o convite
+ * e as sugestões, e o campo já está lá embaixo, pronto.
+ */
 
 interface ConversaProps {
+  /** Os documentos escolhidos, por id do cofre. `null` = nenhum ainda. */
   ids: string[] | null;
-  aoFechar: () => void;
-  aoIrParaDocumentos: () => void;
+  /** Tudo o que há no cofre, para o seletor e para os nomes nos chips. */
+  documentos: EntradaDoCofre[];
+  aoEscolherDocumentos: (ids: string[]) => void;
   aoIrParaAjustes: () => void;
   temChave: boolean;
+  /** Modelo preferido, do catálogo. `null` = o padrão. */
+  modelo: string | null;
 }
 
 /**
@@ -73,11 +100,10 @@ function Copiar({ trechos }: { trechos: TrechoDaConversa[] }) {
          trancada. O que sai por Ctrl+C vai para lugar nenhum sabido — um
          e-mail, um documento — e ali o nome real não deveria estar. Copia-se o
          que de fato trafegou. */
-      title="copia com os pseudônimos, como trafegou"
+      title="Copia com os pseudônimos, como trafegou"
       className={[
         "font-mono text-2xs transition-opacity duration-[120ms]",
-        "focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2",
-        "focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "focus-visible:opacity-100",
         copiado
           ? "text-success opacity-100"
           : "text-text-tertiary opacity-0 hover:text-text-secondary group-hover:opacity-100",
@@ -88,21 +114,39 @@ function Copiar({ trechos }: { trechos: TrechoDaConversa[] }) {
   );
 }
 
+/** O selo do aplicativo, ao lado de cada resposta — para os turnos se distinguirem de relance. */
+function Selo_S() {
+  return (
+    <span
+      aria-hidden="true"
+      className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-accent font-mono text-xs font-bold text-on-accent"
+    >
+      S
+    </span>
+  );
+}
+
+const SUGESTOES = [
+  "Resuma este processo em dez linhas.",
+  "Quem são as partes e quem representa cada uma?",
+  "Que prazos e datas aparecem, e o que vence primeiro?",
+];
+
 export function Conversa({
   ids,
-  aoFechar,
-  aoIrParaDocumentos,
+  documentos,
+  aoEscolherDocumentos,
   aoIrParaAjustes,
   temChave,
+  modelo,
 }: ConversaProps) {
   const { estado, erro, abrindo, perguntar, cancelar, previsualizar, orcamento } =
-    useConversa(ids);
+    useConversa(ids, modelo);
   const [pergunta, setPergunta] = useState("");
   const [previa, setPrevia] = useState<string | null>(null);
+  const [escolhendo, setEscolhendo] = useState(false);
   const [avisosAbertos, setAvisosAbertos] = useState(false);
-  const [custo, setCusto] = useState<Awaited<
-    ReturnType<typeof orcamento>
-  > | null>(null);
+  const [custo, setCusto] = useState<Awaited<ReturnType<typeof orcamento>> | null>(null);
 
   const rolagem = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
@@ -132,106 +176,45 @@ export function Conversa({
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [pergunta]);
 
-  if (ids === null || ids.length === 0) {
-    return (
-      <div className="mx-auto max-w-2xl p-8">
-        <Cartao
-          titulo="Conversar com os autos"
-          descricao="Escolha documentos na biblioteca para começar."
-        >
-          <p className="font-serif text-sm leading-relaxed text-text-secondary">
-            A conversa acontece sobre o <strong>texto anonimizado</strong>: os
-            nomes, CPFs e endereços já foram substituídos por pseudônimos antes
-            de sair desta máquina. Os nomes reais aparecem de volta aqui na
-            tela, repostos localmente — o mapa que liga um ao outro nunca é
-            enviado.
-          </p>
-          <div className="mt-4">
-            <Botao tipo="primario" onClick={aoIrParaDocumentos}>
-              Escolher documentos
-            </Botao>
-          </div>
-        </Cartao>
-      </div>
-    );
-  }
+  const escolhidos = useMemo(() => {
+    const porId = new Map(documentos.map((d) => [d.id, d]));
+    return (ids ?? []).map((id) => porId.get(id)).filter((d): d is EntradaDoCofre => !!d);
+  }, [ids, documentos]);
 
-  if (!temChave) {
-    return (
-      <div className="mx-auto max-w-2xl p-8">
-        <Cartao
-          titulo="Falta a chave da API"
-          descricao="A conversa usa o OpenRouter, e ele precisa de uma credencial sua."
-        >
-          <p className="font-serif text-sm leading-relaxed text-text-secondary">
-            A chave fica cifrada nesta máquina, com a mesma proteção do cofre.
-            Vale usar uma chave dedicada, com limite de crédito no painel do
-            OpenRouter.
-          </p>
-          <div className="mt-4">
-            <Botao tipo="primario" onClick={aoIrParaAjustes}>
-              Ir para Ajustes
-            </Botao>
-          </div>
-        </Cartao>
-      </div>
-    );
-  }
-
+  const semDocumentos = ids === null || ids.length === 0;
   const bloqueada = estado?.comprometida ?? false;
+  const podeEnviar = temChave && !semDocumentos && !bloqueada && !abrindo;
   const avisos = estado?.avisos ?? [];
   const graves = avisos.filter((a) => a.grave);
   const leves = avisos.filter((a) => !a.grave);
   const vazia = (estado?.turnos.length ?? 0) === 0;
 
+  const enviar = () => {
+    const texto = pergunta.trim();
+    if (!texto || enviando || !podeEnviar) return;
+    setPergunta("");
+    coladoNoFim.current = true;
+    void perguntar(texto);
+  };
+
+  const custoPorPergunta =
+    custo && `~US$ ${custo.dolares.toFixed(3)} por pergunta · ~${custo.tokensEntrada.toLocaleString("pt-BR")} tokens`;
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-6 py-3">
-        <Botao tipo="discreto" tamanho="mini" icone="voltar" onClick={aoFechar}>
-          Documentos
-        </Botao>
-        <span className="min-w-0 truncate font-mono text-2xs text-text-tertiary">
-          {estado?.documentos.length ?? ids.length} documento
-          {(estado?.documentos.length ?? ids.length) > 1 ? "s" : ""}
-          {custo &&
-            ` · ~${custo.tokensEntrada.toLocaleString("pt-BR")} tokens · ~US$ ${custo.dolares.toFixed(3)} por pergunta`}
-          {estado && estado.gastoDolares > 0 &&
-            ` · gasto US$ ${estado.gastoDolares.toFixed(4)}`}
-        </span>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {estado?.provedor && (
-            <Selo tom={bloqueada ? "perigo" : "neutro"}>{estado.provedor}</Selo>
-          )}
-          <Botao
-            tipo="discreto"
-            tamanho="mini"
-            onClick={() => void previsualizar().then(setPrevia)}
-          >
-            Ver o que sai
-          </Botao>
-        </div>
-      </header>
-
       <div
         ref={rolagem}
         onScroll={(e) => {
           const el = e.currentTarget;
-          coladoNoFim.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          coladoNoFim.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
         className="flex-1 overflow-y-auto"
       >
-        <div className="mx-auto w-full max-w-3xl px-6 py-5">
-          {abrindo && (
-            <p className="font-mono text-xs text-text-tertiary">
-              Preparando os documentos…
-            </p>
-          )}
-
+        <div className="mx-auto w-full max-w-3xl px-6 py-6">
           {(erro || estado?.erro) && (
             <p
               role="alert"
-              className="mb-4 rounded-md border border-danger/40 bg-danger/5 px-3 py-2 font-serif text-sm text-danger"
+              className="mb-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-serif text-sm text-danger"
             >
               {erro ?? estado?.erro}
             </p>
@@ -240,7 +223,7 @@ export function Conversa({
           {graves.map((a, i) => (
             <p
               key={i}
-              className="mb-3 rounded-md border border-danger/40 bg-danger/5 px-3 py-2 font-serif text-sm text-danger"
+              className="mb-3 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-serif text-sm text-danger"
             >
               <strong>Atenção: </strong>
               {a.texto}
@@ -263,10 +246,7 @@ export function Conversa({
               {avisosAbertos && (
                 <ul className="mt-2 space-y-1.5 border-l-2 border-border-subtle pl-3">
                   {leves.map((a, i) => (
-                    <li
-                      key={i}
-                      className="font-serif text-sm leading-relaxed text-text-secondary"
-                    >
+                    <li key={i} className="font-serif text-sm leading-relaxed text-text-secondary">
                       {a.texto}
                     </li>
                   ))}
@@ -276,36 +256,95 @@ export function Conversa({
           )}
 
           {vazia && !abrindo && !erro && (
-            <div className="py-10">
-              <p className="font-serif text-base leading-relaxed text-text-secondary">
-                {estado?.documentos.length === 1
-                  ? "Um documento carregado."
-                  : `${estado?.documentos.length ?? 0} documentos carregados, com um espaço de pseudônimos comum.`}{" "}
-                Pergunte o que quiser sobre eles.
-              </p>
-              <ul className="mt-4 space-y-1.5">
-                {[
-                  "Resuma este processo em dez linhas.",
-                  "Quem são as partes e quem representa cada uma?",
-                  "Que prazos e datas aparecem, e o que vence primeiro?",
-                ].map((s) => (
-                  <li key={s}>
+            <div className="flex min-h-[46vh] flex-col items-center justify-center py-10 text-center">
+              <span
+                aria-hidden="true"
+                className="grid size-12 place-items-center rounded-full bg-accent font-mono text-base font-bold text-on-accent"
+              >
+                S
+              </span>
+              <h1 className="mt-5 font-mono text-xl font-semibold tracking-tight text-text">
+                Conversar com os autos
+              </h1>
+
+              {!temChave ? (
+                <>
+                  <p className="mt-3 max-w-md font-serif text-sm leading-relaxed text-text-secondary">
+                    A conversa usa o OpenRouter e precisa de uma credencial sua, guardada cifrada
+                    nesta máquina. Sem ela, o aplicativo não fala com a internet.
+                  </p>
+                  <Botao tipo="primario" className="mt-5" onClick={aoIrParaAjustes}>
+                    Colar a chave nos Ajustes
+                  </Botao>
+                </>
+              ) : semDocumentos ? (
+                <>
+                  <p className="mt-3 max-w-md font-serif text-sm leading-relaxed text-text-secondary">
+                    Escolha peças do cofre. O que sai desta máquina é o{" "}
+                    <strong className="text-text">texto anonimizado</strong> — nomes, CPFs e
+                    endereços já substituídos por pseudônimos —, e só para modelos com{" "}
+                    <strong className="text-text">retenção zero</strong>, como a Resolução CNJ
+                    615/2025 exige. Os nomes reais voltam só aqui na tela.
+                  </p>
+                  <Botao
+                    tipo="primario"
+                    className="mt-5"
+                    icone="arquivar"
+                    onClick={() => setEscolhendo(true)}
+                    disabled={documentos.length === 0}
+                  >
+                    Escolher documentos
+                  </Botao>
+                  {documentos.length === 0 && (
+                    <p className="mt-3 font-mono text-xs text-text-tertiary">
+                      O cofre está vazio. Anonimize um documento e guarde-o para conversar.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="mt-3 max-w-md font-serif text-sm leading-relaxed text-text-secondary">
+                    {escolhidos.length === 1
+                      ? "Um documento carregado."
+                      : `${escolhidos.length} documentos carregados, com um espaço de pseudônimos comum.`}{" "}
+                    A anonimização mede <strong className="text-text">99,94% por ocorrência</strong>{" "}
+                    — alta, e não 100%.{" "}
                     <button
-                      onClick={() => {
-                        setPergunta(s);
-                        campo.current?.focus();
-                      }}
-                      className="text-left font-serif text-sm text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent"
+                      onClick={() => void previsualizar().then(setPrevia)}
+                      className="text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent"
                     >
-                      {s}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      Veja o que sai
+                    </button>{" "}
+                    antes de perguntar.
+                  </p>
+                  <ul className="mt-6 flex flex-wrap justify-center gap-2">
+                    {SUGESTOES.map((s) => (
+                      <li key={s}>
+                        <button
+                          onClick={() => {
+                            setPergunta(s);
+                            campo.current?.focus();
+                          }}
+                          className="rounded-full border border-border-subtle bg-surface px-3.5 py-1.5 font-serif text-sm text-text-secondary transition-colors duration-[120ms] hover:border-accent hover:text-text"
+                        >
+                          {s}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
 
-          <div className="space-y-6">
+          {abrindo && (
+            <p className="flex items-center gap-2 font-mono text-xs text-text-tertiary">
+              <span className="inline-block h-[1em] w-[0.45em] animate-pulse bg-accent" />
+              Preparando os documentos…
+            </p>
+          )}
+
+          <div className="space-y-7">
             {estado?.turnos.map((turno, i) => {
               const nomes = mapaDeNomes(turno.trechos);
               const texto = textoComRotulos(turno.trechos);
@@ -314,23 +353,17 @@ export function Conversa({
                 return (
                   <article key={i} className="group flex flex-col items-end">
                     {/* Sem `<p>` em volta: `Markdown` já emite blocos, e um
-                        `<div>` dentro de `<p>` é HTML inválido — o navegador
-                        fecha o parágrafo sozinho e o layout sai torto. */}
-                    <div className="max-w-[80%] rounded-lg rounded-br-sm bg-surface px-4 py-2.5">
+                        `<div>` dentro de `<p>` é HTML inválido. */}
+                    <div className="max-w-[80%] rounded-2xl rounded-br-md bg-surface-sunken px-4 py-2.5">
                       <Markdown texto={texto} nomes={nomes} />
                     </div>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex items-center gap-2 pr-1">
                       <Copiar trechos={turno.trechos} />
-                      <span className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">
-                        você
-                      </span>
                     </div>
                     {turno.trocas && turno.trocas.length > 0 && (
                       <p className="mt-1 max-w-[80%] text-right font-mono text-2xs leading-relaxed text-text-tertiary">
                         trocado antes de sair:{" "}
-                        {turno.trocas
-                          .map((t) => `"${t.valor}" → ${t.rotulo}`)
-                          .join(" · ")}
+                        {turno.trocas.map((t) => `"${t.valor}" → ${t.rotulo}`).join(" · ")}
                       </p>
                     )}
                   </article>
@@ -338,135 +371,187 @@ export function Conversa({
               }
 
               return (
-                <article key={i} className="group">
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <span className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">
-                      resposta
-                    </span>
-                    <Copiar trechos={turno.trechos} />
+                <article key={i} className="group flex gap-3">
+                  <Selo_S />
+                  <div className="min-w-0 flex-1">
+                    <Markdown texto={texto} nomes={nomes} />
+                    <div className="mt-1.5">
+                      <Copiar trechos={turno.trechos} />
+                    </div>
                   </div>
-                  <Markdown texto={texto} nomes={nomes} />
                 </article>
               );
             })}
 
             {/* A resposta chegando, e — antes dela — a prova de que está vindo. */}
             {enviando && (
-              <article>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">
-                    resposta
-                  </span>
-                  <span className="font-mono text-2xs tabular-nums text-text-tertiary">
-                    {estado && estado.parcial.length > 0
-                      ? `escrevendo · ${segundos}s`
-                      : `consultando ${estado?.modelo ?? "o modelo"} · ${segundos}s`}
-                  </span>
-                  <button
-                    onClick={cancelar}
-                    className="font-mono text-2xs text-text-tertiary underline underline-offset-2 hover:text-danger"
-                  >
-                    parar
-                  </button>
-                </div>
-                {estado && estado.parcial.length > 0 ? (
-                  <Markdown
-                    texto={textoComRotulos(estado.parcial)}
-                    nomes={mapaDeNomes(estado.parcial)}
-                    cursor
-                  />
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block h-[1em] w-[0.45em] animate-pulse bg-accent" />
-                    <span className="font-serif text-sm italic text-text-tertiary">
-                      lendo os documentos
+              <article className="flex gap-3">
+                <Selo_S />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="font-mono text-2xs tabular-nums text-text-tertiary">
+                      {estado && estado.parcial.length > 0
+                        ? `escrevendo · ${segundos}s`
+                        : `consultando ${estado?.modelo ?? "o modelo"} · ${segundos}s`}
                     </span>
+                    <button
+                      onClick={cancelar}
+                      className="font-mono text-2xs text-text-tertiary underline underline-offset-2 hover:text-danger"
+                    >
+                      parar
+                    </button>
                   </div>
-                )}
+                  {estado && estado.parcial.length > 0 ? (
+                    <Markdown
+                      texto={textoComRotulos(estado.parcial)}
+                      nomes={mapaDeNomes(estado.parcial)}
+                      cursor
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-[1em] w-[0.45em] animate-pulse bg-accent" />
+                      <span className="font-serif text-sm italic text-text-tertiary">
+                        lendo os documentos
+                      </span>
+                    </div>
+                  )}
+                </div>
               </article>
             )}
           </div>
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-border-subtle px-6 py-4">
+      <div className="shrink-0 px-6 pt-2 pb-5">
         <div className="mx-auto w-full max-w-3xl">
           {bloqueada && (
             <p className="mb-2 font-serif text-sm text-danger">
-              Esta conversa foi marcada como comprometida e não aceita novos
-              envios.
+              Esta conversa foi marcada como comprometida e não aceita novos envios.
             </p>
           )}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const texto = pergunta.trim();
-              if (!texto || enviando || bloqueada) return;
-              setPergunta("");
-              coladoNoFim.current = true;
-              void perguntar(texto);
-            }}
-            /* O botão vive dentro da moldura do campo, e a moldura inteira
-               acende no foco. Dois retângulos lado a lado faziam a área de
-               digitação parecer menor do que é. */
+
+          {/* O campo, os documentos e o botão vivem numa moldura só, que acende
+              inteira no foco: é o "compositor" que todo chat tem, e é onde a
+              pessoa olha primeiro. */}
+          <div
             className={[
-              "flex items-end gap-2 rounded-lg border bg-surface px-3 py-2",
-              "border-border-subtle transition-colors duration-[120ms]",
-              "focus-within:border-accent",
+              "rounded-2xl border bg-surface shadow-sm transition-[border-color,box-shadow] duration-[120ms]",
+              "border-border-subtle focus-within:border-accent focus-within:shadow-md",
               bloqueada ? "opacity-50" : "",
             ].join(" ")}
           >
-            <textarea
-              ref={campo}
-              value={pergunta}
-              onChange={(e) => setPergunta(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.currentTarget.form?.requestSubmit();
-                  e.preventDefault();
-                }
-              }}
-              rows={1}
-              disabled={bloqueada}
-              placeholder="Pergunte sobre os documentos…"
-              aria-label="Pergunta"
-              className="max-h-[200px] min-h-[24px] flex-1 resize-none bg-transparent py-1 font-serif text-sm leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none"
-            />
-            {enviando ? (
-              <Botao tipo="secundario" tamanho="mini" onClick={cancelar}>
-                Parar
-              </Botao>
-            ) : (
-              <Botao
-                tipo="primario"
-                tamanho="mini"
-                type="submit"
-                disabled={bloqueada || pergunta.trim() === ""}
+            <div className="flex flex-wrap items-center gap-1.5 px-3 pt-3">
+              {escolhidos.map((d) => (
+                <Selo key={d.id} tom="neutro" className="max-w-[16rem]">
+                  <Icone nome="documento" tamanho={11} />
+                  <span className="truncate">{d.nome}</span>
+                </Selo>
+              ))}
+              <button
+                type="button"
+                onClick={() => setEscolhendo(true)}
+                disabled={documentos.length === 0}
+                className="inline-flex min-h-6 items-center gap-1 rounded-full px-2 font-mono text-2xs text-accent transition-colors duration-[120ms] hover:bg-accent-muted disabled:opacity-40"
               >
-                Enviar
-              </Botao>
-            )}
-          </form>
-          <p className="mt-2 font-mono text-2xs text-text-tertiary">
-            Enter envia, Shift+Enter quebra linha. Nome ou CPF real que você
-            digitar é substituído pelo pseudônimo antes de sair — e a troca
-            aparece na mensagem.
-          </p>
-        </div>
-      </footer>
+                <Icone nome="mais" tamanho={11} />
+                {escolhidos.length === 0 ? "Escolher documentos" : "Trocar"}
+              </button>
+            </div>
 
-      <Dialogo
-        aberto={previa !== null}
-        aoFechar={() => setPrevia(null)}
-        titulo="O que sai desta máquina"
-      >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                enviar();
+              }}
+              className="flex items-end gap-2 px-3 pt-2 pb-3"
+            >
+              <textarea
+                ref={campo}
+                value={pergunta}
+                onChange={(e) => setPergunta(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    enviar();
+                  }
+                }}
+                rows={1}
+                disabled={!podeEnviar}
+                placeholder={
+                  !temChave
+                    ? "Cole a chave nos Ajustes para conversar"
+                    : semDocumentos
+                      ? "Escolha os documentos para começar"
+                      : "Pergunte sobre os documentos…"
+                }
+                aria-label="Pergunta"
+                className="max-h-[200px] min-h-[28px] flex-1 resize-none bg-transparent px-1 py-1 font-serif text-base leading-relaxed text-text placeholder:text-text-tertiary focus:outline-none disabled:cursor-not-allowed"
+              />
+              {enviando ? (
+                <Botao
+                  tipo="secundario"
+                  circular
+                  icone="fechar"
+                  aria-label="Parar a resposta"
+                  onClick={cancelar}
+                />
+              ) : (
+                <Botao
+                  tipo="primario"
+                  circular
+                  icone="enviar"
+                  type="submit"
+                  aria-label="Enviar"
+                  disabled={!podeEnviar || pergunta.trim() === ""}
+                />
+              )}
+            </form>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 font-mono text-2xs text-text-tertiary">
+            <span className="flex flex-wrap items-center gap-x-2">
+              {estado?.modelo && <span>{estado.modelo}</span>}
+              {estado?.provedor && (
+                <Selo tom={bloqueada ? "perigo" : "neutro"}>{estado.provedor}</Selo>
+              )}
+              {custoPorPergunta && <span>{custoPorPergunta}</span>}
+              {estado && estado.gastoDolares > 0 && (
+                <span>gasto US$ {estado.gastoDolares.toFixed(4)}</span>
+              )}
+              {!semDocumentos && (
+                <button
+                  onClick={() => void previsualizar().then(setPrevia)}
+                  className="underline underline-offset-2 hover:text-text-secondary"
+                >
+                  ver o que sai
+                </button>
+              )}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Tecla>Enter</Tecla> envia · <Tecla>Shift+Enter</Tecla> quebra linha
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <SeletorDeDocumentos
+        aberto={escolhendo}
+        documentos={documentos}
+        escolhidos={ids ?? []}
+        aoFechar={() => setEscolhendo(false)}
+        aoConfirmar={(novos) => {
+          setEscolhendo(false);
+          aoEscolherDocumentos(novos);
+        }}
+      />
+
+      <Dialogo aberto={previa !== null} aoFechar={() => setPrevia(null)} titulo="O que sai desta máquina">
         <p className="mb-3 font-serif text-sm text-text-secondary">
-          É este o conteúdo que seria enviado ao modelo. Os dados pessoais já
-          estão substituídos por pseudônimos. A anonimização mede{" "}
-          <strong>99,94% por ocorrência</strong> no gate do produto — alta, e não
-          100%.
+          É este o conteúdo que seria enviado ao modelo. Os dados pessoais já estão substituídos
+          por pseudônimos. A anonimização mede <strong>99,94% por ocorrência</strong> no gate do
+          produto — alta, e não 100%.
         </p>
-        <pre className="max-h-[50vh] overflow-auto rounded-md bg-surface p-3 font-mono text-2xs leading-relaxed text-text-secondary">
+        <pre className="max-h-[50vh] overflow-auto rounded-md bg-surface-sunken p-3 font-mono text-2xs leading-relaxed text-text-secondary">
           {previa}
         </pre>
       </Dialogo>

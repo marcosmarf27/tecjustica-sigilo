@@ -19,7 +19,7 @@ import { Icone, type NomeIcone } from "./Icone";
  */
 
 type TipoBotao = "primario" | "secundario" | "discreto" | "perigo";
-type TamanhoBotao = "mini" | "normal";
+type TamanhoBotao = "mini" | "normal" | "grande";
 
 interface BotaoProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tipo?: TipoBotao;
@@ -27,6 +27,8 @@ interface BotaoProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icone?: NomeIcone;
   /** Põe o ícone depois do texto — para "avançar", "abrir em…". */
   iconeAoFim?: boolean;
+  /** Só ícone, redondo — o "enviar" da conversa. Exige `aria-label`. */
+  circular?: boolean;
   children?: ReactNode;
 }
 
@@ -44,9 +46,21 @@ const POR_TIPO: Record<TipoBotao, string> = {
     "bg-transparent text-danger border border-danger hover:bg-danger hover:text-on-accent",
 };
 
+/* Caixa baixa, de propósito. Os botões saíam em CAIXA ALTA com entreletra
+   larga, e isso — mais do que qualquer cor — é o que fazia a interface parecer
+   um painel de terminal de dez anos atrás. A voz continua sendo a mono; ela só
+   parou de gritar. A caixa alta com entreletra ficou reservada aos rótulos
+   pequenos de seção (≤ 12px), onde é sinalização e não fala. */
 const POR_TAMANHO: Record<TamanhoBotao, string> = {
-  mini: "min-h-6 gap-1.5 px-2 py-1 text-2xs",
-  normal: "min-h-9 gap-2 px-3.5 py-2 text-xs",
+  mini: "min-h-7 gap-1.5 px-2.5 py-1 text-xs",
+  normal: "min-h-9 gap-2 px-3.5 py-2 text-sm",
+  grande: "min-h-11 gap-2 px-5 py-2.5 text-sm",
+};
+
+const CIRCULAR: Record<TamanhoBotao, string> = {
+  mini: "size-7 p-0",
+  normal: "size-9 p-0",
+  grande: "size-11 p-0",
 };
 
 export function Botao({
@@ -54,23 +68,26 @@ export function Botao({
   tamanho = "normal",
   icone,
   iconeAoFim = false,
+  circular = false,
   children,
   className = "",
   disabled,
   ...resto
 }: BotaoProps) {
   const glifo = icone ? (
-    <Icone nome={icone} tamanho={tamanho === "mini" ? 12 : 14} />
+    <Icone nome={icone} tamanho={tamanho === "mini" ? 13 : 15} />
   ) : null;
 
   return (
     <button
       className={[
-        "inline-flex shrink-0 items-center justify-center rounded-md font-mono font-medium",
-        "uppercase tracking-wide whitespace-nowrap transition-colors duration-[120ms]",
+        "inline-flex shrink-0 items-center justify-center font-mono font-medium",
+        "whitespace-nowrap transition-colors duration-[120ms]",
         "disabled:pointer-events-none disabled:opacity-40",
+        circular ? "rounded-full" : "rounded-md",
         POR_TIPO[tipo],
         POR_TAMANHO[tamanho],
+        circular ? CIRCULAR[tamanho] : "",
         className,
       ].join(" ")}
       disabled={disabled}

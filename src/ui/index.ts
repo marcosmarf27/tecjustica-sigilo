@@ -12,15 +12,20 @@
  */
 
 export { Botao } from "./Botao";
+export { CabecalhoDeTela } from "./CabecalhoDeTela";
 export { Cartao } from "./Cartao";
 export { Campo } from "./Campo";
 export { Carimbo } from "./Carimbo";
 export { Dialogo } from "./Dialogo";
 export { GrupoSegmentado } from "./GrupoSegmentado";
 export { Icone, type NomeIcone } from "./Icone";
+export { Interruptor } from "./Interruptor";
+export { LinhaDeAjuste } from "./LinhaDeAjuste";
 export { Marcacao } from "./Marcacao";
 export { Marcador } from "./Marcador";
 export { Popover } from "./Popover";
 export { Selo } from "./Selo";
 export { Tabela, type ColunaTabela } from "./Tabela";
 export { Tarja } from "./Tarja";
+export { Tecla } from "./Tecla";
+export { Vazio } from "./Vazio";

@@ -20,6 +20,11 @@
   <img src="assets/hero.jpg" alt="Anonimização de documentos jurídicos" width="100%" />
 </p>
 
+> A imagem acima é da interface anterior. A partir de 02/09/2026 o aplicativo
+> tem barra de título própria, trilho com atalhos, Ajustes em duas colunas e a
+> conversa com escolha de documentos na própria tela — o desenho está descrito
+> em [`docs/design-system.md`](docs/design-system.md).
+
 ## 💚 Grátis, livre e para todo mundo
 
 Este projeto é **open source sob licença MIT**. Você pode:

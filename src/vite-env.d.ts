@@ -87,6 +87,10 @@ interface ElectronAPI {
   getBackendPort: () => Promise<number>;
   /** Credencial da sessão; sem ela o backend recusa as requisições. */
   getBackendToken: () => Promise<string>;
+  /** Opcional porque fora do Electron não há barra de título para pintar. */
+  janela?: {
+    pintarBarra: (cores: { fundo: string; simbolo: string }) => Promise<void>;
+  };
   /** Caminho absoluto de um File — substitui o antigo File.path. */
   getPathForFile: (file: File) => string;
   readFile: (path: string) => Promise<string>;

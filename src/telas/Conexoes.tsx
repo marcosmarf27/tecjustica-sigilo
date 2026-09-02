@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CliInstaller } from "../components/CliInstaller";
-import { Botao, Cartao, Dialogo, Selo } from "../ui";
+import { Botao, CabecalhoDeTela, Cartao, Dialogo, Selo } from "../ui";
 import type { ClientePareado } from "../hooks/usePythonBackend";
 
 /**
@@ -60,38 +60,32 @@ export function Conexoes({
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-2xl space-y-5 px-8 py-8">
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="font-mono text-xl font-semibold tracking-tight text-text">
-            Conexões
-          </h1>
-
-          {/* O endereço da API, à vista.
-              Faltava, e a falta era grave: a porta é **dinâmica** (a primeira
-              livre a partir de 8123), então sem mostrá-la aqui nem o operador
-              nem quem for escrever uma extensão tem como descobrir onde o motor
-              está. Era a informação mais importante desta tela. */}
-          <div className="text-right">
-            <p className="flex items-center justify-end gap-2 font-mono text-2xs tracking-wide text-text-secondary uppercase">
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 rounded-full ${
-                  motorPronto ? "bg-success" : "bg-text-tertiary"
-                }`}
-              />
-              API local · {motorPronto ? "ligada" : "subindo"}
-            </p>
-            <button
-              onClick={() => {
-                navigator.clipboard?.writeText(enderecoApi);
-                avisar(`${enderecoApi} copiado.`);
-              }}
-              title="Copiar o endereço"
-              className="mt-1 rounded font-mono text-sm text-accent underline decoration-accent/40 decoration-2 underline-offset-4 hover:decoration-accent"
-            >
-              {enderecoApi}
-            </button>
-          </div>
-        </div>
+        {/* O endereço da API, à vista, no cabeçalho.
+            A porta é **dinâmica** (a primeira livre a partir de 8123), então
+            sem mostrá-la aqui nem o operador nem quem for escrever uma extensão
+            tem como descobrir onde o motor está. É a informação mais importante
+            desta tela. */}
+        <CabecalhoDeTela
+          titulo="Conexões"
+          subtitulo="Quem, além desta janela, alcança o motor desta máquina."
+          acoes={
+            <>
+              <Selo tom={motorPronto ? "deferido" : "neutro"} comPonto>
+                API local · {motorPronto ? "ligada" : "subindo"}
+              </Selo>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(enderecoApi);
+                  avisar(`${enderecoApi} copiado.`);
+                }}
+                title="Copiar o endereço"
+                className="rounded font-mono text-sm text-accent underline decoration-accent/40 decoration-2 underline-offset-4 hover:decoration-accent"
+              >
+                {enderecoApi}
+              </button>
+            </>
+          }
+        />
 
         <Cartao
           titulo="Como um programa se conecta"
@@ -99,7 +93,7 @@ export function Conexoes({
         >
           <ol className="space-y-2.5 text-sm text-text-secondary">
             <li className="flex gap-2.5">
-              <span className="font-mono text-2xs text-text-tertiary">1</span>
+              <span className="font-mono text-xs text-text-tertiary">1</span>
               <span>
                 O programa chama{" "}
                 <code className="rounded bg-surface-sunken px-1 py-0.5 font-mono text-2xs text-text">
@@ -109,7 +103,7 @@ export function Conexoes({
               </span>
             </li>
             <li className="flex gap-2.5">
-              <span className="font-mono text-2xs text-text-tertiary">2</span>
+              <span className="font-mono text-xs text-text-tertiary">2</span>
               <span>
                 O <strong className="text-text">mesmo código</strong> aparece
                 aqui numa janela, com o nome de quem pediu. Conferir os dois é o
@@ -117,7 +111,7 @@ export function Conexoes({
               </span>
             </li>
             <li className="flex gap-2.5">
-              <span className="font-mono text-2xs text-text-tertiary">3</span>
+              <span className="font-mono text-xs text-text-tertiary">3</span>
               <span>
                 Aprovado, ele recebe uma credencial e passa a aparecer na lista
                 abaixo — onde pode ser revogado a qualquer momento.
@@ -135,7 +129,6 @@ export function Conexoes({
         </Cartao>
 
         <CliInstaller
-          onClose={() => {}}
           showToast={(mensagem, tipo) =>
             avisar(mensagem, tipo === "error" ? "erro" : "sucesso")
           }

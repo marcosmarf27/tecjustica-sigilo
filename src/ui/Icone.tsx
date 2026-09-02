@@ -32,7 +32,8 @@ export type NomeIcone =
   | "conexao"
   | "conversa"
   | "olho"
-  | "baixar";
+  | "baixar"
+  | "enviar";
 
 /* O `d` de cada traçado. Grade de 24×24, traço de 2, pontas arredondadas —
    a mesma métrica dos que já estavam no projeto, para que nada mude de peso
@@ -79,6 +80,7 @@ const TRACADOS: Record<NomeIcone, string[]> = {
     "M12 15a3 3 0 100-6 3 3 0 000 6z",
   ],
   baixar: ["M12 3v12M7 12l5 5 5-5M4 21h16"],
+  enviar: ["M12 19V5M5 12l7-7 7 7"],
 };
 
 interface IconeProps {

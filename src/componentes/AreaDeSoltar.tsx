@@ -200,7 +200,7 @@ export function AreaDeSoltar({
         }}
         onDragLeave={() => setArrastando(false)}
         className={[
-          "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-10",
+          "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10",
           "transition-colors duration-[120ms]",
           arrastando
             ? "border-accent bg-accent-muted"
@@ -216,8 +216,8 @@ export function AreaDeSoltar({
         <p className="text-base text-text-secondary">
           Arraste os autos como saem do PJe
         </p>
-        <p className="font-mono text-2xs tracking-wide text-text-tertiary uppercase">
-          PDF · DOCX · XLSX · imagem · TXT — até {MAX_ARQUIVOS} arquivos
+        <p className="font-mono text-xs text-text-tertiary">
+          PDF, DOCX, XLSX, imagem ou TXT · até {MAX_ARQUIVOS} arquivos por lote
         </p>
         <Botao tipo="secundario" onClick={abrirDialogo} disabled={bloqueada}>
           Escolher arquivos

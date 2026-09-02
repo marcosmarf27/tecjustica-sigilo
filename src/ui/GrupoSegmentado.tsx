@@ -54,7 +54,7 @@ export function GrupoSegmentado<T extends string>({
       role="radiogroup"
       aria-label={rotulo}
       className={[
-        "inline-flex rounded-md border border-border bg-surface-sunken p-0.5",
+        "inline-flex rounded-lg border border-border-subtle bg-surface-sunken p-0.5",
         className,
       ].join(" ")}
     >
@@ -70,12 +70,15 @@ export function GrupoSegmentado<T extends string>({
             tabIndex={ativo ? 0 : -1}
             onClick={() => onChange(opcao.valor)}
             onKeyDown={(e) => aoTeclar(e, indice)}
+            /* O ativo é a folha pousada sobre o trilho rebaixado — o mesmo
+               gesto do cartão sobre a mesa —, não um preenchimento de ação:
+               escolher entre "MD" e "DOCX" não é um comando, é um estado. */
             className={[
-              "min-h-6 rounded px-3 py-1 font-mono text-2xs font-medium",
-              "tracking-wide uppercase transition-colors duration-[120ms]",
+              "min-h-7 rounded-md px-3 py-1 font-mono text-xs font-medium",
+              "transition-colors duration-[120ms]",
               ativo
-                ? "bg-accent text-on-accent"
-                : "text-text-tertiary hover:text-text-secondary",
+                ? "bg-surface text-text shadow-sm"
+                : "text-text-tertiary hover:text-text",
             ].join(" ")}
           >
             {opcao.rotulo}

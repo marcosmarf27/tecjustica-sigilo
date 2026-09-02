@@ -3,6 +3,11 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 contextBridge.exposeInMainWorld("electronAPI", {
   getBackendPort: (): Promise<number> => ipcRenderer.invoke("get-backend-port"),
   getBackendToken: (): Promise<string> => ipcRenderer.invoke("get-backend-token"),
+  janela: {
+    /** Cor da barra de título nativa, para acompanhar o tema da interface. */
+    pintarBarra: (cores: { fundo: string; simbolo: string }): Promise<void> =>
+      ipcRenderer.invoke("barra-de-titulo", cores),
+  },
   /** Caminho absoluto de um File vindo de drag-and-drop ou <input type="file">. */
   getPathForFile: (file: File): string => {
     try {

@@ -169,7 +169,21 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    titleBarStyle: "default",
+    /* Barra de título do próprio aplicativo, com os controles da janela
+       sobrepostos ao canto: é o que todo aplicativo de mesa atual faz, e o
+       que separa "programa" de "página dentro de uma moldura". A cor
+       acompanha o tema — o renderer avisa por `barra-de-titulo` a cada troca,
+       e a inicial segue o sistema, como o `backgroundColor` abaixo. */
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: nativeTheme.shouldUseDarkColors ? "#0e1013" : "#e8e6df",
+      symbolColor: nativeTheme.shouldUseDarkColors ? "#eceae4" : "#16181d",
+      height: 40,
+    },
+    /* O menu nativo (File, Edit, View…) fica escondido. Ele continua
+       acessível pelo Alt, para os atalhos de zoom e de DevTools em
+       desenvolvimento, mas não ocupa uma faixa da janela em produção. */
+    autoHideMenuBar: true,
     /* Cor pintada antes de o CSS carregar. Ficou para trás na troca de paleta
        (era o grafite `#0c0f1a`), e o efeito é um flash escuro na abertura de
        quem usa o tema papel. Segue `nativeTheme` porque a preferência padrão é
@@ -639,6 +653,27 @@ ipcMain.handle("select-directory", async () => {
 // Porta efetiva do backend, resolvida no boot e consultada pelo renderer.
 let backendPort = PYTHON_PORT;
 
+/**
+ * A barra de título nativa acompanha o tema da interface.
+ *
+ * O renderer decide o tema (papel, noite ou o do sistema) e manda as duas
+ * cores que a moldura da janela precisa: fundo e símbolos. Só hexadecimal de
+ * seis dígitos passa — é o que o Electron aceita, e uma string arbitrária vinda
+ * do renderer não é lugar para começar a confiar.
+ */
+ipcMain.handle(
+  "barra-de-titulo",
+  (_evento, cores: { fundo?: unknown; simbolo?: unknown }) => {
+    const hex = /^#[0-9a-f]{6}$/i;
+    if (!mainWindow || typeof cores?.fundo !== "string" || typeof cores?.simbolo !== "string") return;
+    if (!hex.test(cores.fundo) || !hex.test(cores.simbolo)) return;
+    mainWindow.setTitleBarOverlay({
+      color: cores.fundo,
+      symbolColor: cores.simbolo,
+      height: 40,
+    });
+  }
+);
 ipcMain.handle("get-backend-port", () => backendPort);
 ipcMain.handle("get-backend-token", () => tokenSessao);
 
