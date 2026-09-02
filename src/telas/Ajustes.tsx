@@ -132,8 +132,19 @@ export function Ajustes({
     return () => obs.disconnect();
   }, []);
 
+  /* Rola SÓ o contêiner desta tela. `scrollIntoView` rola todos os
+     ancestrais roláveis — inclusive os de `overflow: hidden`, que o
+     navegador rola por programa — e, quando a última seção é curta demais
+     para chegar ao topo por dentro, ele completava a distância rolando a
+     casca inteira: a barra de título sumia e o trilho subia junto. */
   const irPara = (id: IdSecao) => {
-    document.getElementById(`ajustes-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const raiz = rolagem.current;
+    const alvo = document.getElementById(`ajustes-${id}`);
+    if (raiz && alvo) {
+      const topo =
+        alvo.getBoundingClientRect().top - raiz.getBoundingClientRect().top + raiz.scrollTop - 24;
+      raiz.scrollTo({ top: Math.max(0, topo), behavior: "smooth" });
+    }
     setAtiva(id);
   };
 
