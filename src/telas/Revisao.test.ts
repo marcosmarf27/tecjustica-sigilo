@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { segmentar } from "./Revisao";
+import { agruparPorTipo, segmentar } from "./Revisao";
 import type { EntityFound } from "../types";
 
 /**
@@ -112,5 +112,63 @@ describe("segmentar", () => {
 
     expect(segmentos.every((s) => s.tipo === "texto")).toBe(true);
     expect(segmentos.map((s) => s.conteudo).join("")).toBe(TEXTO);
+  });
+});
+
+/**
+ * O agrupamento por tipo, que substituiu a faixa de chips de filtro.
+ *
+ * Estes testes existem pelo mesmo motivo dos de cima, e o risco é maior: com a
+ * ordenação por confiança, a posição de um item na lista não guarda nenhuma
+ * relação com a posição dele no texto. Um índice deduzido da ordem de exibição
+ * — o caminho natural de quem mexer nisto depois — apontaria para outra tarja,
+ * e nada estouraria.
+ */
+describe("agruparPorTipo", () => {
+  const ent = (type: string, start: number, score: number): EntityFound => ({
+    type,
+    text: `${type}@${start}`,
+    start,
+    end: start + 4,
+    score,
+  });
+
+  test("o índice é o da lista original, não o da posição no grupo", () => {
+    // PERSON aparece nas posições 0 e 2 da lista; CPF na 1.
+    const entidades = [ent("PERSON", 0, 0.9), ent("CPF", 10, 0.8), ent("PERSON", 20, 0.7)];
+    const grupos = agruparPorTipo(entidades);
+
+    const pessoas = grupos.find((g) => g.tipo === "PERSON")!;
+    expect(pessoas.itens.map((i) => i.indice)).toEqual([0, 2]);
+    expect(grupos.find((g) => g.tipo === "CPF")!.itens[0].indice).toBe(1);
+  });
+
+  test("reordenar por confiança não mexe no índice de ninguém", () => {
+    const entidades = [ent("PERSON", 0, 0.99), ent("PERSON", 10, 0.40), ent("PERSON", 20, 0.70)];
+    const grupos = agruparPorTipo(entidades, true);
+    const itens = grupos[0].itens;
+
+    // A ordem de exibição muda: o mais fraco primeiro.
+    expect(itens.map((i) => i.entidade.score)).toEqual([0.4, 0.7, 0.99]);
+    // O índice acompanha a ocorrência, não a posição na lista.
+    expect(itens.map((i) => i.indice)).toEqual([1, 2, 0]);
+  });
+
+  test("cada índice ainda encontra a sua própria ocorrência", () => {
+    const entidades = [ent("PERSON", 0, 0.5), ent("CPF", 10, 0.9), ent("PERSON", 20, 0.1)];
+    for (const { itens } of agruparPorTipo(entidades, true)) {
+      for (const { entidade, indice } of itens) {
+        expect(entidades[indice]).toBe(entidade);
+      }
+    }
+  });
+
+  test("o tipo mais numeroso vem primeiro, como os chips faziam", () => {
+    const entidades = [ent("CPF", 0, 0.9), ent("PERSON", 10, 0.9), ent("PERSON", 20, 0.9)];
+    expect(agruparPorTipo(entidades).map((g) => g.tipo)).toEqual(["PERSON", "CPF"]);
+  });
+
+  test("sem ocorrências não há grupo", () => {
+    expect(agruparPorTipo([])).toEqual([]);
   });
 });

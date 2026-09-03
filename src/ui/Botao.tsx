@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { Icone, type NomeIcone } from "./Icone";
 
 /**
@@ -30,6 +30,11 @@ interface BotaoProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Só ícone, redondo — o "enviar" da conversa. Exige `aria-label`. */
   circular?: boolean;
   children?: ReactNode;
+  /* React 19 trata `ref` como prop comum de componente de função, e o
+     `...resto` já a entrega ao <button>. Só faltava o tipo dizer isso — sem
+     esta linha o `Popover` não aceita um `Botao` como gatilho, porque ele
+     precisa devolver o foco ao elemento que o abriu. */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 const POR_TIPO: Record<TipoBotao, string> = {

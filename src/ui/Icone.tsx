@@ -23,6 +23,7 @@ export type NomeIcone =
   | "avancar"
   | "alerta"
   | "mais"
+  | "reticencias"
   | "busca"
   | "ajustes"
   | "lixeira"
@@ -57,6 +58,9 @@ const TRACADOS: Record<NomeIcone, string[]> = {
     "M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z",
   ],
   mais: ["M12 5v14M5 12h14"],
+  /* Reticências — "mais ações". `mais` é o sinal de somar, e num menu
+     de ações secundárias ele promete acrescentar alguma coisa. */
+  reticencias: ["M5 12v0M12 12v0M19 12v0"],
   busca: ["M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"],
   ajustes: ["M4 6h16M4 12h16M4 18h16", "M9 6v0M15 12v0M7 18v0"],
   lixeira: [
