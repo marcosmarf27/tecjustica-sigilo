@@ -44,6 +44,11 @@ arquivo saiu com números de spaCy.
 
 ## Última medição — 02/09/2026
 
+> **Sobre o código atual, não sobre um instalador publicado.** O último
+> instalador (1.4.0) foi gerado antes da troca de modelo e ainda usa o
+> `pierreguillou`: os números desta seção não descrevem o que quem baixa hoje
+> recebe. Os da linha "v1.3.0" no histórico, sim.
+
 Modelo `dominguesm/legal-bert-ner-base-cased-ptbr`, modo `transformer`, 14
 entidades da interface, 819 páginas, 1,64 milhão de caracteres, 25,7 min.
 

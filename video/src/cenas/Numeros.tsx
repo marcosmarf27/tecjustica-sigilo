@@ -119,5 +119,23 @@ export const Numeros: React.FC = () => (
         github.com/marcosmarf27/tecjustica-sigilo
       </div>
     </Surge>
+
+    {/* A ressalva fica na mesma tela do número, e não numa nota que ninguém
+        lê: a medição é do código atual, e o instalador publicado é anterior à
+        troca de modelo. Um vídeo que exibe 99,97% sem isso promete sobre um
+        pacote que não entrega esse número. */}
+    <Surge atraso={118}>
+      <div
+        style={{
+          fontFamily: fonte.mono,
+          fontSize: 20,
+          color: cor.toner3,
+          lineHeight: 1.5,
+        }}
+      >
+        medição sobre o código atual — o instalador publicado (1.4.0) é anterior
+        à troca de modelo
+      </div>
+    </Surge>
   </AbsoluteFill>
 );

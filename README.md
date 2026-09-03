@@ -290,7 +290,7 @@ O resumo que costuma bastar para a primeira conversa:
 
 | | |
 |---|---|
-| **Requisitos** | Windows 10/11 x64, sem GPU, sem administrador. 8 GB de RAM funciona; **16 GB é o mínimo confortável** — na faixa em que a memória acaba o desempenho não degrada devagar, ele desaba. |
+| **Requisitos** | Windows 10/11 x64, sem GPU, sem administrador. **16 GB de RAM** é o que foi medido e o que se recomenda; abaixo disso não há medição, e na faixa em que a memória acaba o desempenho não degrada devagar — ele desaba. |
 | **Infra necessária** | nenhuma. Não há servidor, conta, licença nem nuvem a manter. |
 | **Rede** | uma vez, para baixar o modelo. Órgão com bloqueio: copie o cache do Hugging Face ou aponte `HF_HOME`. Sem o modelo, o motor **cai para o modo leve e diz por quê** — nunca finge. |
 | **Custo** | zero. MIT, sem aquisição, sem assinatura. |

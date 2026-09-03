@@ -20,7 +20,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^25.5.0",

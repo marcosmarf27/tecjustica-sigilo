@@ -9,7 +9,19 @@ repositório onde a afirmação pode ser conferida. Onde o projeto **não** tem
 resposta, está escrito que não tem. Um FAQ que só sabe elogiar o próprio produto
 não serve para reunião técnica: a primeira pergunta difícil o derruba inteiro.
 
-Versão descrita: **1.4.0**. Revisão deste documento: **03/09/2026**.
+Revisão deste documento: **03/09/2026**.
+
+> **Leia isto antes do resto.** Este FAQ descreve o **código atual** do projeto.
+> O instalador publicado em Releases é a **versão 1.4.0**, gerada antes da troca
+> de modelo de 02/09/2026: ela ainda usa o modelo anterior
+> (`pierreguillou/ner-bert-large-cased-pt-lenerbr`, 2,5 GB, **sem licença
+> declarada**), e os números de acurácia da seção 7 foram medidos com o modelo
+> novo, que ainda não saiu em instalador.
+>
+> Onde a diferença importa, o texto abaixo diz qual é qual. Quem for apresentar
+> este material precisa saber em que pé está: ou o instalador é regerado antes
+> da reunião, ou a apresentação declara que o que está publicado é a versão
+> anterior.
 
 ---
 
@@ -152,6 +164,12 @@ primeira execução, numa **revisão fixada por identificador criptográfico**
 Fixar a revisão não é detalhe: sem isso, o autor poderia atualizar o repositório
 do modelo e a máquina passaria a carregar outro conjunto de pesos — outra
 acurácia — sem que ninguém percebesse.
+
+> **No instalador 1.4.0 publicado isto ainda não vale.** Aquela versão traz o
+> modelo anterior — 2,5 GB, sem licença declarada, sem revisão fixada. A troca
+> está no código e entra no próximo instalador. Quem instalar hoje e olhar o
+> cache do Hugging Face vai encontrar o modelo antigo, e é melhor ouvir isso de
+> quem apresenta do que descobrir sozinho.
 
 ### Este modelo "aprende" com os nossos processos?
 
@@ -342,8 +360,9 @@ Esta seção existe porque é aqui que um laboratório de IA vai apertar.
 **Resposta curta:** na última medição, **3.614 de 3.615** ocorrências de dado
 pessoal — 99,97% — sobre 819 páginas de três processos reais.
 
-**Detalhe.** Medição de 02/09/2026, modo BERT jurídico, 14 tipos de entidade, 1,64
-milhão de caracteres, 25,7 minutos de processamento:
+**Detalhe.** Medição de 02/09/2026 **sobre o código atual** — não sobre o
+instalador 1.4.0 publicado, que ainda traz o modelo anterior. Modo BERT jurídico,
+14 tipos de entidade, 1,64 milhão de caracteres, 25,7 minutos de processamento:
 
 | documento | ocorrências | valores únicos | escapes |
 |---|---|---|---|
@@ -416,6 +435,13 @@ bom desempenho, mas **sem licença declarada** — e não se redistribui modelo 
 licença explícita. O atual é treinado sobre cerca de um milhão de peças do STF,
 declara CC BY 4.0, e ocupa 415 MB contra 2,5 GB do anterior.
 
+E é preciso ser exato sobre o alcance dessa frase: **o instalador 1.4.0 que está
+publicado ainda distribui o modelo sem licença.** Foi por ter percebido isso que
+a troca aconteceu; a correção existe no código e ainda não existe em instalador.
+Dizer "não se redistribui modelo sem licença" sobre um pacote publicado que faz
+exatamente isso seria o tipo de afirmação que uma auditoria desmonta em um
+minuto.
+
 A comparação foi feita lado a lado sobre o mesmo corpus, um processo por modelo, e
 produziu um achado que vale contar porque desmente a intuição: os falsos positivos
 que motivaram o ciclo **saíram idênticos nos dois modelos**. A causa não era o
@@ -451,8 +477,9 @@ texto — e a detecção leva mais da metade do tempo.
 
 ### Quanta memória?
 
-**Resposta curta:** funciona com 8 GB, mas 16 GB é o mínimo confortável — e a
-degradação por falta de memória não é suave, é abrupta.
+**Resposta curta:** 16 GB é o que foi medido e o que se recomenda. Abaixo disso
+não há medição — e a degradação por falta de memória não é suave, é abrupta, o
+que torna a extrapolação arriscada.
 
 **Detalhe.** É a variável que mais afeta o desempenho, e não sutilmente. Três
 medições do mesmo dia:
@@ -469,7 +496,9 @@ mesmo instalador, na mesma máquina, escrevendo a 2,1 MB/s com a memória no fim
 
 A consequência para o dimensionamento de um parque: **na faixa em que a memória
 acaba, o desempenho não degrada devagar — ele desaba.** É o que torna "16 GB dá
-conta" uma frase perigosa se as máquinas já rodam outras coisas pesadas.
+conta" uma frase perigosa se as máquinas já rodam outras coisas pesadas, e é
+também por que não se deve afirmar nada sobre 8 GB sem medir: nessa região, o
+comportamento não se estima por regra de três.
 
 ### Precisa de placa de vídeo?
 

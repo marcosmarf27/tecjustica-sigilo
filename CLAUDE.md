@@ -1025,9 +1025,12 @@ disco e são apresentáveis, mas linkar daqui produz link quebrado no GitHub —
 é exatamente o tipo de coisa que se descobre na reunião. Decidir se entram no
 repositório é escolha em aberto; enquanto não entrarem, não linkar.
 
-**O `package.json` declara `"license": "ISC"`** — resíduo do `npm init` — enquanto
-o `LICENSE` e o README dizem MIT. Não afeta o produto, mas um scanner de licença
-acusa o conflito, e num processo de adoção institucional isso vira pergunta.
+**O `package.json` declarava `"license": "ISC"`** — resíduo do `npm init` —
+enquanto o `LICENSE` e o README dizem MIT, desde que o repositório é público.
+Não afetava o produto, mas um scanner de licença acusa o conflito, e num
+processo de adoção institucional isso vira pergunta. Corrigido para MIT em
+03/09/2026: alinhar metadado ao `LICENSE` não é decidir licença, é parar de
+declarar duas.
 
 ### O vídeo explicativo
 

@@ -59,7 +59,10 @@ export const Explicativo: React.FC = () => {
         inicio += duracao;
 
         return (
-          <Sequence key={Comp.name} from={desde} durationInFrames={dura}>
+          // A chave é o índice, não `Comp.name`: o bundler mutila nomes de
+          // função, e duas cenas com o mesmo nome mutilado colidiriam em
+          // silêncio — React reaproveitaria o nó de uma para a outra.
+          <Sequence key={i} from={desde} durationInFrames={dura}>
             <Entrada primeira={primeira}>
               <Comp />
             </Entrada>
