@@ -35,7 +35,7 @@ export const Local: React.FC = () => {
       </Surge>
 
       <div style={{ display: "flex", gap: 34, alignItems: "center" }}>
-        <Surge atraso={22} style={{ flex: 1 }}>
+        <Surge atraso={3} style={{ flex: 1 }}>
           <Folha style={{ padding: "40px 38px" }}>
             <div
               style={{
@@ -62,7 +62,7 @@ export const Local: React.FC = () => {
         </Surge>
 
         {/* A fronteira. Ela é o desenho, não o enfeite. */}
-        <Surge atraso={40}>
+        <Surge atraso={12}>
           <div
             style={{
               width: 3,
@@ -99,7 +99,7 @@ export const Local: React.FC = () => {
           </div>
         </Surge>
 
-        <Surge atraso={52} style={{ flex: 1 }}>
+        <Surge atraso={20} style={{ flex: 1 }}>
           <Folha
             style={{
               padding: "40px 38px",

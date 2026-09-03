@@ -52,8 +52,13 @@ export const Fluxo: React.FC = () => {
 
       <div style={{ display: "flex", gap: 22, alignItems: "stretch" }}>
         {ETAPAS.map((etapa, i) => {
-          const entrada = 14 + i * 26;
-          const seta = interpolate(frame, [entrada + 18, entrada + 34], [0, 1], {
+          /* Curto de propósito. A cena entra por cima da anterior com fundo
+             opaco, e durante os 12 quadros de sobreposição o que se vê é ESTA
+             cena: se o conteúdo dela só começa no quadro 14, a transição
+             mostra meio segundo de tela vazia. O atraso tem de caber dentro
+             da sobreposição, não vir depois dela. */
+          const entrada = 2 + i * 12;
+          const seta = interpolate(frame, [entrada + 12, entrada + 26], [0, 1], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
           });

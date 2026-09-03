@@ -44,7 +44,7 @@ export const Numeros: React.FC = () => (
 
     <div style={{ display: "flex", gap: 30 }}>
       {NUMEROS.map((n, i) => (
-        <Surge key={n.valor} atraso={10 + i * 16} style={{ flex: 1 }}>
+        <Surge key={n.valor} atraso={3 + i * 11} style={{ flex: 1 }}>
           <div
             style={{
               borderTop: `3px solid ${cor.esferografica}`,
