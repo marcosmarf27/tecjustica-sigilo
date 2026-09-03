@@ -1,0 +1,20 @@
+{
+  "name": "tecjustica-sigilo-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vídeo explicativo do TecJustiça Sigilo (Remotion)",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Explicativo ../release/tecjustica-sigilo.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.400",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "remotion": "4.0.400"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "typescript": "^6.0.2"
+  }
+}

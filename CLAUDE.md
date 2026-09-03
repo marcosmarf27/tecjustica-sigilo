@@ -998,6 +998,63 @@ na memória) **e não pode depender do título da janela**: depois de
 parou de achar a janela. Procurar por `MainWindowHandle -ne 0` entre os
 processos `electron`. E `SendKeys` só digita no campo se o clique cair
 **dentro** do `<textarea>` — o preenchimento da moldura em volta não conta.
+## Documentação para quem avalia de fora (03/09/2026)
+
+**O README anunciava o modelo aposentado, e ninguém tinha visto.** Ele dizia usar
+o `pierreguillou` — trocado em 02/09 —, mandava o leitor a um relatório de
+acurácia de duas trocas atrás, prometia "zero envio de dados" três seções depois
+de a nota de topo dizer que a v1.4.0 envia, e errava as duas grandezas que alguém
+confere antes de baixar: 660 MB de instalador (são ~880) e 1,7 GB de modelo (são
+415). Nada disso quebra teste. **A verificação que pega esse tipo de erro é ler o
+próprio README como se fosse a primeira vez** — e ela só acontece quando alguém
+de fora vai ler.
+
+`docs/faq-institucional.md` é a peça nova, e `docs/acuracia.md` passou a ser o
+lugar de "quanto ele acerta". O DOCX sai de `scripts/gerar-faq-docx.mjs`, com o
+markdown como fonte única.
+
+**O gerador do FAQ não reusa o `src/lib/gerarDocx.ts` de propósito.** Aquele é o
+escritor de documento **anonimizado** do produto: carimba "Documento anonimizado
+— N ocorrências mascaradas" no topo e devolve `Blob` (navegador), não `Buffer`
+(Node). O que os dois compartilham — markdown vira parágrafo, título e tabela —
+é pequeno perto do que os separa, e reusar exigiria arrancar o cabeçalho que
+aquele módulo existe para pôr.
+
+**`docs/arquitetura/` está no `.gitignore`.** Os três HTML de diagrama existem no
+disco e são apresentáveis, mas linkar daqui produz link quebrado no GitHub — que
+é exatamente o tipo de coisa que se descobre na reunião. Decidir se entram no
+repositório é escolha em aberto; enquanto não entrarem, não linkar.
+
+**O `package.json` declara `"license": "ISC"`** — resíduo do `npm init` — enquanto
+o `LICENSE` e o README dizem MIT. Não afeta o produto, mas um scanner de licença
+acusa o conflito, e num processo de adoção institucional isso vira pergunta.
+
+### O vídeo explicativo
+
+`video/` é um projeto **Remotion separado, com `package.json` próprio**. Não é
+devDependency do aplicativo, e o motivo não é asseio: o embarcado instala com
+`--no-deps`, onde o que ninguém lista não entra e o pip ainda diz "pronto".
+Quanto menor o grafo de dependências do app, menor a chance de errar aquela lista.
+
+```bash
+cd video && npm install
+npx remotion still src/index.ts Explicativo saida.png --frame=830   # confere rápido
+npx remotion render src/index.ts Explicativo ../release/video.mp4
+```
+
+**Renderize um `still` antes do vídeo inteiro.** O bundle fica em cache e um
+quadro sai em segundos; um erro de layout descoberto no fim de um render completo
+custa a corrida toda.
+
+**Nenhum quadro usa captura de tela real.** As telas são **recriadas** com os
+tokens de `src/styles/tokens.css` copiados para `video/src/tokens.ts`, e todos os
+dados são sintéticos — o CPF é o `111.444.777-35` dos testes, que tem DV válido e
+não é de ninguém. O motivo é direto: toda captura verdadeira da Revisão mostra
+nomes e CPF de processo real. Vídeo institucional de anonimizador vazando dado
+pessoal seria a demonstração do defeito, não do produto. A cópia dos tokens
+envelhece em silêncio se a paleta mudar — é o preço aceito para não arrastar o
+Tailwind para dentro do vídeo.
+
 ## Pendências
 
 - **A deny-list do app instalado mora dentro da pasta de instalação.** O
