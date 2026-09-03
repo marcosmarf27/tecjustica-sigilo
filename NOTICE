@@ -1,0 +1,30 @@
+NOTICE — Atribuições de terceiros
+
+Modelo de NER jurídico
+======================
+
+Modelo: dominguesm/legal-bert-ner-base-cased-ptbr
+Autor: Marcelo Domingues (dominguesm)
+Revisão pinada: 44210927c925448df025985e0ed48081bb5ac57c
+URL: https://huggingface.co/dominguesm/legal-bert-ner-base-cased-ptbr
+Licença: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+Modificações: nenhuma — os pesos são consumidos na revisão original,
+sem ajuste fino nem conversão de precisão (FP32 preservado).
+
+Modelo-base da genealogia: dominguesm/legal-bert-base-cased-ptbr
+(pré-treinamento jurídico sobre dados fornecidos pelo STF via LREC 2020,
+https://ailab.unb.br/victor/lrec2020 — os resultados do modelo não expressam
+posição do STF).
+
+Obrigação da licença CC BY 4.0: atribuição adequada, link para a licença e
+indicação de alterações. Este arquivo cumpre essa obrigação para a
+redistribuição do aplicativo. A mudança de modelo anterior
+(pierreguillou/ner-bert-large-cased-pt-lenerbr, sem licença declarada) para
+este deu-se também por governança: não se redistribui modelo sem licença
+explícita.
+
+OCR
+===
+
+PP-OCRv6 — pesos oficiais da PaddlePaddle convertidos para ONNX
+(Apache-2.0). Versões e SHA-256 dos arquivos em MANIFESTO.json.

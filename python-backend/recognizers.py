@@ -474,22 +474,6 @@ def criar_recognizers_brasil() -> list[PatternRecognizer]:
         context=ctx["CONTA_BANCARIA"],
     )
 
-    # --- Nomes antes de parênteses: "FULANO DE TAL (ADVOGADO)" ---
-    # Mantido como fallback para casos onde o NER perde (raros com BERT,
-    # mas ainda úteis para redundância).
-    nome_antes_papel = PatternRecognizer(
-        supported_entity="PERSON",
-        patterns=[
-            Pattern(
-                "nome_antes_papel",
-                r"\b([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑa-záàâãéèêíïóôõöúçñ]+(?:\s+(?:DE|DA|DO|DOS|DAS|E|DI|DEL|VON|de|da|do|dos|das|e|di|del|von)?\s*[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑa-záàâãéèêíïóôõöúçñ]+)+)(?=\s*\()",
-                0.6,
-            ),
-        ],
-        supported_language="pt",
-        context=ctx["PERSON"],
-    )
-
     # --- E-mail com o texto seguinte grudado ---
     # O OCR cola a palavra seguinte no fim do endereço ("ocara@tjce.jus.brOcara"),
     # e o EmailRecognizer padrão do Presidio não casa porque "brOcara" não é um
@@ -508,6 +492,15 @@ def criar_recognizers_brasil() -> list[PatternRecognizer]:
     )
 
     # --- Nome introduzido por rótulo processual ou bloco de assinatura ---
+    #
+    # O antigo "nome_antes_papel" ("FULANO DE TAL (ADVOGADO)") foi removido em
+    # 02/09/2026: o Presidio aplica re.IGNORECASE global aos patterns, e o
+    # regex desenhado para caixa alta virou catch-all — qualquer duas palavras
+    # antes de um parêntese ("relatório técnico (art. 33...)", "devido processo
+    # legal (§ ...)") entrava como PERSON com score 0,6. Medido na decisão 036
+    # do processo 0201848-86.2025.8.06.0303: 26 de 29 valores únicos de PERSON
+    # eram frase jurídica, todos vindos daquele recognizer. Nome de pessoa é
+    # papel do NER e do nome_rotulado, que exige âncora textual.
     nome_rotulado = NomeRotuladoRecognizer(
         supported_entity="PERSON",
         patterns=[
@@ -543,5 +536,5 @@ def criar_recognizers_brasil() -> list[PatternRecognizer]:
     return [
         cpf, cnpj, rg, cep, endereco, telefone, oab,
         data_nascimento, nit, processo_cnj, conta_bancaria,
-        nome_antes_papel, nome_rotulado, email_ocr,
+        nome_rotulado, email_ocr,
     ]

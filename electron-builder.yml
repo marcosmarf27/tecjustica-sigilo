@@ -14,6 +14,13 @@ extraResources:
       - "!__pycache__/**"
       - "!*.pyc"
       - "!*.dist-info/**"
+  # A CC BY 4.0 do modelo de NER exige atribuição em cada redistribuição, e o
+  # NOTICE diz de si mesmo que cumpre essa obrigação "para a redistribuição do
+  # aplicativo" — o que só é verdade se ele viajar junto. O `files:` acima não
+  # o alcança: ele cobre `dist/` e `dist-electron/`, isto é, o que o Vite
+  # compila, e o NOTICE não é código do renderer nem do main.
+  - from: NOTICE
+    to: NOTICE
 win:
   target:
     - target: nsis

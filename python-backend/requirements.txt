@@ -66,6 +66,17 @@ spacy-huggingface-pipelines==0.0.4
 transformers==4.57.6
 torch==2.13.0
 
+# `huggingface_hub` virou import DIRETO do `engine.py` em 02/09/2026, com a
+# revisão do modelo pinada por SHA: o Presidio não repassa `revision` ao
+# pipeline (`transformers_nlp_engine.py` só leva `model`), então pinar pelo
+# nome do repositório deixaria o `main` do Hugging Face móvel — outro grafo,
+# outra acurácia, sem aviso. Quem resolve a revisão é o `snapshot_download`.
+#
+# Vinha de carona pelo `transformers` e por isso funcionava sem estar escrito.
+# Está declarado porque o embarcado instala com `--no-deps`: ali o que ninguém
+# lista não entra, e o pip ainda diz "pronto".
+huggingface_hub==0.36.2
+
 # Servidor MCP: expõe o motor como ferramenta de agente (`tecjustica-sigilo mcp`).
 #
 # Dependência de RUNTIME, não de desenvolvimento — e por isso precisa entrar

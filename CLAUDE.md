@@ -31,7 +31,7 @@ instalou e usou. Antes de dizer que está pronto: abrir o app.
 | `resources/ocr-models/*.onnx` (163 MB) | `scripts/fetch-ocr-models.sh` |
 | `resources/python-backend/python-embed/` (1,8 GB) | `scripts/setup-python-embed.sh` |
 | `.venv/` | `pip install -r python-backend/requirements.txt` |
-| BERT (~2,5 GB) | baixa sozinho na primeira execução, em `~/.cache/huggingface` |
+| BERT (~433 MB) | baixa sozinho na primeira execução, em `~/.cache/huggingface` — revisão pinada por SHA em `engine.py` |
 | Corpus de OCR (22 PDFs reais, 125 MB) | não está em repositório nenhum — copiar entre máquinas à mão |
 | Corpus de acurácia (3 processos do TJCE em markdown, 1,6 MB) | idem — são os documentos do gate |
 
@@ -113,6 +113,27 @@ Clicar no CPF na lista levava à tarja do nome. É o pior tipo de defeito aqui:
 os dois números existem, são válidos, apontam para coisas diferentes, e nada
 estoura — o revisor acredita ter conferido a ocorrência que pediu. O índice
 original agora viaja junto no `segmentar`, antes de qualquer filtro.
+
+**O Presidio aplica `re.IGNORECASE` global em todo pattern — regex case-sensitive vira catch-all.**
+O recognizer `nome_antes_papel` foi desenhado para "FULANO DE TAL (ADVOGADO)"
+com classes `[A-Z]`, mas a caixa alta do regex não significa nada ali: casava
+**qualquer** duas palavras antes de um parêntese — "relatório técnico (art.
+33…)", "devido processo legal (§…)" entravam como `PERSON` a 0,6, e o
+gazetteer multiplicava cada falso positivo pelo documento. Numa decisão real,
+26 de 29 valores únicos de PERSON eram frase jurídica. A primeira suspeita —
+"o modelo NER está ruim" — estava **errada**: rodando os dois modelos com o
+mesmo recognizer, o lixo saía idêntico; o modelo direto, sem o recognizer,
+não produzia nenhum. Foi preciso fazer o analyzer nomear o culpado
+(`return_decision_process=True`) para ver que a origem era um pattern. O
+recognizer foi removido em 02/09/2026 (lição comentada em `recognizers.py`):
+nome é papel do NER e do recognizer ancorado em rótulo textual. Duas defesas
+irmãs vieram no mesmo conserto: **score é por ocorrência** — `_fundir_spans`
+guardava o máximo do tipo no documento inteiro e toda tarja exibia a mesma
+nota (o revisor via 100% de confiança em lixo, sem como priorizar) — e **run
+de 1 caractere não é entidade** — o piso do `_aparar` não alcançava os runs
+que `_fundir_spans` quebra em cada `\n`, e um fragmento de OCR entre duas
+quebras virava ocorrência "PERSON" de uma letra. Os três têm teste em
+`tests/test_scores_por_ocorrencia.py`.
 
 **Um arquivo aparece em `processados` OU em `falhas`, nunca nos dois.** O
 `push` do resultado acontece antes do despacho de "pronto"; com esse despacho
@@ -444,6 +465,12 @@ Daí a unidade de dimensionamento ser **~3,2 s por mil caracteres**, e não
 segundos por página: a fórmula por caractere sobrevive à mudança da mistura de
 peças, a por página não.
 
+> **Re-medido em 02/09/2026 com o BERT base** (troca registrada em Acurácia): a
+> detecção caiu para **~0,94 s/1000 caracteres** — o gate completo (1,64M
+> caracteres, 819 páginas) rodou em 25,7 min. O coeficiente por caractere
+> continua sendo o preditor; o valor muda com o modelo, e cada troca de modelo
+> pede re-medição.
+
 O custo por tipo de página sai **invertido** em relação à intuição:
 
 | | medido |
@@ -496,9 +523,37 @@ repositório: ele aponta para corpus com dados pessoais reais.
 ## Acurácia
 
 Gate: `PRESIDIO_EVAL_CORPUS=<pasta> python -m eval.run_eval`, de dentro de
-`python-backend`. Baseline a bater: **99,92% por ocorrência, 99,10% por valor
+`python-backend`. Baseline a bater: **99,97% por ocorrência, 99,70% por valor
 único**, no modo BERT. Confira `modo_nlp` dentro do JSON — se o motor cair para
 spaCy, o arquivo sai com números de spaCy.
+
+**Troca de modelo em 02/09/2026: pierreguillou-large → dominguesm/legal-bert-ner-base-cased-ptbr**
+(revisão `44210927c925448df025985e0ed48081bb5ac57c`, pinada em `engine.py`;
+atribuição CC BY 4.0 no `NOTICE` da raiz). Motivos: domínio jurídico (treinado
+em ~1M de peças do STF), PESSOA F1 0,969 auto-relatado, licença explícita — o
+anterior não declara licença — e BERT base no lugar do large. A troca **não**
+consertou os falsos positivos que motivaram o ciclo: o A/B das 43 peças do
+processo 0201848 deu output de lixo **idêntico** nos dois modelos, porque o
+lixo nascia num recognizer de padrão, não no NER (ver a armadilha do
+`re.IGNORECASE` adiante). O comparador ficou em `eval/comparar_modelos.py` —
+um processo por modelo, nunca dois BERTs na memória.
+
+**Gate completo no modelo novo, 02/09/2026** (modo `transformer`, 14 entidades
+da interface, 819 páginas, 25,7 min):
+
+| documento | ocorrências | valores únicos | escapes |
+|---|---|---|---|
+| `civel_0200161` | 747 / 747 | 87 / 87 | 0 |
+| `juri_19-08` | 2.237 / 2.237 | 166 / 166 | 0 |
+| `expedientes_13-08` | 630 / 631 | 78 / 79 | 1 |
+| **total** | **3.614 / 3.615 — 99,97%** | **331 / 332 — 99,70%** | **1** |
+
+Acima da baseline nos dois critérios. O escape `ELIONEUDO EVARISTO DE` (nome
+partido na quebra de linha, residual da auditoria de 14/08) **desapareceu** —
+PERSON fechou 100% nos três documentos. O único escape é o CPF `004.811.253`
+cortado no fim da linha, o mesmo de sempre. O denominador de valores únicos de
+`juri_19-08` voltou a 166 — a oscilação de gabarito entre corridas já anotada
+abaixo continua sem investigação.
 
 **Gate completo na v1.3.0, 30/08/2026** (modo `transformer` nos três documentos,
 14 entidades da interface, 819 páginas, 66 min):
@@ -976,10 +1031,19 @@ processos `electron`. E `SendKeys` só digita no campo se o clique cair
   injetado.
 - Extensão de navegador para o PJe — o **contrato existe** (`docs/api-local.md`)
   e a escolha foi HTTP local com pareamento; falta escrever a extensão.
-- Os dois vazamentos residuais da auditoria de 14/08 **continuam**, reconferidos
-  com o motor de OCR novo em 29/08/2026. Ambos em `expedientes_13-08`: o CPF
+- O vazamento residual da auditoria de 14/08 **continua**: o CPF
   `004.811.253-` cortado no fim da linha, com o dígito verificador na linha
-  seguinte, e `ELIONEUDO EVARISTO DE`, nome partido na quebra. São entidades
-  interrompidas no meio do texto — a janela com sobreposição resolve o caso de
-  linha adjacente, não o de token truncado. Nenhum outro tipo vaza: CEP, CNJ,
-  CNPJ, e-mail, OAB, RG e telefone deram 100% nos três documentos.
+  seguinte (reconferido em 02/09/2026 com o modelo novo). O outro —
+  `ELIONEUDO EVARISTO DE`, nome partido na quebra — **saiu** com a troca de
+  modelo e os consertos em `_fundir_spans`: PERSON fechou 100% nos três
+  documentos. São entidades interrompidas no meio do texto — a janela com
+  sobreposição resolve o caso de linha adjacente, não o de token truncado.
+  Nenhum outro tipo vaza: CEP, CNJ, CNPJ, e-mail, OAB, RG e telefone deram
+  100% nos três documentos.
+- Falsos positivos de PERSON em OCR hostil. No A/B das 43 peças do processo
+  0201848 (inquérito com caixa alta e lixo de reconhecimento), o modelo novo
+  traz 76 valores únicos que o antigo não tinha — metade nomes reais a mais,
+  metade lixo ("MACONHA DOZE TROUXAS", "TABLET MULTILASER", "USUÁRIO PADRÃO").
+  Ciclo separado, já combinado: teto de score na semente da propagação
+  (`_propagar_nomes`) e vocabulário de qualificadores, uma variável por vez,
+  medindo no mesmo A/B (`eval/comparar_modelos.py`).

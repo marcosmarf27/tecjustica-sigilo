@@ -8,8 +8,14 @@ diretamente — o `AnonymizerEngine` do Presidio não as produziria sem operador
 customizados, e por isso não é usado.
 
 NLP backend:
-  - PRESIDIO_NLP_MODE=transformer (default): usa pierreguillou/ner-bert-large-cased-pt-lenerbr,
-    modelo BERT fine-tuned em jurisprudência brasileira (F1≈0.91 em LeNER-Br).
+  - PRESIDIO_NLP_MODE=transformer (default): usa dominguesm/legal-bert-ner-base-cased-ptbr,
+    BERT-base fine-tuned para NER jurídico brasileiro (F1≈0.95; PESSOA F1≈0.97),
+    treinado em ~1M de peças jurídicas do STF. Revisão pinada por SHA, baixada
+    uma vez pelo snapshot_download (ver NOTICE na raiz do repositório).
+    Substituiu o pierreguillou/ner-bert-large-cased-pt-lenerbr em 02/09/2026:
+    numa decisão real, 26 de 29 valores únicos de PERSON eram frase jurídica
+    ("devido processo legal", "aos autos", "excludentes da culpabilidade") —
+    o modelo de jurisprudência lê matéria processual como nome de gente.
   - PRESIDIO_NLP_MODE=spacy: fallback para pt_core_news_lg (mais leve,
     qualidade inferior em textos jurídicos).
 """
@@ -338,7 +344,47 @@ def _spacy_config() -> dict:
     }
 
 
-def _transformer_config() -> dict:
+# --- Modelo BERT -------------------------------------------------------------
+#
+# Revisão pinada por SHA: o mesmo SHA devolve o mesmo grafo, e o hash que a
+# detecção usa hoje é o mesmo que o gate de acurácia mediu. O repositório
+# também carrega pytorch_model.bin, redundante junto do safetensors — o
+# allow_patterns evita baixar o peso duas vezes.
+MODELO_BERT = "dominguesm/legal-bert-ner-base-cased-ptbr"
+REVISAO_MODELO_BERT = "44210927c925448df025985e0ed48081bb5ac57c"
+_ARQUIVOS_MODELO_BERT = [
+    "config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "vocab.txt",
+    "model.safetensors",
+]
+
+
+def _resolver_modelo_bert() -> str:
+    """
+    Baixa (uma vez) e devolve o caminho local da revisão pinada do modelo BERT.
+
+    O Presidio não repassa `revision` ao pipeline — o `pipe_config` dele só
+    leva `model` (transformers_nlp_engine.py:90-97), então pinar pelo nome do
+    repositório deixaria o `main` móvel. O snapshot com revisão fixa é
+    determinístico, roda do cache quando offline (HF_HUB_OFFLINE=1 com o
+    snapshot presente funciona) e levanta exceção sem rede e sem cache — que é
+    exatamente o caso que o fallback para spaCy cobre.
+    """
+    from huggingface_hub import snapshot_download
+
+    return str(
+        snapshot_download(
+            repo_id=MODELO_BERT,
+            revision=REVISAO_MODELO_BERT,
+            allow_patterns=_ARQUIVOS_MODELO_BERT,
+        )
+    )
+
+
+def _transformer_config(modelo: str) -> dict:
     return {
         "nlp_engine_name": "transformers",
         "models": [
@@ -346,7 +392,7 @@ def _transformer_config() -> dict:
                 "lang_code": "pt",
                 "model_name": {
                     "spacy": "pt_core_news_lg",
-                    "transformers": "pierreguillou/ner-bert-large-cased-pt-lenerbr",
+                    "transformers": modelo,
                 },
             }
         ],
@@ -420,7 +466,9 @@ class PresidioEngine:
                         f"(motores disponíveis: {', '.join(disponiveis)})"
                     )
 
-                provider = NlpEngineProvider(nlp_configuration=_transformer_config())
+                provider = NlpEngineProvider(
+                    nlp_configuration=_transformer_config(_resolver_modelo_bert())
+                )
                 nlp_engine = provider.create_engine()
             except Exception as exc:
                 self._motivo_fallback = str(exc)
@@ -791,12 +839,19 @@ class PresidioEngine:
         Os runs resultantes são quebrados em cada `\\n`: uma máscara não pode
         atravessar a quebra de linha, senão destrói a estrutura do documento
         (as funções de máscara normalizam espaço e comeriam o `\\n`).
+
+        O score de cada run é o maior score dos spans **daquele tipo** que o
+        compõem — não o maior score do tipo no documento inteiro. Este último
+        era o comportamento até 02/09/2026 e fazia toda ocorrência de PERSON
+        exibir a mesma nota (a máxima do documento) na revisão: o revisor via
+        100% de confiança em frase jurídica tarjada por engano, sem distinção
+        da confiança real de cada detecção — e a nota é o que ele tem de mão
+        para priorizar o que conferir.
         """
         if not brutos:
             return []
 
         tipos: dict[int, str] = {}
-        melhor_score: dict[str, float] = {}
         mapa = bytearray(len(texto))
 
         for ini, fim, tipo, score in sorted(
@@ -805,14 +860,16 @@ class PresidioEngine:
             codigo = _PRIORIDADE.get(tipo, 0) or (len(_PRIORIDADE) + 1)
             codigo = min(codigo, 255)
             tipos[codigo] = tipo
-            melhor_score[tipo] = max(melhor_score.get(tipo, 0.0), score)
             ini = max(0, ini)
             fim = min(len(texto), fim)
             if fim > ini:
                 mapa[ini:fim] = bytes([codigo]) * (fim - ini)
 
+        por_inicio = sorted(brutos, key=lambda b: b[0])
         spans: list[tuple[int, int, str, float]] = []
         pos = 0
+        k = 0  # próximo span de por_inicio a entrar na janela ativa
+        ativos: list[tuple[int, int, str, float]] = []
         while pos < len(mapa):
             codigo = mapa[pos]
             if codigo == 0:
@@ -823,7 +880,21 @@ class PresidioEngine:
                 fim += 1
             tipo = tipos[codigo]
             if fim > pos:
-                spans.append((pos, fim, tipo, melhor_score.get(tipo, 0.0)))
+                while k < len(por_inicio) and por_inicio[k][0] < fim:
+                    ativos.append(por_inicio[k])
+                    k += 1
+                ativos = [b for b in ativos if b[1] > pos]
+                score = max(
+                    (b[3] for b in ativos if b[2] == tipo), default=0.0
+                )
+                # O piso do `_aparar` precisa valer para o run, e não só para o
+                # span: um span legítimo pode ser pintado por cima por um tipo
+                # de maior prioridade (DATE_TIME sobre OCR ruidoso, por
+                # exemplo) e sobrar dele uma ilha de 1 caractere — que, sem o
+                # piso, vira uma ocorrência "PERSON" de uma letra só na lista
+                # de revisão. Nenhuma entidade deste motor tem 1 caractere.
+                if fim - pos >= 2:
+                    spans.append((pos, fim, tipo, score))
             pos = max(fim, pos + 1)
 
         return spans
