@@ -13,6 +13,8 @@
  * a faixa não põe nada nos últimos 140px para não competir com eles.
  */
 
+import logo from "../assets/logo.png";
+
 export function BarraDeTitulo({ titulo }: { titulo: string }) {
   return (
     <div
@@ -22,16 +24,17 @@ export function BarraDeTitulo({ titulo }: { titulo: string }) {
       ].join(" ")}
     >
       <div className="flex w-[240px] shrink-0 items-center gap-2.5 px-4">
-        <span
+        <img
+          src={logo}
+          alt=""
           aria-hidden="true"
-          className="grid size-5 place-items-center rounded-[5px] bg-accent font-mono text-2xs font-bold text-on-accent"
-        >
-          S
+          className="size-6 shrink-0 rounded-[6px] object-cover"
+          draggable={false}
+        />
+        <span className="font-serif text-sm tracking-tight text-text">
+          TecJustiça{" "}
+          <span className="font-semibold text-accent">Sigilo</span>
         </span>
-        <span className="font-serif text-sm font-semibold tracking-tight text-text">
-          Sigilo
-        </span>
-        <span className="font-mono text-2xs text-text-tertiary">TecJustiça</span>
       </div>
       <span className="min-w-0 flex-1 truncate pr-[140px] text-center font-mono text-xs text-text-tertiary">
         {titulo}
