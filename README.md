@@ -22,8 +22,10 @@
 
 > A imagem acima é da interface anterior. A partir de 02/09/2026 o aplicativo
 > tem barra de título própria, trilho com atalhos, Ajustes em duas colunas e a
-> conversa com escolha de documentos na própria tela — o desenho está descrito
-> em [`docs/design-system.md`](docs/design-system.md).
+> conversa com escolha de documentos na própria tela. A Revisão foi refeita em
+> seguida: as abas por arquivo viraram um paginador, as ocorrências passaram a
+> ser agrupadas por tipo e recolhíveis, e o que competia com o documento saiu da
+> barra. O desenho está em [`docs/design-system.md`](docs/design-system.md).
 
 ## 💚 Grátis, livre e para todo mundo
 
@@ -61,11 +63,21 @@ nenhum servidor, advogado ou magistrado quer ver mascarada.
 ## Diferenciais
 
 ### 🎯 NER jurídico brasileiro de fato
-Usa [`pierreguillou/ner-bert-large-cased-pt-lenerbr`](https://huggingface.co/pierreguillou/ner-bert-large-cased-pt-lenerbr) — BERT fine-tuned no
-dataset **LeNER-Br** (jurisprudência real de vários tribunais BR), F1 ≈ 0.91.
-Reconhece nomes em `CAIXA ALTA`, `Title Case` e `minúsculas` sem gambiarra de
-pré-processamento, além de entidades específicas como `LEGISLAÇÃO` e
-`JURISPRUDÊNCIA`.
+Usa [`dominguesm/legal-bert-ner-base-cased-ptbr`](https://huggingface.co/dominguesm/legal-bert-ner-base-cased-ptbr)
+— BERT pré-treinado em domínio jurídico sobre ~1M de peças do STF e ajustado para
+NER, licença **CC BY 4.0** (atribuição no [`NOTICE`](NOTICE)). Reconhece nomes em
+`CAIXA ALTA`, `Title Case` e `minúsculas` sem gambiarra de pré-processamento.
+
+A **revisão é fixada por SHA** em `engine.py`: sem isso, o `main` do repositório
+do modelo continuaria móvel e uma atualização do autor trocaria os pesos — outra
+acurácia — sem aviso nenhum.
+
+> **Troca em 02/09/2026.** O modelo anterior era o
+> `pierreguillou/ner-bert-large-cased-pt-lenerbr`. Saiu por três motivos: ele
+> **não declara licença** (e não se redistribui modelo sem licença explícita), o
+> novo é de domínio jurídico, e cabe em 415 MB contra 2,5 GB. A detecção ficou
+> ~3,4x mais rápida e a acurácia subiu. O porquê completo, com o A/B, está em
+> [`docs/acuracia.md`](docs/acuracia.md).
 
 ### 🔢 Documentos BR com validação de checksum
 Não é só regex. CPF, CNPJ, PIS/NIT e número de processo CNJ passam pelo
@@ -85,8 +97,14 @@ como **tarja de redação**; passar o cursor (ou focar pelo teclado) revela o
 valor original por baixo. A lista lateral traz **todas as ocorrências com o
 grau de confiança**, e um clique leva até o trecho no texto.
 
-Achou um falso positivo? **"Não é PII"** grava a exceção e ela vale já no
-próximo processamento, sem reiniciar o app.
+Achou um falso positivo? **Liberar** grava a exceção na deny list **e reescreve
+a saída na hora** — a tarja some do documento aberto, sem reprocessar. Reprocessar
+custaria minutos de CPU e chegaria ao mesmo texto: o que muda não é a detecção, é
+um item de uma lista já decidida.
+
+Todas as aparições do termo saem juntas, porque a deny list é por termo. Um falso
+positivo que o motor repetiu quarenta vezes exigiria quarenta cliques para o
+efeito que a gravação já teve.
 
 ### 📄 Lê PDF, Word e imagem digitalizada
 Arraste os autos como eles saem do PJe. Páginas digitalizadas passam por
@@ -192,11 +210,43 @@ janela do aplicativo.
 
 📄 Contrato completo: [`docs/api-local.md`](docs/api-local.md)
 
-### 🔒 Zero envio de dados
-Tudo roda como processo local na sua máquina. Nenhuma chamada para serviço
-externo, nem no caminho da anonimização nem em qualquer outro: até as fontes da
-interface são empacotadas junto. O modelo BERT é baixado apenas **uma vez**
-(HuggingFace) na primeira execução; depois disso, offline.
+### 🔒 A anonimização não sai da máquina
+
+Tudo roda como processo local. No caminho da anonimização não há chamada de rede
+nenhuma: nem telemetria, nem verificação de licença, nem auto-atualização — o
+que é conferível com `grep -rn "autoUpdater\|electron-updater" electron/`, que
+não devolve nada. Até as fontes da interface são empacotadas junto, para não
+haver requisição a servidor de fontes. O modelo BERT é baixado **uma vez**
+(Hugging Face) na primeira execução; depois disso, offline.
+
+**A exceção, e só ela:** o recurso opcional *Conversar com os autos* (abaixo)
+envia **texto já anonimizado** para um modelo na nuvem, com a sua chave, e vem
+desligado. Sem chave configurada, o aplicativo não fala com a internet.
+
+### 💬 Conversar com os autos (opcional, desligado por padrão)
+
+Perguntar em linguagem natural sobre as peças que você já anonimizou. É o único
+recurso que manda dado para fora, e por isso ele carrega defesas próprias:
+
+| | |
+|---|---|
+| **Só texto anonimizado** | a entrada é a saída do anonimizador, nunca o original |
+| **A pergunta também passa pelo detector** | é o vetor esquecido — a pergunta é digitada com os dados reais à frente ("o CPF tal aparece?") |
+| **Numeração única entre peças** | sem isso, duas peças anonimizadas em separado dariam dois `[PESSOA_1]` diferentes e o modelo trocaria as pessoas com confiança |
+| **Trava de saída** | o corpo já serializado é varrido contra os valores proibidos; achando um, não envia |
+| **Retenção zero** | só provedores ZDR, consultados na API do roteador — não numa lista fixa que envelhece e vira alarme falso |
+| **Sem compressão de contexto** | prompt grande demais deve **falhar**, não responder com confiança sobre metade do processo |
+| **Nada persiste** | as conversas vivem em memória e morrem com o app |
+
+O texto que vai para a nuvem fica **mais** anonimizado que o arquivo salvo em
+disco: o anonimizador substitui por posição, então um valor reconhecido em dois
+pontos e perdido num terceiro fica em claro no arquivo — e o caminho da conversa
+fecha esse resíduo aplicando a decisão que o motor já tomou a todas as aparições
+daquele valor, em todas as peças.
+
+A base normativa é a [Resolução CNJ nº 615/2025](https://atos.cnj.jus.br/atos/detalhar/6001),
+que admite o processamento externo de dado do Judiciário **desde que anonimizado
+na origem**. Este aplicativo é a etapa "na origem".
 
 ### 🗄️ O que fica no disco, e como
 
@@ -228,14 +278,46 @@ existem só na memória enquanto o programa está aberto. O arquivo anonimizado 
 você salva é seu, fica em claro onde você escolher, e é seguro por construção —
 os dados pessoais já não estão nele.
 
+## 🏛️ Para instituições
+
+Se você está avaliando isto para um tribunal, uma vara ou um laboratório de
+inovação, comece por aqui: **[`docs/faq-institucional.md`](docs/faq-institucional.md)**
+— perguntas e respostas sobre segurança, conformidade, acurácia, implantação em
+escala e **as limitações conhecidas**, com o lugar do código onde cada afirmação
+pode ser conferida.
+
+O resumo que costuma bastar para a primeira conversa:
+
+| | |
+|---|---|
+| **Requisitos** | Windows 10/11 x64, sem GPU, sem administrador. 8 GB de RAM funciona; **16 GB é o mínimo confortável** — na faixa em que a memória acaba o desempenho não degrada devagar, ele desaba. |
+| **Infra necessária** | nenhuma. Não há servidor, conta, licença nem nuvem a manter. |
+| **Rede** | uma vez, para baixar o modelo. Órgão com bloqueio: copie o cache do Hugging Face ou aponte `HF_HOME`. Sem o modelo, o motor **cai para o modo leve e diz por quê** — nunca finge. |
+| **Custo** | zero. MIT, sem aquisição, sem assinatura. |
+| **Conformidade** | anonimização **na origem**, no equipamento do próprio órgão — sem operador terceiro no caminho ([Res. CNJ 615/2025](https://atos.cnj.jus.br/atos/detalhar/6001)). |
+| **Distribuição** | instalador NSIS, por usuário, aceita `/D=` para diretório alternativo. **Não é assinado** — veja a nota em *Baixar*. |
+| **O que ele não faz** | tarja em PDF, multiusuário, auditoria central, gate de precisão. A lista completa está no FAQ, seção 11. |
+
+Medir no corpus de vocês é configurar uma variável de ambiente e esperar — veja
+*Testes e medição de acurácia*. É a proposta mais concreta que dá para fazer:
+nenhum número deste repositório precisa ser aceito por confiança.
+
 ## 📥 Baixar
 
 **Windows (10/11 x64):**
 👉 **[Baixar `TecJustiça Sigilo Setup.exe` (último release)](https://github.com/marcosmarf27/tecjustica-sigilo/releases/latest)**
 
-O instalador tem ~660 MB porque já traz Python embutido + `transformers` +
-`torch` CPU. Na primeira execução baixa o modelo BERT (~1.7 GB) — requer
-internet só nesse momento. Depois funciona 100% offline.
+O instalador tem ~880 MB porque já traz Python embutido + `transformers` +
+`torch` CPU + os modelos de OCR. Na primeira execução baixa o modelo BERT
+(~415 MB) — requer internet só nesse momento. Depois funciona 100% offline.
+
+Instala **no perfil do usuário, sem pedir administrador**, e ocupa ~2,3 GB. Não
+há auto-atualização: o aplicativo nunca busca versão nova sozinho.
+
+> **O instalador não é assinado**, então o SmartScreen aparece na primeira
+> execução ("Mais informações → Executar assim mesmo"). Assinatura de código
+> exige certificado de pessoa jurídica; um órgão que tenha o seu próprio assina
+> o instalador alterando poucas linhas do `electron-builder.yml`.
 
 Linux/Mac: rode em modo dev (abaixo). Build nativo sob demanda.
 
@@ -273,9 +355,14 @@ auditoria (ex: `CPF 123.***.***-09`, `nome J*** d* S****`) — configurável em
   Sem GPU e sem rede.
 - **Design system**: tokens em `src/styles/tokens.css`, documentados em
   [`docs/design-system.md`](docs/design-system.md). Fontes auto-hospedadas.
-- **Backend**: FastAPI + [Microsoft Presidio](https://microsoft.github.io/presidio/).
-- **NER default**: BERT fine-tuned LeNER-Br (F1 ≈ 0.91).
-- **NER fallback**: `pt_core_news_lg` (modo `PRESIDIO_NLP_MODE=spacy`).
+- **Backend**: FastAPI + [Presidio](https://presidio.dataprivacystack.org/) — que
+  deixou de ser da Microsoft e virou projeto comunitário sob a **Data Privacy
+  Stack** (MIT). Pacotes no PyPI e API continuam iguais.
+- **NER default**: `dominguesm/legal-bert-ner-base-cased-ptbr`, revisão fixada por
+  SHA (modo `PRESIDIO_NLP_MODE=transformer`).
+- **NER fallback**: `pt_core_news_lg` (modo `PRESIDIO_NLP_MODE=spacy`). Ele é
+  também **pré-requisito do modo BERT**, onde entra como tokenizador — sem ele
+  nenhum dos dois motores sobe.
 
 ## Rodar em desenvolvimento
 
@@ -362,7 +449,17 @@ vazamentos.
 não reprova, ele é **pulado** — e teste pulado passa por teste aprovado em log
 corrido. Confira no cabeçalho da saída que os documentos foram lidos.
 
-Resultados da última medição em [`docs/relatorio-situacao-2026-08-14.md`](docs/relatorio-situacao-2026-08-14.md).
+**Última medição — 02/09/2026, sobre 819 páginas de processos reais:**
+
+| | |
+|---|---|
+| por ocorrência | **3.614 / 3.615 — 99,97%** |
+| por valor único | **331 / 332 — 99,70%** |
+| escapes | 1 (um CPF partido no fim da linha) |
+
+Os dois critérios, o histórico, a troca de modelo e **a lacuna de medição
+conhecida — o gate mede recall, não precisão** estão em
+[`docs/acuracia.md`](docs/acuracia.md).
 
 ## Configuração por JSON (sem recompilar)
 

@@ -63,3 +63,6 @@ models/
 # reconstrutíveis a partir das especificações e descrevem medições internas.
 # O que vale de aprendizado fica no CLAUDE.md, em texto.
 docs/arquitetura/
+
+# Artefato derivado de docs/faq-institucional.md (scripts/gerar-faq-docx.mjs)
+FAQ-TecJustica-Sigilo.docx
