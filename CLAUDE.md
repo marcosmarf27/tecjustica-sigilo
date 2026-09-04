@@ -998,6 +998,18 @@ na memória) **e não pode depender do título da janela**: depois de
 parou de achar a janela. Procurar por `MainWindowHandle -ne 0` entre os
 processos `electron`. E `SendKeys` só digita no campo se o clique cair
 **dentro** do `<textarea>` — o preenchimento da moldura em volta não conta.
+
+**E `CopyFromScreen` fotografa a TELA, não a janela** — a armadilha mais cara
+das três, descoberta em 04/09/2026. O handle estava certo, o retângulo estava
+certo, e o que havia naqueles pixels era outra janela por cima: o
+`SetForegroundWindow` chamado de um processo em segundo plano é **ignorado em
+silêncio** pelo Windows (trava de foreground), então o script acredita ter
+trazido o app para a frente e não trouxe. O modo de falha não é "a captura sai
+errada": é **capturar o que o usuário tem aberto** — ali, uma conversa privada
+dele com um número de processo real. Fotografar só quando dá para provar que a
+janela está no topo; e reparar que, para verificar se o app subiu, `/health` e
+`/v1/info` respondem melhor que uma imagem, sem tocar na tela de ninguém.
+
 ## Documentação para quem avalia de fora (03/09/2026)
 
 **O README anunciava o modelo aposentado, e ninguém tinha visto.** Ele dizia usar
