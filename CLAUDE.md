@@ -1032,6 +1032,11 @@ processo de adoção institucional isso vira pergunta. Corrigido para MIT em
 03/09/2026: alinhar metadado ao `LICENSE` não é decidir licença, é parar de
 declarar duas.
 
+E a correção alcançou só metade: o `package-lock.json` continuou dizendo
+`"license": "ISC"` — e ainda marcando a versão 1.3.0 — até 04/09/2026. É o
+lock que o scanner lê, que era o motivo inteiro de corrigir. Metadado duplicado
+se conserta nos dois arquivos ou não se conserta.
+
 ### O vídeo explicativo
 
 `video/` é um projeto **Remotion separado, com `package.json` próprio**. Não é
